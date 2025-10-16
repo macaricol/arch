@@ -386,24 +386,7 @@ EOF
 
 }
 
-post_install_service(){
-  #only runs after gui start
-  #USER_HOME=/home/$USER_NAME
-  #sudo mkdir -p "$USER_HOME/.config/autostart-scripts"
-
-  #curl -O https://raw.githubusercontent.com/macaricol/arch/refs/heads/main/post_reboot.sh  > $USER_HOME/.config/autostart-scripts/
-  #sudo chmod +x "$USER_HOME/.config/autostart-scripts/post_reboot.sh"
-  #sudo chown -R $USER_NAME:$USER_NAME "$USER_HOME/.config"
-
-  #add below to post reboot script maybe
-  #echo "Running user post-reboot script at $(date)" >> $HOME/post_reboot.log
-  # Example: Apply KDE Plasma theme
-  #lookandfeeltool -a org.kde.breezedark.desktop
-  # Remove this script after running
-  #rm $HOME/.config/autostart-scripts/post_reboot.sh
-
-}
-
+sleep 20
 
 if [ "$1" == "chroot" ]
 then
