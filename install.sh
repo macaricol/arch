@@ -233,6 +233,9 @@ configure() {
     echo '##### Installing bootloader #####'
     install_grub
 
+    echo '##### Adding post reboot service #####'
+    post_reboot_service
+
     rm /setup.sh
 }
 
@@ -341,6 +344,64 @@ enable_network() {
 install_grub(){
     grub-install --target=x86_64-efi --efi-directory=/boot --bootloader-id=GRUB
     grub-mkconfig -o /boot/grub/grub.cfg
+}
+
+post_reboot_service() {
+    # Create directory for scripts
+    sudo mkdir -p /root/scripts || { echo "Failed to create /root/scripts"; exit 1; }
+
+    # Download post_reboot.sh from GitHub
+    sudo curl -fsSL -o /root/scripts/post_reboot.sh https://raw.githubusercontent.com/macaricol/arch/refs/heads/main/post_reboot.sh || { echo "Failed to download post_reboot.sh"; exit 1; }
+
+    # Make the script executable
+    sudo chmod +x /root/scripts/post_reboot.sh || { echo "Failed to set executable permissions"; exit 1; }
+
+    # Create a systemd service file to execute the script on boot
+    sudo bash -c 'cat > /etc/systemd/system/post-reboot.service' << 'EOF'
+[Unit]
+Description=Run post-reboot script after first boot
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart=/root/scripts/post_reboot.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+    # Enable the systemd service
+    sudo systemctl enable post-reboot.service || { echo "Failed to enable post-reboot.service"; exit 1; }
+
+
+#sudo bash -c 'cat > /root/scripts/post_reboot.sh' << 'EOF'
+#!/bin/bash
+# Your post-reboot tasks here
+# Example: Apply KDE Plasma theme
+#lookandfeeltool -a org.kde.breezedark.desktop
+# Disable this service after running
+#systemctl disable post-reboot.service TODOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO
+#EOF
+
+}
+
+post_install_service(){
+  #only runs after gui start
+  #USER_HOME=/home/$USER_NAME
+  #sudo mkdir -p "$USER_HOME/.config/autostart-scripts"
+
+  #curl -O https://raw.githubusercontent.com/macaricol/arch/refs/heads/main/post_reboot.sh  > $USER_HOME/.config/autostart-scripts/
+  #sudo chmod +x "$USER_HOME/.config/autostart-scripts/post_reboot.sh"
+  #sudo chown -R $USER_NAME:$USER_NAME "$USER_HOME/.config"
+
+  #add below to post reboot script maybe
+  #echo "Running user post-reboot script at $(date)" >> $HOME/post_reboot.log
+  # Example: Apply KDE Plasma theme
+  #lookandfeeltool -a org.kde.breezedark.desktop
+  # Remove this script after running
+  #rm $HOME/.config/autostart-scripts/post_reboot.sh
+
 }
 
 
