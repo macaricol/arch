@@ -384,9 +384,9 @@ EOF
 #systemctl disable post-reboot.service TODOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO
 #EOF
 
-}
-
 sleep 20
+
+}
 
 if [ "$1" == "chroot" ]
 then
