@@ -257,20 +257,12 @@ partition_drive() {
 }
 
 format_filesystems() {
-    #local boot_partition="$1"p1;
-    #local swap_partition="$1"p2;
-    #local root_partition="$1"p3;
-
     mkfs.fat -F 32 -n boot "$BOOT_PARTITION"
     mkfs.btrfs -f -L root "$ROOT_PARTITION"
     mkswap -L swap "$SWAP_PARTITION"
 }
 
 mount_filesystems() {
-    #local boot_partition="$1"p1;
-    #local swap_partition="$1"p2;
-    #local root_partition="$1"p3;
-
     mount "$ROOT_PARTITION" /mnt
     btrfs subvolume create /mnt/@
     btrfs subvolume create /mnt/@home
@@ -351,7 +343,6 @@ install_grub(){
     grub-mkconfig -o /boot/grub/grub.cfg
 }
 
-#set -e
 
 if [ "$1" == "chroot" ]
 then
