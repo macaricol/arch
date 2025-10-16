@@ -346,47 +346,22 @@ install_grub(){
     grub-mkconfig -o /boot/grub/grub.cfg
 }
 
-post_reboot_service() {
-    # Create directory for scripts
-    sudo mkdir -p /root/scripts || { echo "Failed to create /root/scripts"; exit 1; }
+dl_post_reboot_script() {
+    local script_path="/mnt/home/$USER_NAME/post-reboot.sh"
+    local url="https://raw.githubusercontent.com/macaricol/arch/refs/heads/main/post_reboot.sh"
 
-    # Download post_reboot.sh from GitHub
-    sudo curl -fsSL -o /root/scripts/post_reboot.sh https://raw.githubusercontent.com/macaricol/arch/refs/heads/main/post_reboot.sh || { echo "Failed to download post_reboot.sh"; exit 1; }
+    # Download script
+    curl -s -o "$script_path" "$url" && echo "Script downloaded to $script_path"
 
-    # Make the script executable
-    sudo chmod +x /root/scripts/post_reboot.sh || { echo "Failed to set executable permissions"; exit 1; }
+    # Set permissions
+    chown "$USER_NAME:$USER_NAME" "$script_path"
+    chmod 755 "$script_path"
 
-    # Create a systemd service file to execute the script on boot
-    sudo bash -c 'cat > /etc/systemd/system/post-reboot.service' << 'EOF'
-[Unit]
-Description=Run post-reboot script after first boot
-After=network.target
+    echo "Script ready at ~/post-reboot.sh for $USER_NAME"
+    echo "Run after reboot: bash ~/post-reboot.sh"
 
-[Service]
-Type=oneshot
-ExecStart=/root/scripts/post_reboot.sh
-RemainAfterExit=yes
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-    # Enable the systemd service
-    sudo systemctl enable post-reboot.service || { echo "Failed to enable post-reboot.service"; exit 1; }
-
-
-#sudo bash -c 'cat > /root/scripts/post_reboot.sh' << 'EOF'
-#!/bin/bash
-# Your post-reboot tasks here
-# Example: Apply KDE Plasma theme
-#lookandfeeltool -a org.kde.breezedark.desktop
-# Disable this service after running
-#systemctl disable post-reboot.service TODOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO
-#EOF
-
+    sleep 10
 }
-
-sleep 20
 
 if [ "$1" == "chroot" ]
 then
