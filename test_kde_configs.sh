@@ -41,3 +41,31 @@ kquitapp6 plasmashell && kstart6 plasmashell
  [Containments][2][General]
 -AppletOrder=3;4;5;6;7;16;17;24
 +AppletOrder=3;4;5;6;7;16;17
+
+
+#######
+
+ [Containments][1]
+-ItemGeometries-1280x800=
+-ItemGeometriesHorizontal=
++ItemGeometries-1280x800=Applet-25:592,208,528,160,0;
++ItemGeometriesHorizontal=Applet-25:592,208,528,160,0;
+ activityId=803b4749-351c-41c2-a002-bd0895f40475
+ formfactor=0
+ immutability=1
+@@ -15,6 +15,19 @@
+ plugin=org.kde.plasma.folder
+ wallpaperplugin=org.kde.image
+ 
++[Containments][1][Applets][25]
++immutability=1
++plugin=com.github.prayag2.modernclock
++
++[Containments][1][Applets][25][Configuration][Appearance]
++day_font_color=204,109,183
++day_font_size=50
++day_letter_spacing=10
++
++[Containments][1][Applets][25][Configuration][ConfigDialog]
++DialogHeight=540
++DialogWidth=720
