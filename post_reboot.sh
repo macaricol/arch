@@ -6,6 +6,19 @@ exec </dev/tty
 # Update the system before installing packages
 sudo pacman -Syu
 
+######FUNCTIONS DECLARATION####
+
+install_essential_pkgs() {
+    local packages=''
+    #General utilities/libraries
+    packages+='sddm sddm-kcm plasma-desktop bluedevil kscreen konsole kate '
+    packages+='kwalletmanager dolphin ark kdegraphics-thumbnailers ffmpegthumbs '
+    packages+='plasma-pa plasma-nm gwenview plasma-systemmonitor pipewire-jack '
+    pacman -Sy --noconfirm $packages
+}
+
+##############################
+
 clear
 echo "####################################################################"
 echo "#################### Install minimal essentials ####################"
@@ -217,14 +230,3 @@ echo "####################################################################\n"
 
 sudo systemctl enable sddm
 sudo systemctl start sddm
-
-######FUNCTIONS DECLARATION####
-
-install_essential_pkgs() {
-    local packages=''
-    #General utilities/libraries
-    packages+='sddm sddm-kcm plasma-desktop bluedevil kscreen konsole kate '
-    packages+='kwalletmanager dolphin ark kdegraphics-thumbnailers ffmpegthumbs '
-    packages+='plasma-pa plasma-nm gwenview plasma-systemmonitor pipewire-jack '
-    pacman -Sy --noconfirm $packages
-}
