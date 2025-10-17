@@ -2,70 +2,25 @@ git clone https://github.com/prayag2/kde_modernclock && cd kde_modernclock/
 
 kpackagetool6 -i package
 
-# [Containments][44]
-kwriteconfig6 --file plasma-org.kde.plasma.desktop-appletsrc --group Containments --group 44 --key ItemGeometries-1707x960 "Applet-75:896,256,432,160,0;"
-kwriteconfig6 --file plasma-org.kde.plasma.desktop-appletsrc --group Containments --group 44 --key ItemGeometriesHorizontal "Applet-75:896,256,432,160,0;"
-kwriteconfig6 --file plasma-org.kde.plasma.desktop-appletsrc --group Containments --group 44 --key activityId "958bf108-304e-45db-89e1-2510541bdd4c"
-kwriteconfig6 --file plasma-org.kde.plasma.desktop-appletsrc --group Containments --group 44 --key formfactor "0"
-kwriteconfig6 --file plasma-org.kde.plasma.desktop-appletsrc --group Containments --group 44 --key immutability "1"
-kwriteconfig6 --file plasma-org.kde.plasma.desktop-appletsrc --group Containments --group 44 --key lastScreen "0"
-kwriteconfig6 --file plasma-org.kde.plasma.desktop-appletsrc --group Containments --group 44 --key location "0"
-kwriteconfig6 --file plasma-org.kde.plasma.desktop-appletsrc --group Containments --group 44 --key plugin "org.kde.plasma.folder"
-kwriteconfig6 --file plasma-org.kde.plasma.desktop-appletsrc --group Containments --group 44 --key wallpaperplugin "org.kde.image"
+kpackagetool6 --type Plasma/Applet -i
 
-# [Containments][44][Applets][75]
-kwriteconfig6 --file plasma-org.kde.plasma.desktop-appletsrc --group Containments --group 44 --group Applets --group 75 --key immutability "1"
-kwriteconfig6 --file plasma-org.kde.plasma.desktop-appletsrc --group Containments --group 44 --group Applets --group 75 --key plugin "com.github.prayag2.modernclock"
+kpackagetool6 --type Plasma/Applet -l | grep modernclock
 
-# [Containments][44][Applets][75][Configuration]
-kwriteconfig6 --file plasma-org.kde.plasma.desktop-appletsrc --group Containments --group 44 --group Applets --group 75 --group Configuration --key UserBackgroundHints ""
+# [Containments][1]
+kwriteconfig6 --file plasma-org.kde.plasma.desktop-appletsrc --group Containments --group 1 --key ItemGeometries-1707x960 "Applet-25:896,256,432,160,0;"
+kwriteconfig6 --file plasma-org.kde.plasma.desktop-appletsrc --group Containments --group 1 --key ItemGeometriesHorizontal "Applet-25:896,256,432,160,0;"
 
-# [Containments][44][Applets][75][Configuration][Appearance]
-kwriteconfig6 --file plasma-org.kde.plasma.desktop-appletsrc --group Containments --group 44 --group Applets --group 75 --group Configuration --group Appearance --key date_font_color "205,227,251"
-kwriteconfig6 --file plasma-org.kde.plasma.desktop-appletsrc --group Containments --group 44 --group Applets --group 75 --group Configuration --group Appearance --key day_font_color "242,116,223"
-kwriteconfig6 --file plasma-org.kde.plasma.desktop-appletsrc --group Containments --group 44 --group Applets --group 75 --group Configuration --group Appearance --key day_font_size "40"
-kwriteconfig6 --file plasma-org.kde.plasma.desktop-appletsrc --group Containments --group 44 --group Applets --group 75 --group Configuration --group Appearance --key time_font_color "205,227,251"
+# [Containments][1][Applets][25]
+kwriteconfig6 --file plasma-org.kde.plasma.desktop-appletsrc --group Containments --group 1 --group Applets --group 25 --key immutability "1"
+kwriteconfig6 --file plasma-org.kde.plasma.desktop-appletsrc --group Containments --group 1 --group Applets --group 25 --key plugin "com.github.prayag2.modernclock"
 
-# [Containments][44][Applets][75][Configuration][ConfigDialog]
-kwriteconfig6 --file plasma-org.kde.plasma.desktop-appletsrc --group Containments --group 44 --group Applets --group 75 --group Configuration --group ConfigDialog --key DialogHeight "540"
-kwriteconfig6 --file plasma-org.kde.plasma.desktop-appletsrc --group Containments --group 44 --group Applets --group 75 --group Configuration --group ConfigDialog --key DialogWidth "720"
+# [Containments][1][Applets][25][Configuration][Appearance]
+kwriteconfig6 --file plasma-org.kde.plasma.desktop-appletsrc --group Containments --group 1 --group Applets --group 25 --group Configuration --group Appearance --key date_font_color "205,227,251"
+kwriteconfig6 --file plasma-org.kde.plasma.desktop-appletsrc --group Containments --group 1 --group Applets --group 25 --group Configuration --group Appearance --key day_font_color "242,116,223"
+kwriteconfig6 --file plasma-org.kde.plasma.desktop-appletsrc --group Containments --group 1 --group Applets --group 25 --group Configuration --group Appearance --key day_font_size "40"
+kwriteconfig6 --file plasma-org.kde.plasma.desktop-appletsrc --group Containments --group 1 --group Applets --group 25 --group Configuration --group Appearance --key time_font_color "205,227,251"
 
-kquitapp6 plasmashell && kstart6 plasmashell
+# [Containments][1][Applets][25][Configuration][ConfigDialog]
+kwriteconfig6 --file plasma-org.kde.plasma.desktop-appletsrc --group Containments --group 1 --group Applets --group 25 --group Configuration --group ConfigDialog --key DialogHeight "540"
+kwriteconfig6 --file plasma-org.kde.plasma.desktop-appletsrc --group Containments --group 1 --group Applets --group 25 --group Configuration --group ConfigDialog --key DialogWidth "720"
 
-
- 
--[Containments][2][Applets][24]
--immutability=1
--plugin=com.github.prayag2.modernclock
--
- [Containments][2][General]
--AppletOrder=3;4;5;6;7;16;17;24
-+AppletOrder=3;4;5;6;7;16;17
-
-
-#######
-
- [Containments][1]
--ItemGeometries-1280x800=
--ItemGeometriesHorizontal=
-+ItemGeometries-1280x800=Applet-25:592,208,528,160,0;
-+ItemGeometriesHorizontal=Applet-25:592,208,528,160,0;
- activityId=803b4749-351c-41c2-a002-bd0895f40475
- formfactor=0
- immutability=1
-@@ -15,6 +15,19 @@
- plugin=org.kde.plasma.folder
- wallpaperplugin=org.kde.image
- 
-+[Containments][1][Applets][25]
-+immutability=1
-+plugin=com.github.prayag2.modernclock
-+
-+[Containments][1][Applets][25][Configuration][Appearance]
-+day_font_color=204,109,183
-+day_font_size=50
-+day_letter_spacing=10
-+
-+[Containments][1][Applets][25][Configuration][ConfigDialog]
-+DialogHeight=540
-+DialogWidth=720
