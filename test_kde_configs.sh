@@ -24,3 +24,4 @@ kwriteconfig6 --file plasma-org.kde.plasma.desktop-appletsrc --group Containment
 kwriteconfig6 --file plasma-org.kde.plasma.desktop-appletsrc --group Containments --group 1 --group Applets --group 25 --group Configuration --group ConfigDialog --key DialogHeight "540"
 kwriteconfig6 --file plasma-org.kde.plasma.desktop-appletsrc --group Containments --group 1 --group Applets --group 25 --group Configuration --group ConfigDialog --key DialogWidth "720"
 
+kquitapp6 plasmashell && kstart6 plasmashell
