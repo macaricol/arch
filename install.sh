@@ -350,15 +350,36 @@ dl_post_reboot_script() {
     local script_path="/mnt/home/$USER_NAME/post-reboot.sh"
     local url="https://raw.githubusercontent.com/macaricol/arch/refs/heads/main/post_reboot.sh"
 
+    # Ensure USER_NAME is set
+    if [ -z "$USER_NAME" ]; then
+        USER_NAME=$(whoami)
+        echo "USER_NAME was empty, set to $USER_NAME"
+    fi
+
+    # Ensure directory exists and is writable
+    local dir_path="/mnt/home/$USER_NAME"
+    if [ ! -d "$dir_path" ]; then
+        mkdir -p "$dir_path" || { echo "Failed to create $dir_path"; return 1; }
+        chmod 755 "$dir_path"
+    fi
+
     # Download script
-    curl -s -o "$script_path" "$url" && echo "Script downloaded to $script_path"
+    if curl -s -o "$script_path" "$url"; then
+        echo "Script downloaded to $script_path"
+    else
+        echo "Error: Failed to download script from $url"
+        return 1
+    fi
 
     # Set permissions
-    chown "$USER_NAME:$USER_NAME" "$script_path"
-    chmod 755 "$script_path"
-
-    echo "Script ready at ~/post-reboot.sh for $USER_NAME"
-    echo "Run after reboot: bash ~/post-reboot.sh"
+    if chown "$USER_NAME:$USER_NAME" "$script_path"; then
+        chmod 755 "$script_path"
+        echo "Script ready at ~/post-reboot.sh for $USER_NAME"
+        echo "Run after reboot: bash ~/post-reboot.sh"
+    else
+        echo "Error: Failed to set ownership for $script_path"
+        return 1
+    fi
 
     sleep 10
 }
