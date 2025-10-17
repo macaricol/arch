@@ -6,32 +6,20 @@ exec </dev/tty
 # Update the system before installing packages
 sudo pacman -Syu
 
-######FUNCTIONS DECLARATION####
-
-install_essential_pkgs() {
-    local packages=''
-    #General utilities/libraries
-    packages+='sddm sddm-kcm plasma-desktop bluedevil kscreen konsole kate '
-    packages+='kwalletmanager dolphin ark kdegraphics-thumbnailers ffmpegthumbs '
-    packages+='plasma-pa plasma-nm gwenview plasma-systemmonitor pipewire-jack '
-    pacman -Sy --noconfirm $packages
-}
-
-##############################
-
 clear
 echo "####################################################################"
 echo "#################### Install minimal essentials ####################"
 echo "####################################################################"
 echo ""
 
-install_essential_pkgs
+sudo pacman -S sddm sddm-kcm plasma-desktop bluedevil kscreen konsole kate kwalletmanager dolphin ark kdegraphics-thumbnailers ffmpegthumbs plasma-pa plasma-nm gwenview plasma-systemmonitor pipewire-jack
 sleep 3
 
 clear
 echo "####################################################################"
 echo "################ Enable and start Bluetooth service ################"
-echo "####################################################################\n"
+echo "####################################################################"
+echo ""
  
 sudo systemctl start bluetooth.service
 sudo systemctl enable bluetooth.service
@@ -41,7 +29,8 @@ sleep 3
 clear
 echo "####################################################################"
 echo "##################### Install CPU/GPU packages #####################"
-echo "####################################################################\n"
+echo "####################################################################"
+echo ""
 
 sudo pacman -S amd-ucode
 sudo pacman -S mesa vulkan-radeon libva-mesa-driver mesa-vdpau radeontop
@@ -51,17 +40,18 @@ sleep 3
 clear
 echo "####################################################################"
 echo "###################### Install extra packages ######################"
-echo "####################################################################\n"
+echo "####################################################################"
+echo ""
 
 sudo pacman -S fastfetch mpv krdc freerdp ttf-liberation firefox kde-gtk-config kio-admin git
 
 sleep 3
 
-
 clear
 echo "####################################################################"
 echo "####################### Setting up Fast Boot #######################"
-echo "####################################################################\n"
+echo "####################################################################"
+echo ""
 
 sudo sed -i 's/GRUB_TIMEOUT=.*/GRUB_TIMEOUT=0/' /etc/default/grub
 sudo sed -i 's/GRUB_TIMEOUT_STYLE=.*/GRUB_TIMEOUT_STYLE=hidden/' /etc/default/grub
@@ -77,7 +67,8 @@ sleep 3
 clear
 echo "####################################################################"
 echo "###################### Setting up Login Screen #####################"
-echo "####################################################################\n"
+echo "####################################################################"
+echo ""
 
 sudo git clone -b master --depth 1 https://github.com/macaricol/sddm-astronaut-theme.git /usr/share/sddm/themes/sddm-astronaut-theme
 sudo cp -r /usr/share/sddm/themes/sddm-astronaut-theme/Fonts/* /usr/share/fonts/
@@ -121,7 +112,8 @@ sleep 3
 clear
 echo "####################################################################"
 echo "######################## Setting mpv configs #######################"
-echo "####################################################################\n"
+echo "####################################################################"
+echo ""
 
 # Define the directory and file
 MPV_DIR="/etc/mpv"
@@ -151,7 +143,8 @@ sleep 3
 clear
 echo "####################################################################"
 echo "###################### Setting keyboard layout #####################"
-echo "####################################################################\n"
+echo "####################################################################"
+echo ""
 
 KDE_CONFIGS_DIR="$HOME/.config"
 [[ -d "$KDE_CONFIGS_DIR" ]] || mkdir -p "$KDE_CONFIGS_DIR"
@@ -173,7 +166,9 @@ sleep 3
 clear
 echo "####################################################################"
 echo "################### Setting Wallpaper / ScreenLock #################"
-echo "####################################################################\n"
+echo "####################################################################"
+echo ""
+
 # Define the wallpaper file path
 WALLPAPER_FILE="/usr/share/sddm/themes/sddm-astronaut-theme/Wallpapers/cyberpunk2077.jpg"
 
@@ -224,8 +219,9 @@ else
 fi
 
 echo "####################################################################"
-echo "################## Enabling and starting sddm service ################"
-echo "####################################################################\n"
+echo "################ Enabling and starting sddm service ################"
+echo "####################################################################"
+echo ""
 # This needs to be run last otherwise it will simply exit running script and present the login GUI
 
 sudo systemctl enable sddm
