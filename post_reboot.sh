@@ -32,8 +32,43 @@ echo "##################### Install CPU/GPU packages #####################"
 echo "####################################################################"
 echo ""
 
-sudo pacman -S amd-ucode
-sudo pacman -S mesa vulkan-radeon libva-mesa-driver mesa-vdpau radeontop
+#sudo pacman -S amd-ucode
+#sudo pacman -S mesa vulkan-radeon libva-mesa-driver mesa-vdpau radeontop
+
+#sleep 3
+
+# Detect CPU vendor
+cpu_vendor=$(lscpu | grep "Vendor ID" | awk '{print $3}')
+case "$cpu_vendor" in
+    GenuineIntel)
+        echo "Detected Intel CPU. Installing intel-ucode..."
+        sudo pacman -S --noconfirm intel-ucode || exit 1
+        ;;
+    AuthenticAMD)
+        echo "Detected AMD CPU. Installing amd-ucode..."
+        sudo pacman -S --noconfirm amd-ucode || exit 1
+        ;;
+    *)
+        echo "Error: Unknown CPU vendor: $cpu_vendor. Skipping microcode installation."
+        ;;
+esac
+
+# Detect GPU vendor
+gpu_vendor=$(lspci | grep -E "VGA|3D" | grep -Ei "intel|amd|nvidia" | awk '{print tolower($0)}')
+if [[ $gpu_vendor == *intel* ]]; then
+    echo "Detected Intel GPU. Installing Intel GPU packages..."
+    ##TODO
+    #sudo pacman -S --noconfirm mesa libva-intel-driver intel-media-driver || exit 1
+elif [[ $gpu_vendor == *amd* ]]; then
+    echo "Detected AMD GPU. Installing AMD GPU packages..."
+    sudo pacman -S --noconfirm mesa vulkan-radeon libva-mesa-driver mesa-vdpau radeontop || exit 1
+elif [[ $gpu_vendor == *nvidia* ]]; then
+    echo "Detected NVIDIA GPU. Installing NVIDIA GPU packages..."
+    ##TODO
+    #sudo pacman -S --noconfirm nvidia nvidia-utils || exit 1
+else
+    echo "Warning: No supported GPU detected (Intel, AMD, or NVIDIA). Skipping GPU driver installation."
+fi
 
 sleep 3
 
