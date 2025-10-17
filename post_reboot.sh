@@ -13,7 +13,7 @@ echo "####################################################################"
 echo ""
 
 install_essential_pkgs
-sleep 1
+sleep 3
 
 clear
 echo "####################################################################"
@@ -23,7 +23,7 @@ echo "####################################################################\n"
 sudo systemctl start bluetooth.service
 sudo systemctl enable bluetooth.service
 
-sleep 1
+sleep 3
 
 clear
 echo "####################################################################"
@@ -33,7 +33,7 @@ echo "####################################################################\n"
 sudo pacman -S amd-ucode
 sudo pacman -S mesa vulkan-radeon libva-mesa-driver mesa-vdpau radeontop
 
-sleep 1
+sleep 3
 
 clear
 echo "####################################################################"
@@ -42,7 +42,7 @@ echo "####################################################################\n"
 
 sudo pacman -S fastfetch mpv krdc freerdp ttf-liberation firefox kde-gtk-config kio-admin git
 
-sleep 1
+sleep 3
 
 
 clear
@@ -59,7 +59,7 @@ sudo grub-mkconfig -o /boot/grub/grub.cfg
 # Comment out all lines containing 'echo' in /boot/grub/grub.cfg
 sudo sed -i '/echo/s/^/#/' /boot/grub/grub.cfg
 
-sleep 1
+sleep 3
 
 clear
 echo "####################################################################"
@@ -103,7 +103,7 @@ else
     echo "Error: Failed to set Current=sddm-astronaut-theme in $KDE_SETTINGS_FILE"
 fi
 
-sleep 1
+sleep 3
 
 clear
 echo "####################################################################"
@@ -133,7 +133,7 @@ else
     echo "Error: Failed to create $MPV_CONFIG_FILE with the correct content."
 fi
 
-sleep 1
+sleep 3
 
 clear
 echo "####################################################################"
@@ -155,7 +155,7 @@ EOF
 
 echo "Created $KEYB_FILE with the specified content."
 
-sleep 1
+sleep 3
 
 clear
 echo "####################################################################"
@@ -183,7 +183,7 @@ EOF
 
 echo "Created $SCRLCK_FILE with the specified content."
 
-sleep 1
+sleep 3
 
 # Create or overwrite the plasmarc file
 tee "$WALLPATH_FILE" > /dev/null << EOF
@@ -193,7 +193,7 @@ EOF
 
 echo "Created $WALLPATH_FILE with the specified content."
 
-sleep 1
+sleep 3
 
 XML_FILE="/usr/share/plasma/wallpapers/org.kde.image/contents/config/main.xml"
 
@@ -217,6 +217,8 @@ echo "####################################################################\n"
 
 sudo systemctl enable sddm
 sudo systemctl start sddm
+
+######FUNCTIONS DECLARATION####
 
 install_essential_pkgs() {
     local packages=''
