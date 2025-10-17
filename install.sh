@@ -381,7 +381,8 @@ dl_post_reboot_script() {
         return 1
     fi
 
-    sleep 10
+    echo ls -l /mnt/home/$USER_NAME
+    sleep 20
 }
 
 if [ "$1" == "chroot" ]
