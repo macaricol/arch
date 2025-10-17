@@ -31,3 +31,13 @@ kwriteconfig6 --file plasma-org.kde.plasma.desktop-appletsrc --group Containment
 kwriteconfig6 --file plasma-org.kde.plasma.desktop-appletsrc --group Containments --group 44 --group Applets --group 75 --group Configuration --group ConfigDialog --key DialogWidth "720"
 
 kquitapp6 plasmashell && kstart6 plasmashell
+
+
+ 
+-[Containments][2][Applets][24]
+-immutability=1
+-plugin=com.github.prayag2.modernclock
+-
+ [Containments][2][General]
+-AppletOrder=3;4;5;6;7;16;17;24
++AppletOrder=3;4;5;6;7;16;17
