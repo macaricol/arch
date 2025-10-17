@@ -12,12 +12,15 @@ echo "#################### Install minimal essentials ####################"
 echo "####################################################################"
 echo ""
 
-packages=''
-#General utilities/libraries
-packages+='sddm sddm-kcm plasma-desktop bluedevil kscreen konsole kate '
-packages+='kwalletmanager dolphin ark kdegraphics-thumbnailers ffmpegthumbs '
-packages+='plasma-pa plasma-nm gwenview plasma-systemmonitor pipewire-jack '
+# Define package list
+packages=""
+# General utilities/libraries
+packages+="sddm sddm-kcm plasma-desktop bluedevil kscreen konsole kate "
+packages+="kwalletmanager dolphin ark kdegraphics-thumbnailers ffmpegthumbs "
+packages+="plasma-pa plasma-nm gwenview plasma-systemmonitor pipewire-jack "
 
+# Install packages
+echo "Installing packages..."
 if ! sudo pacman -S --noconfirm "$packages"; then
     echo "Error: Failed to install packages."
     exit 1
