@@ -347,7 +347,7 @@ install_grub(){
 }
 
 dl_post_reboot_script() {
-    local script_path="/mnt/home/$USER_NAME/post-reboot.sh"
+    local script_path=""/home/$USER_NAME/post-reboot.sh""
     local url="https://raw.githubusercontent.com/macaricol/arch/refs/heads/main/post_reboot.sh"
 
     # Ensure USER_NAME is set
@@ -357,7 +357,7 @@ dl_post_reboot_script() {
     fi
 
     # Ensure directory exists and is writable
-    local dir_path="/mnt/home/$USER_NAME"
+    local dir_path="/home/$USER_NAME"
     if [ ! -d "$dir_path" ]; then
         mkdir -p "$dir_path" || { echo "Failed to create $dir_path"; return 1; }
         chmod 755 "$dir_path"
@@ -380,8 +380,7 @@ dl_post_reboot_script() {
         echo "Error: Failed to set ownership for $script_path"
         return 1
     fi
-
-    echo ls -l /mnt/home/$USER_NAME
+    
     sleep 20
 }
 
