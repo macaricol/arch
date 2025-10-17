@@ -381,7 +381,7 @@ dl_post_reboot_script() {
         return 1
     fi
     
-    sleep 20
+    sleep 5
 }
 
 if [ "$1" == "chroot" ]
