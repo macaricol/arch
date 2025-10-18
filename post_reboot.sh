@@ -214,29 +214,32 @@ if [ ! -f "$WALLPAPER_FILE" ]; then
 fi
 
 # Define the file paths
-SCRLCK_FILE="$KDE_CONFIGS_DIR/kscreenlockerrc"
-WALLPATH_FILE="$KDE_CONFIGS_DIR/plasmarc"
+#SCRLCK_FILE="$KDE_CONFIGS_DIR/kscreenlockerrc"
+#WALLPATH_FILE="$KDE_CONFIGS_DIR/plasmarc"
 
 # Create or overwrite the kscreenlockerrc file
-tee "$SCRLCK_FILE" > /dev/null << EOF
-[Greeter][Wallpaper][org.kde.image][General]
-Image=$WALLPAPER_FILE
-PreviewImage=$WALLPAPER_FILE
-EOF
+#tee "$SCRLCK_FILE" > /dev/null << EOF
+#[Greeter][Wallpaper][org.kde.image][General]
+#Image=$WALLPAPER_FILE
+#PreviewImage=$WALLPAPER_FILE
+#EOF
 
-echo "Created $SCRLCK_FILE with the specified content."
+#echo "Created $SCRLCK_FILE with the specified content."
+
+# Set lock screen image
+kwriteconfig6 --file kscreenlockerrc --group Greeter --group Wallpaper --group org.kde.image --group General --key Image "file://$WALLPAPER_FILE"
 
 sleep 3
 
 # Create or overwrite the plasmarc file
-tee "$WALLPATH_FILE" > /dev/null << EOF
-[Wallpapers]
-usersWallpapers=$WALLPAPER_FILE
-EOF
+#tee "$WALLPATH_FILE" > /dev/null << EOF
+#[Wallpapers]
+#usersWallpapers=$WALLPAPER_FILE
+#EOF
 
-echo "Created $WALLPATH_FILE with the specified content."
+#echo "Created $WALLPATH_FILE with the specified content."
 
-sleep 3
+#sleep 3
 
 XML_FILE="/usr/share/plasma/wallpapers/org.kde.image/contents/config/main.xml"
 
