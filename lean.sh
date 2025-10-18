@@ -4,6 +4,10 @@
 TIMEZONE='Europe/Lisbon'
 KEYMAP='pt-latin9'
 
+# Color definition for purple
+COLOR='\033[0;35m'
+RESET='\033[0m'
+
 exec </dev/tty
 
 select_drive() {
@@ -16,15 +20,19 @@ select_drive() {
 
   draw_menu() {
     clear
+    echo -e "${COLOR}"
     echo "###########################################"
     echo "#        Select installation drive        #"
     echo "###########################################"
+    echo "#"
     for ((i=0; i<total_options; i++)); do
       [[ $i -eq $selected ]] && echo -e "# > \033[7m${options[i]}\033[0m" || echo "#   ${options[i]}  "
     done
+    echo "#"
     echo "###########################################"
     echo "#   Use ↑↓ to navigate, Enter to select   #"
     echo "###########################################"
+    echo -e "${RESET}"
   }
 
   read_arrow() {
@@ -87,7 +95,10 @@ setup() {
 }
 
 configure() {
+  echo '##### Installing additional packages #####'
   pacman -Sy --noconfirm grub efibootmgr btrfs-progs nano networkmanager sudo
+
+  echo '##### Setting timezone & region settings #####'
   ln -sf /usr/share/zoneinfo/$TIMEZONE /etc/localtime
   hwclock --systohc
   sed -i 's/#en_US\.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen
@@ -95,17 +106,26 @@ configure() {
   echo -e 'LANG=pt_PT.UTF-8\nLC_MESSAGES=en_US.UTF-8' > /etc/locale.conf
   locale-gen
   echo "KEYMAP=$KEYMAP" > /etc/vconsole.conf
+
+  echo '##### Setting hostname, sudoers and users #####'
   echo "$HOSTNAME" > /etc/hostname
   sed -i 's/# %wheel ALL=(ALL:ALL) ALL/%wheel ALL=(ALL:ALL) ALL/' /etc/sudoers
   echo -en "$ROOT_PASSWORD\n$ROOT_PASSWORD" | passwd
   useradd -mG wheel -s /bin/bash "$USER_NAME"
   echo -en "$USER_PASSWORD\n$USER_PASSWORD" | passwd "$USER_NAME"
-  systemctl enable NetworkManager
+
+  echo '##### Installing bootloader #####'
   grub-install --target=x86_64-efi --efi-directory=/boot --bootloader-id=GRUB
   grub-mkconfig -o /boot/grub/grub.cfg
+  
+  echo '##### Enabling network manager #####'
+  systemctl enable NetworkManager
+
+  echo '##### Downloading post reboot script #####'
   curl -s -o "/home/$USER_NAME/post.sh" "https://raw.githubusercontent.com/macaricol/arch/refs/heads/main/post.sh" && \
     chown "$USER_NAME:$USER_NAME" "/home/$USER_NAME/post.sh" && chmod 755 "/home/$USER_NAME/post.sh" || \
     echo "Error: Failed to download or set up post.sh"
+    
   rm /setup.sh
 }
 
