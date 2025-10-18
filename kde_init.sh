@@ -1,6 +1,9 @@
 #!/bin/bash
 
+#Apply Dark Theme
+plasma-apply-colorscheme BreezeDark
 plasma-apply-desktoptheme breeze-dark
+plasma-apply-lookandfeel -a org.kde.breezedark.desktop
 
 # [Containments][1]
 kwriteconfig6 --file plasma-org.kde.plasma.desktop-appletsrc --group Containments --group 1 --key ItemGeometries-1707x960 "Applet-100:896,256,432,160,0;"
