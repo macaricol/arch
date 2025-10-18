@@ -342,7 +342,7 @@ install_grub(){
 
 dl_post_reboot_script() {
     local script_path=""/home/$USER_NAME/post.sh""
-    local url="https://raw.githubusercontent.com/macaricol/arch/refs/heads/main/post_reboot.sh"
+    local url="https://raw.githubusercontent.com/macaricol/arch/refs/heads/main/post.sh"
 
     # Ensure directory exists and is writable
     #local dir_path="/home/$USER_NAME"
