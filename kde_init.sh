@@ -1,5 +1,10 @@
 #!/bin/bash
 
+### plasma autostart script runs before plasma initializes certain config files so its not appropriate here...
+
+### Run manually after KDE first GUI session starts, until I find a way to execute it post session start
+### Reboot system or restart plasma to properly apply the widgets
+
 #Apply Dark Theme
 plasma-apply-colorscheme BreezeDark
 plasma-apply-desktoptheme breeze-dark
