@@ -1,11 +1,6 @@
 #!/bin/bash
 
 #config variables
-#DRIVE='/dev/sda'
-HOSTNAME=''
-ROOT_PASSWORD=''
-USER_NAME=''
-USER_PASSWORD=''
 TIMEZONE='Europe/Lisbon'
 KEYMAP='pt-latin9'
 
@@ -149,6 +144,10 @@ get_drive_type() {
 }
 
 setup() {
+    HOSTNAME=''
+    ROOT_PASSWORD=''
+    USER_NAME=''
+    USER_PASSWORD=''
 
     if [ -z "$HOSTNAME" ]; then
         echo "Enter your hostname:"
