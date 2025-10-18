@@ -20,7 +20,7 @@ select_drive() {
     echo "#        Select installation drive        #"
     echo "###########################################"
     for ((i=0; i<total_options; i++)); do
-      [[ $i -eq $selected ]] && echo -e "# > \033[7m${options[i]}\033[0m" || echo "#   ${options[i]}"
+      [[ $i -eq $selected ]] && echo -e "# > \033[7m${options[i]}\033[0m" || echo "#   ${options[i]}  "
     done
     echo "###########################################"
     echo "#   Use ↑↓ to navigate, Enter to select   #"
@@ -30,7 +30,7 @@ select_drive() {
   read_arrow() {
     local key
     read -rsn1 key
-    [[ $key == $'\x1b' ]] && { read -rsn2 -t 0.1 key; case $key in
+    [[ $key == $'\x1b' ]] && { read -rsn2 -t 0.1 key 2>/dev/null; case $key in
       '[A') ((selected--)); [[ $selected -lt 0 ]] && selected=$((total_options-1)); return 1 ;;
       '[B') ((selected++)); [[ $selected -ge $total_options ]] && selected=0; return 1 ;;
       *) return 1 ;;
@@ -41,11 +41,13 @@ select_drive() {
 
   while true; do
     draw_menu
-    read_arrow || { DRIVE=${options[selected]}; [[ -b $DRIVE ]] || { echo "Error: Invalid block device."; exit 1; }
-      echo "Use $DRIVE for Arch install? ALL DATA WILL BE LOST! (Enter to confirm, Esc/other to cancel)"
-      read -rsn1 confirm
-      [[ -z $confirm ]] && { echo "Selected: $DRIVE"; DRIVE_TYPE=$(get_drive_type "$DRIVE"); return 0; }
-    }
+    read_arrow
+    [[ $? -eq 0 ]] || continue  # Only proceed if Enter was pressed (return 0)
+    DRIVE=${options[selected]}
+    [[ -b $DRIVE ]] || { echo "Error: Invalid block device."; exit 1; }
+    echo "Use $DRIVE for Arch install? ALL DATA WILL BE LOST! (Enter to confirm, Esc/other to cancel)"
+    read -rsn1 confirm
+    [[ -z $confirm ]] && { echo "Selected: $DRIVE"; DRIVE_TYPE=$(get_drive_type "$DRIVE"); return 0; }
   done
 }
 
