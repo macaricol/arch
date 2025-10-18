@@ -153,6 +153,7 @@ setup() {
     if [ -z "$HOSTNAME" ]; then
         echo "Enter your hostname:"
         read -p '' HOSTNAME
+        export HOSTNAME
     fi
 
     if [ -z "$ROOT_PASSWORD" ]; then
@@ -160,17 +161,20 @@ setup() {
         stty -echo
         read -p '' ROOT_PASSWORD
         stty echo
+        export ROOT_PASSWORD
     fi
 
     if [ -z "$USER_NAME" ]; then
         echo "Enter your username:"
         read -p '' USER_NAME
+        export USER_NAME
     fi
     if [ -z "$USER_PASSWORD" ]; then
         echo "Enter the password for user $USER_NAME"
         stty -echo
         read -p '' USER_PASSWORD
         stty echo
+        export USER_PASSWORD
     fi
 
     # Select drive
