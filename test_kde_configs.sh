@@ -1,3 +1,8 @@
+# Set Portuguese (pt) as the only keyboard layout
+kwriteconfig6 --file kxkbrc --group Layout --key LayoutList "pt"
+kwriteconfig6 --file kxkbrc --group Layout --key Use "true"
+
+### Modern Clock
 git clone https://github.com/prayag2/kde_modernclock && cd kde_modernclock/
 
 kpackagetool6 -i package
