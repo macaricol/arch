@@ -5,11 +5,16 @@
 ### Run manually after KDE first GUI session starts, until I find a way to execute it post session start
 ### Reboot system or restart plasma to properly apply the widgets
 
-#Apply Dark Theme
+#############################
+####### Apply Dark Theme ########
+#############################
 plasma-apply-colorscheme BreezeDark
 plasma-apply-desktoptheme breeze-dark
 plasma-apply-lookandfeel -a org.kde.breezedark.desktop
 
+#############################
+#### Add modern clock widget #####
+#############################
 # [Containments][1]
 kwriteconfig6 --file plasma-org.kde.plasma.desktop-appletsrc --group Containments --group 1 --key ItemGeometries-1707x960 "Applet-100:896,256,432,160,0;"
 kwriteconfig6 --file plasma-org.kde.plasma.desktop-appletsrc --group Containments --group 1 --key ItemGeometriesHorizontal "Applet-100:896,256,432,160,0;"
@@ -28,3 +33,10 @@ kwriteconfig6 --file plasma-org.kde.plasma.desktop-appletsrc --group Containment
 # [Containments][1][Applets][100][Configuration][ConfigDialog]
 kwriteconfig6 --file plasma-org.kde.plasma.desktop-appletsrc --group Containments --group 1 --group Applets --group 100 --group Configuration --group ConfigDialog --key DialogHeight "540"
 kwriteconfig6 --file plasma-org.kde.plasma.desktop-appletsrc --group Containments --group 1 --group Applets --group 100 --group Configuration --group ConfigDialog --key DialogWidth "720"
+
+#############################
+#### taskbar vertical on the left #####
+#############################
+# [Containments][2]
+kwriteconfig6 --file plasma-org.kde.plasma.desktop-appletsrc --group Containments --group 2 --key formfactor 3
+kwriteconfig6 --file plasma-org.kde.plasma.desktop-appletsrc --group Containments --group 2 --key location 5
