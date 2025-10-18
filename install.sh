@@ -347,7 +347,7 @@ install_grub(){
 }
 
 dl_post_reboot_script() {
-    local script_path=""/home/$USER_NAME/post-reboot.sh""
+    local script_path=""/home/$USER_NAME/post.sh""
     local url="https://raw.githubusercontent.com/macaricol/arch/refs/heads/main/post_reboot.sh"
 
     # Ensure USER_NAME is set
@@ -374,8 +374,8 @@ dl_post_reboot_script() {
     # Set permissions
     if chown "$USER_NAME:$USER_NAME" "$script_path"; then
         chmod 755 "$script_path"
-        echo "Script ready at ~/post-reboot.sh for $USER_NAME"
-        echo "Run after reboot: bash ~/post-reboot.sh"
+        echo "Script ready at ~/post.sh for $USER_NAME"
+        echo "Run after reboot: bash ~/post.sh"
     else
         echo "Error: Failed to set ownership for $script_path"
         return 1
