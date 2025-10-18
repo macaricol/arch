@@ -206,9 +206,16 @@ kwriteconfig6 --file kwinrc --group ElectricBorders --key BottomRight "ShowDeskt
 # ScreenEdges: Keep edge triggers active in fullscreen
 kwriteconfig6 --file kwinrc --group ScreenEdges --key RemainActiveOnFullscreen "true"
 
+# File manager thumbnails config
+kwriteconfig6 --file dolphinrc --group IconsMode --key PreviewSize 96
+kwriteconfig6 --file kdeglobals --group PreviewSettings --key EnableRemoteFolderThumbnail false
+kwriteconfig6 --file kdeglobals --group PreviewSettings --key MaximumRemoteSize 10000000000
+
 ### Modern Clock
+###TODO: move to /home/ishmael/.local/share/plasma/plasmoids/
 git clone https://github.com/prayag2/kde_modernclock && cd kde_modernclock/
 
+sudo pacman -S plasma-sdk
 kpackagetool6 -i package
 
 #copy plasma session autostartscript

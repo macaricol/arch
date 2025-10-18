@@ -40,3 +40,5 @@ kwriteconfig6 --file plasma-org.kde.plasma.desktop-appletsrc --group Containment
 # [Containments][2]
 kwriteconfig6 --file plasma-org.kde.plasma.desktop-appletsrc --group Containments --group 2 --key formfactor 3
 kwriteconfig6 --file plasma-org.kde.plasma.desktop-appletsrc --group Containments --group 2 --key location 5
+
+kquitapp6 plasmashell && kstart6 plasmashell
