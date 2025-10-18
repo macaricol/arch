@@ -212,20 +212,16 @@ git clone https://github.com/prayag2/kde_modernclock && cd kde_modernclock/
 kpackagetool6 -i package
 
 #copy plasma session autostartscript
-script_path="$HOME/.config/plasma-workspace/env"
 url="https://raw.githubusercontent.com/macaricol/arch/refs/heads/main/kde_init.sh"
 
-# Ensure the directory exists
-mkdir -p "$script_path"
-
 # Download the script
-if ! curl -s -o "$script_path/kde_init.sh" "$url"; then
+if ! curl -s -o "$HOME/kde_init.sh" "$url"; then
     echo "Error: Failed to download script"
     exit 1
 fi
 
 # Make the script executable
-if ! chmod +x "$script_path/kde_init.sh"; then
+if ! chmod +x "$HOME/kde_init.sh"; then
     echo "Error: Failed to set executable permissions"
     exit 1
 fi
