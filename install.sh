@@ -172,12 +172,6 @@ setup() {
         read -p '' USER_PASSWORD
         stty echo
     fi
-    if [ -z "$USER_PASSWORD" ]; then
-        echo "Enter the password for user $USER_NAME"
-        stty -echo
-        read -p '' USER_PASSWORD
-        stty echo
-    fi
 
     # Select drive
     select_drive
@@ -225,9 +219,14 @@ configure() {
     set_sudoers
 
     echo '##### Setting root password #####'
+    echo "##### root pass: $ROOT_PASSWORD"
+    sleep 5
     set_root_password "$ROOT_PASSWORD"
 
     echo '##### Creating initial user #####'
+    echo "##### user: $USER_NAME"
+    echo "##### root pass: $USER_PASSWORD"
+    sleep 5
     create_user "$USER_NAME" "$USER_PASSWORD"
 
     echo '##### Enabling network manager #####'
