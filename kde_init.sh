@@ -1,5 +1,8 @@
 #!/bin/bash
 
+#requires delay otherwise kde first boot will overwrite what is being applied here
+sleep 10
+
 #Apply Dark Theme
 plasma-apply-colorscheme BreezeDark
 plasma-apply-desktoptheme breeze-dark
