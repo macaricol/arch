@@ -126,7 +126,6 @@ select_drive() {
   done
 }
 
-
 #############################################################
 ######### END SELECTION MENU ################################
 #############################################################
@@ -218,14 +217,9 @@ configure() {
     set_sudoers
 
     echo '##### Setting root password #####'
-    echo "##### root pass: $ROOT_PASSWORD"
-    sleep 5
     set_root_password "$ROOT_PASSWORD"
 
     echo '##### Creating initial user #####'
-    echo "##### user: $USER_NAME"
-    echo "##### root pass: $USER_PASSWORD"
-    sleep 5
     create_user "$USER_NAME" "$USER_PASSWORD"
 
     echo '##### Enabling network manager #####'
@@ -351,11 +345,11 @@ dl_post_reboot_script() {
     local url="https://raw.githubusercontent.com/macaricol/arch/refs/heads/main/post_reboot.sh"
 
     # Ensure directory exists and is writable
-    local dir_path="/home/$USER_NAME"
-    if [ ! -d "$dir_path" ]; then
-        mkdir -p "$dir_path" || { echo "Failed to create $dir_path"; return 1; }
-        chmod 755 "$dir_path"
-    fi
+    #local dir_path="/home/$USER_NAME"
+    #if [ ! -d "$dir_path" ]; then
+    #    mkdir -p "$dir_path" || { echo "Failed to create $dir_path"; return 1; }
+    #    chmod 755 "$dir_path"
+    #fi
 
     # Download script
     if curl -s -o "$script_path" "$url"; then

@@ -13,7 +13,6 @@ echo "####################################################################"
 echo ""
 
 sudo pacman -S --noconfirm sddm sddm-kcm plasma-desktop bluedevil kscreen konsole kate kwalletmanager dolphin ark kdegraphics-thumbnailers ffmpegthumbs plasma-pa plasma-nm gwenview plasma-systemmonitor pipewire-jack
-sleep 3
 
 clear
 echo "####################################################################"
@@ -24,18 +23,11 @@ echo ""
 sudo systemctl start bluetooth.service
 sudo systemctl enable bluetooth.service
 
-sleep 3
-
 clear
 echo "####################################################################"
 echo "##################### Install CPU/GPU packages #####################"
 echo "####################################################################"
 echo ""
-
-#sudo pacman -S amd-ucode
-#sudo pacman -S mesa vulkan-radeon libva-mesa-driver mesa-vdpau radeontop
-
-#sleep 3
 
 # Detect CPU vendor
 cpu_vendor=$(lscpu | grep "Vendor ID" | awk '{print $3}')
@@ -70,17 +62,13 @@ else
     echo "Warning: No supported GPU detected (Intel, AMD, or NVIDIA). Skipping GPU driver installation."
 fi
 
-sleep 3
-
 clear
 echo "####################################################################"
 echo "###################### Install extra packages ######################"
 echo "####################################################################"
 echo ""
 
-sudo pacman -S fastfetch mpv krdc freerdp ttf-liberation firefox kde-gtk-config kio-admin git
-
-sleep 3
+sudo pacman -S fastfetch mpv krdc freerdp ttf-liberation firefox kde-gtk-config kio-admin git vscode pacman-contrib fakeroot
 
 clear
 echo "####################################################################"
@@ -96,8 +84,6 @@ sudo grub-mkconfig -o /boot/grub/grub.cfg
 
 # Comment out all lines containing 'echo' in /boot/grub/grub.cfg
 sudo sed -i '/echo/s/^/#/' /boot/grub/grub.cfg
-
-sleep 3
 
 clear
 echo "####################################################################"
@@ -142,8 +128,6 @@ else
     echo "Error: Failed to set Current=sddm-astronaut-theme in $KDE_SETTINGS_FILE"
 fi
 
-sleep 3
-
 clear
 echo "####################################################################"
 echo "######################## Setting mpv configs #######################"
@@ -173,8 +157,6 @@ else
     echo "Error: Failed to create $MPV_CONFIG_FILE with the correct content."
 fi
 
-sleep 3
-
 clear
 echo "####################################################################"
 echo "################### Setting Wallpaper / ScreenLock #################"
@@ -192,8 +174,6 @@ fi
 
 # Set lock screen image
 kwriteconfig6 --file kscreenlockerrc --group Greeter --group Wallpaper --group org.kde.image --group General --key Image "file://$WALLPAPER_FILE"
-
-sleep 3
 
 XML_FILE="/usr/share/plasma/wallpapers/org.kde.image/contents/config/main.xml"
 
@@ -219,7 +199,7 @@ echo ""
 kwriteconfig6 --file kxkbrc --group Layout --key LayoutList "pt"
 kwriteconfig6 --file kxkbrc --group Layout --key Use "true"
 
-plasma-apply-desktoptheme breeze-dark
+#plasma-apply-desktoptheme breeze-dark
 
 # Desktop effect: Overview on right edge
 kwriteconfig6 --file kwinrc --group Effect-overview --key BorderActivate "2"
