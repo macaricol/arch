@@ -150,6 +150,35 @@ get_drive_type() {
 
 setup() {
 
+    if [ -z "$HOSTNAME" ]; then
+        echo "Enter your hostname:"
+        read -p '' HOSTNAME
+    fi
+
+    if [ -z "$ROOT_PASSWORD" ]; then
+        echo 'Enter the root password:'
+        stty -echo
+        read -p '' ROOT_PASSWORD
+        stty echo
+    fi
+
+    if [ -z "$USER_NAME" ]; then
+        echo "Enter your username:"
+        read -p '' USER_NAME
+    fi
+    if [ -z "$USER_PASSWORD" ]; then
+        echo "Enter the password for user $USER_NAME"
+        stty -echo
+        read -p '' USER_PASSWORD
+        stty echo
+    fi
+    if [ -z "$USER_PASSWORD" ]; then
+        echo "Enter the password for user $USER_NAME"
+        stty -echo
+        read -p '' USER_PASSWORD
+        stty echo
+    fi
+
     # Select drive
     select_drive
     local installation_drive="$DRIVE"
@@ -190,40 +219,14 @@ configure() {
     set_keymap
 
     echo '##### Setting hostname #####'
-    if [ -z "$HOSTNAME" ]; then
-        echo "Enter your hostname:"
-        read -p '' HOSTNAME
-    fi
     set_hostname "$HOSTNAME"
 
     echo '##### Configuring sudoers #####'
     set_sudoers
 
-    if [ -z "$ROOT_PASSWORD" ]; then
-        echo 'Enter the root password:'
-        stty -echo
-        read -p '' ROOT_PASSWORD
-        stty echo
-    fi
     echo '##### Setting root password #####'
     set_root_password "$ROOT_PASSWORD"
 
-    if [ -z "$USER_NAME" ]; then
-        echo "Enter your username:"
-        read -p '' USER_NAME
-    fi
-    if [ -z "$USER_PASSWORD" ]; then
-        echo "Enter the password for user $USER_NAME"
-        stty -echo
-        read -p '' USER_PASSWORD
-        stty echo
-    fi
-    if [ -z "$USER_PASSWORD" ]; then
-        echo "Enter the password for user $USER_NAME"
-        stty -echo
-        read -p '' USER_PASSWORD
-        stty echo
-    fi
     echo '##### Creating initial user #####'
     create_user "$USER_NAME" "$USER_PASSWORD"
 
@@ -325,7 +328,6 @@ set_sudoers() {
 
 set_root_password() {
     local password="$1"; shift
-
     echo -en "$password\n$password" | passwd
 }
 
@@ -349,12 +351,6 @@ install_grub(){
 dl_post_reboot_script() {
     local script_path=""/home/$USER_NAME/post.sh""
     local url="https://raw.githubusercontent.com/macaricol/arch/refs/heads/main/post_reboot.sh"
-
-    # Ensure USER_NAME is set
-    if [ -z "$USER_NAME" ]; then
-        USER_NAME=$(whoami)
-        echo "USER_NAME was empty, set to $USER_NAME"
-    fi
 
     # Ensure directory exists and is writable
     local dir_path="/home/$USER_NAME"

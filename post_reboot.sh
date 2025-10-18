@@ -177,29 +177,6 @@ sleep 3
 
 clear
 echo "####################################################################"
-echo "###################### Setting keyboard layout #####################"
-echo "####################################################################"
-echo ""
-
-#KDE_CONFIGS_DIR="$HOME/.config"
-#[[ -d "$KDE_CONFIGS_DIR" ]] || mkdir -p "$KDE_CONFIGS_DIR"
-
-# Define the file path
-#KEYB_FILE="$KDE_CONFIGS_DIR/kxkbrc"
-
-# Create or overwrite the kxkbrc file with the specified content
-#tee "$KEYB_FILE" > /dev/null << 'EOF'
-#[Layout]
-#LayoutList=pt
-#Use=true
-#EOF
-
-#echo "Created $KEYB_FILE with the specified content."
-
-#sleep 3
-
-clear
-echo "####################################################################"
 echo "################### Setting Wallpaper / ScreenLock #################"
 echo "####################################################################"
 echo ""
@@ -213,33 +190,10 @@ if [ ! -f "$WALLPAPER_FILE" ]; then
     exit 1
 fi
 
-# Define the file paths
-#SCRLCK_FILE="$KDE_CONFIGS_DIR/kscreenlockerrc"
-#WALLPATH_FILE="$KDE_CONFIGS_DIR/plasmarc"
-
-# Create or overwrite the kscreenlockerrc file
-#tee "$SCRLCK_FILE" > /dev/null << EOF
-#[Greeter][Wallpaper][org.kde.image][General]
-#Image=$WALLPAPER_FILE
-#PreviewImage=$WALLPAPER_FILE
-#EOF
-
-#echo "Created $SCRLCK_FILE with the specified content."
-
 # Set lock screen image
 kwriteconfig6 --file kscreenlockerrc --group Greeter --group Wallpaper --group org.kde.image --group General --key Image "file://$WALLPAPER_FILE"
 
 sleep 3
-
-# Create or overwrite the plasmarc file
-#tee "$WALLPATH_FILE" > /dev/null << EOF
-#[Wallpapers]
-#usersWallpapers=$WALLPAPER_FILE
-#EOF
-
-#echo "Created $WALLPATH_FILE with the specified content."
-
-#sleep 3
 
 XML_FILE="/usr/share/plasma/wallpapers/org.kde.image/contents/config/main.xml"
 
@@ -265,14 +219,19 @@ echo ""
 kwriteconfig6 --file kxkbrc --group Layout --key LayoutList "pt"
 kwriteconfig6 --file kxkbrc --group Layout --key Use "true"
 
+plasma-apply-desktoptheme breeze-dark
+
+# Desktop effect: Overview on right edge
+kwriteconfig6 --file kwinrc --group Effect-overview --key BorderActivate "2"
+# ElectricBorders: Show Desktop on bottom-right edge
+kwriteconfig6 --file kwinrc --group ElectricBorders --key BottomRight "ShowDesktop"
+# ScreenEdges: Keep edge triggers active in fullscreen
+kwriteconfig6 --file kwinrc --group ScreenEdges --key RemainActiveOnFullscreen "true"
+
 ### Modern Clock
 git clone https://github.com/prayag2/kde_modernclock && cd kde_modernclock/
 
 kpackagetool6 -i package
-
-#kpackagetool6 --type Plasma/Applet -i
-
-#kpackagetool6 --type Plasma/Applet -l | grep modernclock
 
 # [Containments][1]
 kwriteconfig6 --file plasma-org.kde.plasma.desktop-appletsrc --group Containments --group 1 --key ItemGeometries-1707x960 "Applet-25:896,256,432,160,0;"
