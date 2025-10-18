@@ -25,9 +25,11 @@ select_drive() {
     echo "#        Select installation drive        #"
     echo "###########################################"
     echo "#"
+    echo -e "${RESET}"
     for ((i=0; i<total_options; i++)); do
       [[ $i -eq $selected ]] && echo -e "# > \033[7m${options[i]}\033[0m" || echo "#   ${options[i]}  "
     done
+    echo -e "${COLOR}"
     echo "#"
     echo "###########################################"
     echo "#   Use ↑↓ to navigate, Enter to select   #"
@@ -68,37 +70,39 @@ get_drive_type() {
 }
 
 setup() {
+  echo -e "${COLOR}"
   read -p "Enter hostname: " HOSTNAME
   echo "Enter root password:"
   stty -echo; read ROOT_PASSWORD; stty echo
   read -p "Enter username: " USER_NAME
   echo "Enter password for $USER_NAME:"
   stty -echo; read USER_PASSWORD; stty echo
+  echo -e "${RESET}"
 
   select_drive
   local drive="$DRIVE"
 
-  echo "##### Creating partitions #####"
+  echo -e "${COLOR}##### Creating partitions #####${RESET}"
   partition_drive "$drive"
-  echo "##### Formatting filesystems #####"
+  echo "${COLOR}##### Formatting filesystems #####${RESET}"
   format_filesystems
-  echo "##### Mounting filesystems #####"
+  echo "${COLOR}##### Mounting filesystems #####${RESET}"
   mount_filesystems
-  echo "##### Installing base system #####"
+  echo "${COLOR}##### Installing base system #####${RESET}"
   pacstrap -K /mnt base linux linux-firmware
-  echo "##### Generating fstab #####"
+  echo "${COLOR}##### Generating fstab #####${RESET}"
   genfstab -U /mnt >> /mnt/etc/fstab
-  echo "##### Chrooting #####"
+  echo "${COLOR}##### Chrooting #####${RESET}"
   cp "$0" /mnt/setup.sh
   arch-chroot /mnt env HOSTNAME="$HOSTNAME" ROOT_PASSWORD="$ROOT_PASSWORD" USER_NAME="$USER_NAME" USER_PASSWORD="$USER_PASSWORD" ./setup.sh chroot
   reboot
 }
 
 configure() {
-  echo '##### Installing additional packages #####'
+  echo -e "${COLOR}##### Installing essential packages #####${RESET}"
   pacman -Sy --noconfirm grub efibootmgr btrfs-progs nano networkmanager sudo
 
-  echo '##### Setting timezone & region settings #####'
+  echo -e "${COLOR}##### Setting timezone & region settings #####${RESET}"
   ln -sf /usr/share/zoneinfo/$TIMEZONE /etc/localtime
   hwclock --systohc
   sed -i 's/#en_US\.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen
@@ -107,21 +111,21 @@ configure() {
   locale-gen
   echo "KEYMAP=$KEYMAP" > /etc/vconsole.conf
 
-  echo '##### Setting hostname, sudoers and users #####'
+  echo -e "${COLOR}##### Setting hostname, sudoers and users #####${RESET}"
   echo "$HOSTNAME" > /etc/hostname
   sed -i 's/# %wheel ALL=(ALL:ALL) ALL/%wheel ALL=(ALL:ALL) ALL/' /etc/sudoers
   echo -en "$ROOT_PASSWORD\n$ROOT_PASSWORD" | passwd
   useradd -mG wheel -s /bin/bash "$USER_NAME"
   echo -en "$USER_PASSWORD\n$USER_PASSWORD" | passwd "$USER_NAME"
 
-  echo '##### Installing bootloader #####'
+  echo "${COLOR}##### Installing bootloader #####${RESET}"
   grub-install --target=x86_64-efi --efi-directory=/boot --bootloader-id=GRUB
   grub-mkconfig -o /boot/grub/grub.cfg
   
-  echo '##### Enabling network manager #####'
+  echo "${COLOR}##### Enabling network manager #####${RESET}"
   systemctl enable NetworkManager
 
-  echo '##### Downloading post reboot script #####'
+  echo "${COLOR}##### Downloading post reboot script #####${RESET}"
   curl -s -o "/home/$USER_NAME/post.sh" "https://raw.githubusercontent.com/macaricol/arch/refs/heads/main/post.sh" && \
     chown "$USER_NAME:$USER_NAME" "/home/$USER_NAME/post.sh" && chmod 755 "/home/$USER_NAME/post.sh" || \
     echo "Error: Failed to download or set up post.sh"
