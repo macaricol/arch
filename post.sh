@@ -68,7 +68,9 @@ echo "###################### Install extra packages ######################"
 echo "####################################################################"
 echo ""
 
-sudo pacman -S fastfetch mpv krdc freerdp ttf-liberation firefox kde-gtk-config kio-admin git vscode pacman-contrib fakeroot
+sudo pacman -S fastfetch mpv krdc freerdp firefox kde-gtk-config kio-admin git vscode pacman-contrib fakeroot
+#ttf-liberation
+#ttf-ms-fonts - seems to render better results than liberation on website font rendering
 
 clear
 echo "####################################################################"
