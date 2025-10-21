@@ -16,8 +16,8 @@ plasma-apply-lookandfeel -a org.kde.breezedark.desktop
 #### Add modern clock widget #####
 #############################
 # [Containments][1]
-kwriteconfig6 --file plasma-org.kde.plasma.desktop-appletsrc --group Containments --group 1 --key ItemGeometries-1707x960 "Applet-100:896,256,432,160,0;"
-kwriteconfig6 --file plasma-org.kde.plasma.desktop-appletsrc --group Containments --group 1 --key ItemGeometriesHorizontal "Applet-100:896,256,432,160,0;"
+kwriteconfig6 --file plasma-org.kde.plasma.desktop-appletsrc --group Containments --group 1 --key ItemGeometries-1707x960 "Applet-100:320,304,400,160,0"
+kwriteconfig6 --file plasma-org.kde.plasma.desktop-appletsrc --group Containments --group 1 --key ItemGeometriesHorizontal "Applet-100:320,304,400,160,0"
 
 # [Containments][1][Applets][100]
 kwriteconfig6 --file plasma-org.kde.plasma.desktop-appletsrc --group Containments --group 1 --group Applets --group 100 --key immutability "1"
@@ -38,7 +38,7 @@ kwriteconfig6 --file plasma-org.kde.plasma.desktop-appletsrc --group Containment
 #### taskbar vertical on the left #####
 #############################
 # [Containments][2]
-kwriteconfig6 --file plasma-org.kde.plasma.desktop-appletsrc --group Containments --group 2 --key formfactor 3
-kwriteconfig6 --file plasma-org.kde.plasma.desktop-appletsrc --group Containments --group 2 --key location 5
+kwriteconfig6 --file plasma-org.kde.plasma.desktop-appletsrc --group Containments --group 2 --key formfactor 2
+kwriteconfig6 --file plasma-org.kde.plasma.desktop-appletsrc --group Containments --group 2 --key location 3
 
 kquitapp6 plasmashell && kstart6 plasmashell
