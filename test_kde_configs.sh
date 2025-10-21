@@ -1,32 +1,71 @@
-# Set Portuguese (pt) as the only keyboard layout
-kwriteconfig6 --file kxkbrc --group Layout --key LayoutList "pt"
-kwriteconfig6 --file kxkbrc --group Layout --key Use "true"
+#!/bin/bash
 
-### Modern Clock
-git clone https://github.com/prayag2/kde_modernclock && cd kde_modernclock/
+# Script to install Modern Clock widget for KDE Plasma on Arch Linux
+# Based on: https://github.com/Prayag2/kde_modernclock
 
-kpackagetool6 -i package
+set -e  # Exit on error
 
-kpackagetool6 --type Plasma/Applet -i
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m'  # No Color
 
-kpackagetool6 --type Plasma/Applet -l | grep modernclock
+echo -e "${GREEN}Starting Modern Clock widget installation...${NC}"
 
-# [Containments][1]
-kwriteconfig6 --file plasma-org.kde.plasma.desktop-appletsrc --group Containments --group 1 --key ItemGeometries-1707x960 "Applet-25:896,256,432,160,0;"
-kwriteconfig6 --file plasma-org.kde.plasma.desktop-appletsrc --group Containments --group 1 --key ItemGeometriesHorizontal "Applet-25:896,256,432,160,0;"
+# Check if Plasma is installed
+if ! pacman -Qs plasma-desktop > /dev/null; then
+    echo -e "${YELLOW}KDE Plasma not detected. Installing plasma-desktop...${NC}"
+    sudo pacman -S --noconfirm plasma-desktop
+fi
 
-# [Containments][1][Applets][25]
-kwriteconfig6 --file plasma-org.kde.plasma.desktop-appletsrc --group Containments --group 1 --group Applets --group 25 --key immutability "1"
-kwriteconfig6 --file plasma-org.kde.plasma.desktop-appletsrc --group Containments --group 1 --group Applets --group 25 --key plugin "com.github.prayag2.modernclock"
+# Detect Plasma version (5 or 6) for kpackagetool
+PLASMA_VERSION=$(plasmashell --version | grep -oP 'Plasma \K[56]')
+if [[ "$PLASMA_VERSION" == "6" ]]; then
+    KPACKAGETOOL="kpackagetool6"
+else
+    KPACKAGETOOL="kpackagetool5"
+fi
+echo -e "${GREEN}Detected Plasma $PLASMA_VERSION. Using $KPACKAGETOOL.${NC}"
 
-# [Containments][1][Applets][25][Configuration][Appearance]
-kwriteconfig6 --file plasma-org.kde.plasma.desktop-appletsrc --group Containments --group 1 --group Applets --group 25 --group Configuration --group Appearance --key date_font_color "205,227,251"
-kwriteconfig6 --file plasma-org.kde.plasma.desktop-appletsrc --group Containments --group 1 --group Applets --group 25 --group Configuration --group Appearance --key day_font_color "242,116,223"
-kwriteconfig6 --file plasma-org.kde.plasma.desktop-appletsrc --group Containments --group 1 --group Applets --group 25 --group Configuration --group Appearance --key day_font_size "40"
-kwriteconfig6 --file plasma-org.kde.plasma.desktop-appletsrc --group Containments --group 1 --group Applets --group 25 --group Configuration --group Appearance --key time_font_color "205,227,251"
+# Clone the repository
+WIDGET_DIR="$HOME/.local/share/plasma/plasmoids/modernclock"
+if [ -d "$WIDGET_DIR" ]; then
+    echo -e "${YELLOW}Widget directory exists. Removing and recloning...${NC}"
+    rm -rf "$WIDGET_DIR"
+fi
+echo -e "${GREEN}Cloning Modern Clock from GitHub...${NC}"
+git clone https://github.com/Prayag2/kde_modernclock.git "$WIDGET_DIR"
 
-# [Containments][1][Applets][25][Configuration][ConfigDialog]
-kwriteconfig6 --file plasma-org.kde.plasma.desktop-appletsrc --group Containments --group 1 --group Applets --group 25 --group Configuration --group ConfigDialog --key DialogHeight "540"
-kwriteconfig6 --file plasma-org.kde.plasma.desktop-appletsrc --group Containments --group 1 --group Applets --group 25 --group Configuration --group ConfigDialog --key DialogWidth "720"
+# Install the plasmoid
+echo -e "${GREEN}Installing widget with $KPACKAGETOOL...${NC}"
+cd "$WIDGET_DIR"
+"$KPACKAGETOOL" --install .
 
-kquitapp6 plasmashell && kstart6 plasmashell
+# Verify installation
+if "$KPACKAGETOOL" --list | grep -q modernclock; then
+    echo -e "${GREEN}Installation successful!${NC}"
+else
+    echo -e "${RED}Installation failed. Check logs with journalctl -xe.${NC}"
+    exit 1
+fi
+
+# Optional: Refresh font cache (if using custom fonts like ttf-liberation)
+fc-cache -fv
+
+# Optional: Example configuration - Add to desktop (adjust as needed)
+# This uses kwriteconfig6 to add a containment for the widget (Plasma 6)
+if [[ "$PLASMA_VERSION" == "6" ]]; then
+    echo -e "${YELLOW}Adding widget to desktop (example)...${NC}"
+    kwriteconfig6 --file ~/.config/plasma-org.kde.plasma.desktop-appletsrc \
+        --group Containments \
+        --key lastScreen 0
+    # Restart Plasma to apply
+    kquitapp6 plasmashell && sleep 2 && kstart6 plasmashell &
+else
+    # Plasma 5 equivalent
+    kquitapp5 plasmashell && sleep 2 && kstart5 plasmashell &
+fi
+
+echo -e "${GREEN}Done! Right-click your desktop > Add Widgets > Search 'Modern Clock' to place it.${NC}"
+echo -e "${YELLOW}Customize via right-click > Configure Modern Clock.${NC}"
