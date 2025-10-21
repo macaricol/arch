@@ -199,10 +199,12 @@ echo ""
 kwriteconfig6 --file kxkbrc --group Layout --key LayoutList "pt"
 kwriteconfig6 --file kxkbrc --group Layout --key Use "true"
 
-# Desktop effect: Overview on right edge
-kwriteconfig6 --file kwinrc --group Effect-overview --key BorderActivate "2"
-# ElectricBorders: Show Desktop on bottom-right edge
-kwriteconfig6 --file kwinrc --group ElectricBorders --key BottomRight "ShowDesktop"
+#screen edges functions
+kwriteconfig6 --file kwinrc --group Effect-overview --key BorderActivate 9
+kwriteconfig6 --file kwinrc --group Effect-windowview --key BorderActivate 7
+kwriteconfig6 --file kwinrc --group ElectricBorders --key BottomLeft ShowDesktop
+kwriteconfig6 --file kwinrc --group ElectricBorders --key BottomRight ShowDesktop
+
 # ScreenEdges: Keep edge triggers active in fullscreen
 kwriteconfig6 --file kwinrc --group ScreenEdges --key RemainActiveOnFullscreen "true"
 
@@ -213,10 +215,10 @@ kwriteconfig6 --file kdeglobals --group PreviewSettings --key MaximumRemoteSize 
 
 ### Modern Clock
 ###TODO: move to /home/ishmael/.local/share/plasma/plasmoids/
-git clone https://github.com/prayag2/kde_modernclock && cd kde_modernclock/
+#git clone https://github.com/prayag2/kde_modernclock && cd kde_modernclock/
 
-sudo pacman -S plasma-sdk
-kpackagetool6 -i package
+#sudo pacman -S plasma-sdk
+#kpackagetool6 -i package
 
 #copy plasma session autostartscript
 url="https://raw.githubusercontent.com/macaricol/arch/refs/heads/main/kde_init.sh"
