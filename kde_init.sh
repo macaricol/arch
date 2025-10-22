@@ -12,6 +12,8 @@ plasma-apply-colorscheme BreezeDark
 plasma-apply-desktoptheme breeze-dark
 plasma-apply-lookandfeel -a org.kde.breezedark.desktop
 
+kwriteconfig6 --file kdeglobals --group General --key accentColorFromWallpaper true
+
 #############################
 #### Add modern clock widget #####
 #############################
