@@ -206,6 +206,7 @@ kwriteconfig6 --file kwinrc --group Effect-overview --key BorderActivate 9
 kwriteconfig6 --file kwinrc --group Effect-windowview --key BorderActivate 7
 kwriteconfig6 --file kwinrc --group ElectricBorders --key BottomLeft ShowDesktop
 kwriteconfig6 --file kwinrc --group ElectricBorders --key BottomRight ShowDesktop
+kwriteconfig6 --file kwinrc --group TabBox --key BorderAlternativeActivate 6
 
 # ScreenEdges: Keep edge triggers active in fullscreen
 kwriteconfig6 --file kwinrc --group ScreenEdges --key RemainActiveOnFullscreen "true"
