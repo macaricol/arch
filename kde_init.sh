@@ -75,4 +75,4 @@ kwriteconfig6 --file plasmashellrc --group PlasmaViews --group "Panel 2" --key p
 kwriteconfig6 --file ~/.config/plasmashellrc --group PlasmaViews --group "Panel 94" --key panelVisibility 2
 
 
-kquitapp6 plasmashell && kstart6 plasmashell
+systemctl --user restart plasma-plasmashell.service
