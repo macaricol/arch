@@ -46,4 +46,19 @@ kwriteconfig6 --file plasma-org.kde.plasma.desktop-appletsrc --group Containment
 kwriteconfig6 --file plasma-org.kde.plasma.desktop-appletsrc --group Containments --group 2 --key formfactor 2
 kwriteconfig6 --file plasma-org.kde.plasma.desktop-appletsrc --group Containments --group 2 --key location 3
 
+# Set panel alignment (2 = right)
+kwriteconfig6 --file plasmashellrc --group PlasmaViews --group "Panel 2" --key alignment 2
+# Set floating panel (1 = enabled)
+kwriteconfig6 --file plasmashellrc --group PlasmaViews --group "Panel 2" --key floating 1
+# Set floating applets (0 = disabled)
+kwriteconfig6 --file plasmashellrc --group PlasmaViews --group "Panel 2" --key floatingApplets 0
+# Set panel length mode (1 = auto)
+kwriteconfig6 --file plasmashellrc --group PlasmaViews --group "Panel 2" --key panelLengthMode 1
+# Set panel opacity (2 = adaptive)
+kwriteconfig6 --file plasmashellrc --group PlasmaViews --group "Panel 2" --key panelOpacity 2
+
+# Set panel visibility (2 = auto-hide)
+kwriteconfig6 --file ~/.config/plasmashellrc --group PlasmaViews --group "Panel 94" --key panelVisibility 2
+
+
 kquitapp6 plasmashell && kstart6 plasmashell
