@@ -15,10 +15,22 @@ plasma-apply-lookandfeel -a org.kde.breezedark.desktop
 #############################
 #### Add modern clock widget #####
 #############################
-#WIDGET_DIR="$HOME/.local/share/plasma/plasmoids/modernclock2"
-#git clone https://github.com/prayag2/kde_modernclock "$WIDGET_DIR"
-#cd "$WIDGET_DIR"
-#kpackagetool6 -i package
+WIDGET_DIR="$HOME/.local/share/plasma/plasmoids/modernclock2"
+INSTALL_DIR="/home/ishmael/.local/share/kpackage/generic/com.github.prayag2.modernclock"
+PLASMOIDS_DIR="$HOME/.local/share/plasma/plasmoids/"
+
+# Clone the repository
+git clone https://github.com/macaricol/kde_modernclock.git "$WIDGET_DIR"
+cd "$WIDGET_DIR"
+
+kpackagetool6 -i package
+
+# Copy the installed directory to the plasmoids folder
+cp -r "$INSTALL_DIR" "$PLASMOIDS_DIR"
+
+# Remove the original WIDGET_DIR
+rm -rf "$WIDGET_DIR"
+rm -rf "$INSTALL_DIR"
 
 # [Containments][1]
 kwriteconfig6 --file plasma-org.kde.plasma.desktop-appletsrc --group Containments --group 1 --key ItemGeometries-1707x960 "Applet-100:320,304,400,160,0"
