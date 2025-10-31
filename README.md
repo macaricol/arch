@@ -12,9 +12,6 @@ This script is responsible for the initial installation of the system. It handle
 
 After the initial installation and reboot, this script configures the system settings and applies user preferences. It sets up various system components and ensures everything is in place for the user.
 
-### test_sddm_theme.sh
-
-This script tests different SDDM themes to help users choose their preferred login screen appearance.
 
 ## Step-by-Step Usage
 
@@ -27,11 +24,6 @@ This script tests different SDDM themes to help users choose their preferred log
 1. **Post-Reboot**: After rebooting, log in to your system.
 2. **Execution**: Run the command `bash post_reboot.sh` to apply configurations.
 3. **Completion**: Wait for the script to finish configuring your system settings.
-
-### Using test_sddm_theme.sh
-1. **Execution**: Run `bash test_sddm_theme.sh` to start testing themes.
-2. **Selection**: Follow the prompts to select and preview different themes.
-3. **Finalization**: Choose a theme that you like and apply it.
 
 ## Customization
 

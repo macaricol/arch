@@ -4,12 +4,20 @@
 TIMEZONE='Europe/Lisbon'
 KEYMAP='pt-latin9'
 
-# Color definition for purple
-COLOR='\033[0;35m'
-RESET='\033[0m'
+# Cosmetics (colours for text).
+BOLD='\e[1m'
+BGREEN='\e[92m'
+BYELLOW='\e[93m'
+RESET='\e[0m'
+
+# Pretty print (function).
+info_print () {
+    echo -e "${BOLD}${BGREEN}[ ${BYELLOW}•${BGREEN} ] $1${RESET}"
+}
 
 exec </dev/tty
 
+# ── Drive Selection Menu ─────────────────────────────────────────────
 select_drive() {
   # Get block devices, exclude loop devices
   mapfile -t options < <(lsblk -dno PATH | grep -v loop)
@@ -20,21 +28,19 @@ select_drive() {
 
   draw_menu() {
     clear
-    echo -e "${COLOR}"
-    echo "###########################################"
-    echo "#        Select installation drive        #"
-    echo "###########################################"
-    echo "#"
-    echo -e "${RESET}"
+    info_print "###########################################"
+    info_print "#        Select installation drive        #"
+    info_print "###########################################"
+    info_print "#"
+
     for ((i=0; i<total_options; i++)); do
-      [[ $i -eq $selected ]] && echo -e "# > \033[7m${options[i]}\033[0m" || echo "#   ${options[i]}  "
+      [[ $i -eq $selected ]] && info_print "# > \033[7m${options[i]}\033[0m" || info_print "#   ${options[i]}  "
     done
-    echo -e "${COLOR}"
-    echo "#"
-    echo "###########################################"
-    echo "#   Use ↑↓ to navigate, Enter to select   #"
-    echo "###########################################"
-    echo -e "${RESET}"
+    
+    info_print "#"
+    info_print "###########################################"
+    info_print "#   Use ↑↓ to navigate, Enter to select   #"
+    info_print "###########################################"
   }
 
   read_arrow() {
@@ -69,70 +75,8 @@ get_drive_type() {
   esac
 }
 
-setup() {
-  echo -e "${COLOR}"
-  read -p "Enter hostname: " HOSTNAME
-  echo "Enter root password:"
-  stty -echo; read ROOT_PASSWORD; stty echo
-  read -p "Enter username: " USER_NAME
-  echo "Enter password for $USER_NAME:"
-  stty -echo; read USER_PASSWORD; stty echo
-  echo -e "${RESET}"
 
-  select_drive
-  local drive="$DRIVE"
-
-  echo -e "${COLOR}##### Creating partitions #####${RESET}"
-  partition_drive "$drive"
-  echo "${COLOR}##### Formatting filesystems #####${RESET}"
-  format_filesystems
-  echo "${COLOR}##### Mounting filesystems #####${RESET}"
-  mount_filesystems
-  echo "${COLOR}##### Installing base system #####${RESET}"
-  pacstrap -K /mnt base linux linux-firmware
-  echo "${COLOR}##### Generating fstab #####${RESET}"
-  genfstab -U /mnt >> /mnt/etc/fstab
-  echo "${COLOR}##### Chrooting #####${RESET}"
-  cp "$0" /mnt/setup.sh
-  arch-chroot /mnt env HOSTNAME="$HOSTNAME" ROOT_PASSWORD="$ROOT_PASSWORD" USER_NAME="$USER_NAME" USER_PASSWORD="$USER_PASSWORD" ./setup.sh chroot
-  reboot
-}
-
-configure() {
-  echo -e "${COLOR}##### Installing essential packages #####${RESET}"
-  pacman -Sy --noconfirm grub efibootmgr btrfs-progs nano networkmanager sudo
-
-  echo -e "${COLOR}##### Setting timezone & region settings #####${RESET}"
-  ln -sf /usr/share/zoneinfo/$TIMEZONE /etc/localtime
-  hwclock --systohc
-  sed -i 's/#en_US\.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen
-  sed -i 's/#pt_PT\.UTF-8 UTF-8/pt_PT.UTF-8 UTF-8/' /etc/locale.gen
-  echo -e 'LANG=pt_PT.UTF-8\nLC_MESSAGES=en_US.UTF-8' > /etc/locale.conf
-  locale-gen
-  echo "KEYMAP=$KEYMAP" > /etc/vconsole.conf
-
-  echo -e "${COLOR}##### Setting hostname, sudoers and users #####${RESET}"
-  echo "$HOSTNAME" > /etc/hostname
-  sed -i 's/# %wheel ALL=(ALL:ALL) ALL/%wheel ALL=(ALL:ALL) ALL/' /etc/sudoers
-  echo -en "$ROOT_PASSWORD\n$ROOT_PASSWORD" | passwd
-  useradd -mG wheel -s /bin/bash "$USER_NAME"
-  echo -en "$USER_PASSWORD\n$USER_PASSWORD" | passwd "$USER_NAME"
-
-  echo "${COLOR}##### Installing bootloader #####${RESET}"
-  grub-install --target=x86_64-efi --efi-directory=/boot --bootloader-id=GRUB
-  grub-mkconfig -o /boot/grub/grub.cfg
-  
-  echo "${COLOR}##### Enabling network manager #####${RESET}"
-  systemctl enable NetworkManager
-
-  echo "${COLOR}##### Downloading post reboot script #####${RESET}"
-  curl -s -o "/home/$USER_NAME/post.sh" "https://raw.githubusercontent.com/macaricol/arch/refs/heads/main/post.sh" && \
-    chown "$USER_NAME:$USER_NAME" "/home/$USER_NAME/post.sh" && chmod 755 "/home/$USER_NAME/post.sh" || \
-    echo "Error: Failed to download or set up post.sh"
-    
-  rm /setup.sh
-}
-
+# ── Partitioning ─────────────────────────────────────────────────────
 partition_drive() {
   local drive="$1"
   parted -s "$drive" mklabel gpt mkpart primary fat32 1MiB 513MiB set 1 boot on mkpart primary linux-swap 513MiB 8705MiB mkpart primary btrfs 8705MiB 100%
@@ -159,4 +103,69 @@ mount_filesystems() {
   swapon "$SWAP_PARTITION"
 }
 
-[[ "$1" == "chroot" ]] && configure || setup
+# ── Setup (Outside Chroot) ───────────────────────────────────────────
+setup() {
+  read -p "Enter hostname: " HOSTNAME
+  echo "Enter root password:"
+  stty -echo; read ROOT_PASSWORD; stty echo
+  read -p "Enter username: " USER_NAME
+  echo "Enter password for $USER_NAME:"
+  stty -echo; read USER_PASSWORD; stty echo
+
+  select_drive
+  local drive="$DRIVE"
+
+  info_print "##### Creating partitions #####"
+  partition_drive "$drive"
+  info_print "##### Formatting filesystems #####"
+  format_filesystems
+  echinfo_printo "##### Mounting filesystems #####"
+  mount_filesystems
+  info_print "##### Installing base system #####"
+  pacstrap -K /mnt base linux linux-firmware
+  info_print "##### Generating fstab #####"
+  genfstab -U /mnt >> /mnt/etc/fstab
+  info_print "##### Chrooting #####"
+  cp "$0" /mnt/setup.sh
+  arch-chroot /mnt env HOSTNAME="$HOSTNAME" ROOT_PASSWORD="$ROOT_PASSWORD" USER_NAME="$USER_NAME" USER_PASSWORD="$USER_PASSWORD" ./setup.sh chroot
+  reboot
+}
+
+# ── Configure (Inside Chroot) ────────────────────────────────────────
+configure() {
+  info_print "##### Installing essential packages #####"
+  pacman -Sy --noconfirm grub efibootmgr btrfs-progs nano networkmanager sudo
+
+  info_print "##### Setting timezone & region settings #####"
+  ln -sf /usr/share/zoneinfo/$TIMEZONE /etc/localtime
+  hwclock --systohc
+  sed -i 's/#en_US\.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen
+  sed -i 's/#pt_PT\.UTF-8 UTF-8/pt_PT.UTF-8 UTF-8/' /etc/locale.gen
+  echo -e 'LANG=pt_PT.UTF-8\nLC_MESSAGES=en_US.UTF-8' > /etc/locale.conf
+  locale-gen
+  echo "KEYMAP=$KEYMAP" > /etc/vconsole.conf
+
+  info_print "##### Setting hostname, sudoers and users #####"
+  echo "$HOSTNAME" > /etc/hostname
+  sed -i 's/# %wheel ALL=(ALL:ALL) ALL/%wheel ALL=(ALL:ALL) ALL/' /etc/sudoers
+  echo -en "$ROOT_PASSWORD\n$ROOT_PASSWORD" | passwd
+  useradd -mG wheel -s /bin/bash "$USER_NAME"
+  echo -en "$USER_PASSWORD\n$USER_PASSWORD" | passwd "$USER_NAME"
+
+  info_print "##### Installing bootloader #####"
+  grub-install --target=x86_64-efi --efi-directory=/boot --bootloader-id=GRUB
+  grub-mkconfig -o /boot/grub/grub.cfg
+  
+  info_print "##### Enabling network manager #####"
+  systemctl enable NetworkManager
+
+  info_print "##### Downloading post reboot script #####"
+  curl -s -o "/home/$USER_NAME/post.sh" "https://raw.githubusercontent.com/macaricol/arch/refs/heads/main/post.sh" && \
+    chown "$USER_NAME:$USER_NAME" "/home/$USER_NAME/post.sh" && chmod 755 "/home/$USER_NAME/post.sh" || \
+    echo "Error: Failed to download or set up post.sh"
+    
+  rm /setup.sh
+}
+
+# ── Main ─────────────────────────────────────────────────────────────
+[[ $1 == chroot ]] && configure || setup

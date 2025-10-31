@@ -5,6 +5,30 @@
 ### Run manually after KDE first GUI session starts, until I find a way to execute it post session start
 ### Reboot system or restart plasma to properly apply the widgets
 
+echo "####################################################################"
+echo "#################### KDE Plasma configs init ####################"
+echo "####################################################################"
+echo ""
+
+# Set Portuguese (pt) as the only keyboard layout
+kwriteconfig6 --file kxkbrc --group Layout --key LayoutList "pt"
+kwriteconfig6 --file kxkbrc --group Layout --key Use "true"
+
+#screen edges functions
+kwriteconfig6 --file kwinrc --group Effect-overview --key BorderActivate 9
+kwriteconfig6 --file kwinrc --group Effect-windowview --key BorderActivate 7
+kwriteconfig6 --file kwinrc --group ElectricBorders --key BottomLeft ShowDesktop
+kwriteconfig6 --file kwinrc --group ElectricBorders --key BottomRight ShowDesktop
+kwriteconfig6 --file kwinrc --group TabBox --key BorderAlternativeActivate 6
+
+# ScreenEdges: Keep edge triggers active in fullscreen
+kwriteconfig6 --file kwinrc --group ScreenEdges --key RemainActiveOnFullscreen "true"
+
+# File manager thumbnails config
+kwriteconfig6 --file dolphinrc --group IconsMode --key PreviewSize 96
+kwriteconfig6 --file kdeglobals --group PreviewSettings --key EnableRemoteFolderThumbnail false
+kwriteconfig6 --file kdeglobals --group PreviewSettings --key MaximumRemoteSize 10000000000
+
 #############################
 ####### Apply Dark Theme ########
 #############################
@@ -74,5 +98,6 @@ kwriteconfig6 --file plasmashellrc --group PlasmaViews --group "Panel 2" --key p
 # Set panel visibility (2 = auto-hide)
 kwriteconfig6 --file ~/.config/plasmashellrc --group PlasmaViews --group "Panel 94" --key panelVisibility 2
 
-
 systemctl --user restart plasma-plasmashell.service
+
+rm post.sh kde_init.sh

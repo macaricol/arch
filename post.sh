@@ -8,7 +8,7 @@ sudo pacman -Syu
 
 clear
 echo "####################################################################"
-echo "#################### Install minimal essentials ####################"
+echo "########## Install minimal essentials for KDE Plasma GUI ###########"
 echo "####################################################################"
 echo ""
 
@@ -62,13 +62,11 @@ fi
 
 clear
 echo "####################################################################"
-echo "###################### Install extra packages ######################"
+echo "#################### Install extra utils packages ##################"
 echo "####################################################################"
 echo ""
 
 sudo pacman -S fastfetch mpv krdc freerdp firefox kde-gtk-config kio-admin git vscode pacman-contrib fakeroot
-#ttf-liberation
-#ttf-ms-fonts - seems to render better results than liberation on website font rendering
 
 clear
 echo "####################################################################"
@@ -87,39 +85,53 @@ sudo sed -i '/echo/s/^/#/' /boot/grub/grub.cfg
 
 clear
 echo "####################################################################"
+echo "######################## Setting mpv configs #######################"
+echo "####################################################################"
+echo ""
+
+MPV_CONF="/etc/mpv/input.conf"
+
+# Create dir + write config in one go
+sudo mkdir -p /etc/mpv && sudo tee "$MPV_CONF" > /dev/null << 'EOF'
+WHEEL_UP      seek 10
+WHEEL_DOWN    seek -10
+WHEEL_LEFT    add volume -2
+WHEEL_RIGHT   add volume 2
+EOF
+
+# Verify in one line
+grep -q "WHEEL_UP.*seek 10" "$MPV_CONF" && \
+  echo "Success: mpv input.conf configured." || \
+  echo "Error: Failed to set mpv config."
+
+clear
+echo "####################################################################"
 echo "###################### Setting up Login Screen #####################"
 echo "####################################################################"
 echo ""
 
+# 1. Clone theme
 sudo git clone -b master --depth 1 https://github.com/macaricol/sddm-astronaut-theme.git /usr/share/sddm/themes/sddm-astronaut-theme
+
+# 2. Install fonts
 sudo cp -r /usr/share/sddm/themes/sddm-astronaut-theme/Fonts/* /usr/share/fonts/
+sudo fc-cache -fv  # Refresh font cache
 
-# Define the directory and file
-SDDM_CONFIG_DIR="/etc/sddm.conf.d"
-KDE_SETTINGS_FILE="/etc/sddm.conf.d/kde_settings.conf"
+# 3. Ensure config dir
+sudo mkdir -p /etc/sddm.conf.d
 
-[[ -d "$SDDM_CONFIG_DIR" ]] || sudo mkdir -p "$SDDM_CONFIG_DIR"
+# 4. Set SDDM theme and settings using kwriteconfig6
+sudo kwriteconfig6 --file /etc/sddm.conf.d/kde_settings.conf --group Theme --key Current sddm-astronaut-theme
 
-# Create or overwrite the kde_settings.conf file with the specified content
-sudo tee "$KDE_SETTINGS_FILE" > /dev/null << 'EOF'
-[Autologin]
-Relogin=false
-Session=
-User=
+sudo kwriteconfig6 --file /etc/sddm.conf.d/kde_settings.conf --group Autologin --key Relogin false
+sudo kwriteconfig6 --file /etc/sddm.conf.d/kde_settings.conf --group Autologin --key Session ""
+sudo kwriteconfig6 --file /etc/sddm.conf.d/kde_settings.conf --group Autologin --key User ""
 
-[General]
-HaltCommand=/usr/bin/systemctl poweroff
-RebootCommand=/usr/bin/systemctl reboot
+sudo kwriteconfig6 --file /etc/sddm.conf.d/kde_settings.conf --group General --key HaltCommand "/usr/bin/systemctl poweroff"
+sudo kwriteconfig6 --file /etc/sddm.conf.d/kde_settings.conf --group General --key RebootCommand "/usr/bin/systemctl reboot"
 
-[Theme]
-Current=sddm-astronaut-theme
-
-[Users]
-MaximumUid=60513
-MinimumUid=1000
-EOF
-
-echo "Created $KDE_SETTINGS_FILE with the specified content."
+sudo kwriteconfig6 --file /etc/sddm.conf.d/kde_settings.conf --group Users --key MaximumUid 60513
+sudo kwriteconfig6 --file /etc/sddm.conf.d/kde_settings.conf --group Users --key MinimumUid 1000
 
 # Verify the Current= line in the [Theme] section
 if grep -q "^Current=sddm-astronaut-theme" "$KDE_SETTINGS_FILE"; then
@@ -130,89 +142,22 @@ fi
 
 clear
 echo "####################################################################"
-echo "######################## Setting mpv configs #######################"
-echo "####################################################################"
-echo ""
-
-# Define the directory and file
-MPV_DIR="/etc/mpv"
-MPV_CONFIG_FILE="/etc/mpv/input.conf"
-
-[[ -d "$MPV_DIR" ]] || sudo mkdir -p "$MPV_DIR"
-
-# Create or overwrite the input.conf file with the specified content
-sudo tee "$MPV_CONFIG_FILE" > /dev/null << 'EOF'
-WHEEL_UP      seek 10                  # seek 10 seconds forward
-WHEEL_DOWN    seek -10                 # seek 10 seconds backward
-WHEEL_LEFT    add volume -2
-WHEEL_RIGHT   add volume 2
-EOF
-
-echo "Created $MPV_CONFIG_FILE with the specified content."
-
-# Verify the file contents
-if grep -q "WHEEL_UP.*seek 10" "$MPV_CONFIG_FILE"; then
-    echo "Confirmed: input.conf contains the correct settings."
-else
-    echo "Error: Failed to create $MPV_CONFIG_FILE with the correct content."
-fi
-
-clear
-echo "####################################################################"
 echo "################### Setting Wallpaper / ScreenLock #################"
 echo "####################################################################"
 echo ""
 
-# Define the wallpaper file path
 WALLPAPER_FILE="/usr/share/sddm/themes/sddm-astronaut-theme/Wallpapers/cyberpunk2077.jpg"
 
-# Check if the wallpaper file exists
-if [ ! -f "$WALLPAPER_FILE" ]; then
-    echo "Error: Wallpaper file $WALLPAPER_FILE does not exist."
-    exit 1
-fi
+# 1. Lock screen wallpaper (current user)
+kwriteconfig6 --file kscreenlockerrc --group Greeter --group Wallpaper \
+                --group org.kde.image --group General --key Image "file://$WALLPAPER_FILE"
+                
 
-# Set lock screen image
-kwriteconfig6 --file kscreenlockerrc --group Greeter --group Wallpaper --group org.kde.image --group General --key Image "file://$WALLPAPER_FILE"
+# 2. Desktop wallpaper (current user)
+kwriteconfig6 --file plasmarc --group Wallpaper --group org.kde.image --group General \
+                --key Image "file://$WALLPAPER_FILE"
 
-XML_FILE="/usr/share/plasma/wallpapers/org.kde.image/contents/config/main.xml"
-
-# Ensure wallpaper file is readable
-sudo chmod 644 "$WALLPAPER_FILE"
-
-# Update XML file
-sudo sed -i "/<entry name=\"Image\" type=\"String\">/,/<\/entry>/ s|<default>.*</default>|<default>file://$WALLPAPER_FILE</default>|" "$XML_FILE"
-
-# Verify change
-if grep -q "file://$WALLPAPER_FILE" "$XML_FILE"; then
-  echo "Wallpaper set to $WALLPAPER_FILE in $XML_FILE"
-else
-  echo "Error: Failed to update $XML_FILE"
-fi
-
-echo "####################################################################"
-echo "#################### KDE Plasma configs init ####################"
-echo "####################################################################"
-echo ""
-
-# Set Portuguese (pt) as the only keyboard layout
-kwriteconfig6 --file kxkbrc --group Layout --key LayoutList "pt"
-kwriteconfig6 --file kxkbrc --group Layout --key Use "true"
-
-#screen edges functions
-kwriteconfig6 --file kwinrc --group Effect-overview --key BorderActivate 9
-kwriteconfig6 --file kwinrc --group Effect-windowview --key BorderActivate 7
-kwriteconfig6 --file kwinrc --group ElectricBorders --key BottomLeft ShowDesktop
-kwriteconfig6 --file kwinrc --group ElectricBorders --key BottomRight ShowDesktop
-kwriteconfig6 --file kwinrc --group TabBox --key BorderAlternativeActivate 6
-
-# ScreenEdges: Keep edge triggers active in fullscreen
-kwriteconfig6 --file kwinrc --group ScreenEdges --key RemainActiveOnFullscreen "true"
-
-# File manager thumbnails config
-kwriteconfig6 --file dolphinrc --group IconsMode --key PreviewSize 96
-kwriteconfig6 --file kdeglobals --group PreviewSettings --key EnableRemoteFolderThumbnail false
-kwriteconfig6 --file kdeglobals --group PreviewSettings --key MaximumRemoteSize 10000000000
+echo "Wallpaper set for current user (lock screen + desktop)."
 
 #copy plasma session autostartscript
 url="https://raw.githubusercontent.com/macaricol/arch/refs/heads/main/kde_init.sh"
