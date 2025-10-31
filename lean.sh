@@ -146,7 +146,7 @@ configure() {
   sed -i 's/#en_US\.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen
   sed -i 's/#pt_PT\.UTF-8 UTF-8/pt_PT.UTF-8 UTF-8/' /etc/locale.gen
   locale-gen
-  echo "LANG=pt_PT.UTF-8" > /etc/locale.conf
+  echo -e 'LANG=pt_PT.UTF-8\nLC_MESSAGES=en_US.UTF-8' > /etc/locale.conf
   echo "KEYMAP=$KEYMAP" > /etc/vconsole.conf
 
   info_print "Setting hostname & users..."
