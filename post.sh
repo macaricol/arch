@@ -45,12 +45,11 @@ case "$cpu_vendor" in
         ;;
 esac
 
-# Detect GPU vendor
+# Detect GPU vendor TODO check 32bit support packages
 gpu_vendor=$(lspci | grep -E "VGA|3D" | grep -Ei "intel|amd|nvidia" | awk '{print tolower($0)}')
 if [[ $gpu_vendor == *intel* ]]; then
     echo "Detected Intel GPU. Installing Intel GPU packages..."
-    ##TODO
-    #sudo pacman -S --noconfirm mesa libva-intel-driver intel-media-driver || exit 1
+    sudo pacman -S --noconfirm mesa vulkan-intel intel-media-driver || exit 1
 elif [[ $gpu_vendor == *amd* ]]; then
     echo "Detected AMD GPU. Installing AMD GPU packages..."
     sudo pacman -S --noconfirm mesa vulkan-radeon libva-mesa-driver mesa-vdpau radeontop || exit 1
