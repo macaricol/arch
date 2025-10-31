@@ -1,5 +1,5 @@
 #!/bin/bash
-set -euo pipefail  # Fail fast: exit on error, undefined var, pipe fail
+set -eo pipefail  # Fail fast: exit on error, pipe fail
 
 # ── Configuration ─────────────────────────────────────────────────────
 TIMEZONE='Europe/Lisbon'
