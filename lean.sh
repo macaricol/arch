@@ -1,170 +1,180 @@
 #!/bin/bash
+set -eo pipefail  # Fail fast: exit on error, pipe fail
 
-# Configuration
+# ── Configuration ─────────────────────────────────────────────────────
 TIMEZONE='Europe/Lisbon'
 KEYMAP='pt-latin9'
 
-# Cosmetics (colours for text).
-BOLD='\e[1m'
-BGREEN='\e[92m'
-BYELLOW='\e[93m'
-RESET='\e[0m'
+# ── Colors ───────────────────────────────────────────────────────────
+BOLD='\e[1m' BGREEN='\e[92m' BYELLOW='\e[93m' RESET='\e[0m'
 
-# Pretty print (function).
-info_print () {
-    echo -e "${BOLD}${BGREEN}[ ${BYELLOW}•${BGREEN} ] $1${RESET}"
-}
+info_print() { printf "${BOLD}${BGREEN}[ ${BYELLOW}•${BGREEN} ] %b${RESET}\n" "$1"; }
 
-exec </dev/tty
+# ── Redirect stdin from TTY ──────────────────────────────────────────
+exec < /dev/tty
 
 # ── Drive Selection Menu ─────────────────────────────────────────────
 select_drive() {
-  # Get block devices, exclude loop devices
-  mapfile -t options < <(lsblk -dno PATH | grep -v loop)
-  [[ ${#options[@]} -eq 0 ]] && { echo "No drives found. Exiting."; exit 1; }
+  mapfile -t options < <(lsblk -dno PATH | grep -v '^/dev/loop')
+  (( ${#options[@]} )) || { info_print "No drives found."; exit 1; }
 
-  selected=0
-  total_options=${#options[@]}
+  local selected=0 total=${#options[@]}
 
   draw_menu() {
     clear
     info_print "###########################################"
     info_print "#        Select installation drive        #"
     info_print "###########################################"
-    info_print "#"
+    info_print ""
 
-    for ((i=0; i<total_options; i++)); do
-      [[ $i -eq $selected ]] && info_print "# > \033[7m${options[i]}\033[0m" || info_print "#   ${options[i]}  "
+    for ((i=0; i<total; i++)); do
+      [[ $i -eq $selected ]] && \
+        info_print "# > \033[7m${options[i]}\033[0m" || \
+        info_print "#   ${options[i]}  "
     done
-    
-    info_print "#"
+
+    info_print ""
     info_print "###########################################"
-    info_print "#   Use ↑↓ to navigate, Enter to select   #"
+    info_print "#   ↑↓ to navigate, Enter to select       #"
     info_print "###########################################"
   }
 
-  read_arrow() {
+  read_key() {
     local key
     read -rsn1 key
-    [[ $key == $'\x1b' ]] && { read -rsn2 -t 0.1 key 2>/dev/null; case $key in
-      '[A') ((selected--)); [[ $selected -lt 0 ]] && selected=$((total_options-1)); return 1 ;;
-      '[B') ((selected++)); [[ $selected -ge $total_options ]] && selected=0; return 1 ;;
-      *) return 1 ;;
-    esac; }
-    [[ -z $key ]] && return 0
+    [[ $key == $'\x1b' ]] && read -rsn2 -t 0.1 key && case $key in
+      '[A') ((selected--)); (( selected < 0 )) && selected=$((total-1)) ;;
+      '[B') ((selected++)); (( selected >= total )) && selected=0 ;;
+    esac
+    [[ -z $key ]] && return 0  # Enter pressed
     return 1
   }
 
-  while true; do
+  while :; do
     draw_menu
-    read_arrow
-    [[ $? -eq 0 ]] || continue  # Only proceed if Enter was pressed (return 0)
-    DRIVE=${options[selected]}
-    [[ -b $DRIVE ]] || { echo "Error: Invalid block device."; exit 1; }
-    echo "Use $DRIVE for Arch install? ALL DATA WILL BE LOST! (Enter to confirm, Esc/other to cancel)"
-    read -rsn1 confirm
-    [[ -z $confirm ]] && { echo "Selected: $DRIVE"; DRIVE_TYPE=$(get_drive_type "$DRIVE"); return 0; }
+    read_key && break
   done
+
+  DRIVE=${options[selected]}
+  [[ -b $DRIVE ]] || { info_print "Invalid drive."; exit 1; }
+
+  echo -e "\nUse $DRIVE? ALL DATA WILL BE ERASED!"
+  read -rn1 -p "Press Enter to confirm, any other key to cancel... " confirm
+  [[ -z $confirm ]] || exit 0
+  info_print "Selected: $DRIVE"
+  DRIVE_TYPE=$(get_drive_type "$DRIVE")
 }
 
-get_drive_type() {
-  case $1 in
-    /dev/nvme*) echo "nvme" ;;
-    /dev/sd*) echo "sda" ;;
-    *) echo "unknown"; exit 1 ;;
-  esac
-}
-
+get_drive_type() { [[ $1 =~ /dev/nvme ]] && echo "nvme" || echo "sda"; }
 
 # ── Partitioning ─────────────────────────────────────────────────────
 partition_drive() {
-  local drive="$1"
-  parted -s "$drive" mklabel gpt mkpart primary fat32 1MiB 513MiB set 1 boot on mkpart primary linux-swap 513MiB 8705MiB mkpart primary btrfs 8705MiB 100%
-  partition_suffix=$([[ $DRIVE_TYPE == "nvme" ]] && echo "p" || echo "")
-  BOOT_PARTITION="${drive}${partition_suffix}1"
-  SWAP_PARTITION="${drive}${partition_suffix}2"
-  ROOT_PARTITION="${drive}${partition_suffix}3"
+  local drive=$1 suffix=$([[ $DRIVE_TYPE == nvme ]] && echo "p" || echo "")
+  parted -s "$drive" mklabel gpt \
+    mkpart primary fat32 1MiB 513MiB set 1 esp on \
+    mkpart primary linux-swap 513MiB 8705MiB \
+    mkpart primary btrfs 8705MiB 100%
+
+  BOOT_PART="${drive}${suffix}1"
+  SWAP_PART="${drive}${suffix}2"
+  ROOT_PART="${drive}${suffix}3"
 }
 
 format_filesystems() {
-  mkfs.fat -F 32 -n boot "$BOOT_PARTITION"
-  mkfs.btrfs -f -L root "$ROOT_PARTITION"
-  mkswap -L swap "$SWAP_PARTITION"
+  mkfs.fat -F32 -n BOOT "$BOOT_PART"
+  mkfs.btrfs -f -L ROOT "$ROOT_PART"
+  mkswap -L SWAP "$SWAP_PART"
 }
 
 mount_filesystems() {
-  mount "$ROOT_PARTITION" /mnt
-  btrfs subvolume create /mnt/@{,home}
+  mount "$ROOT_PART" /mnt
+  btrfs subvolume create /mnt/@ /mnt/@home
   umount /mnt
-  mount -o subvol=@ "$ROOT_PARTITION" /mnt
-  mkdir -p /mnt/{home,boot}
-  mount -o subvol=@home "$ROOT_PARTITION" /mnt/home
-  mount "$BOOT_PARTITION" /mnt/boot
-  swapon "$SWAP_PARTITION"
+
+  mount -o subvol=@ "$ROOT_PART" /mnt
+  mkdir -p /mnt/{boot,home}
+  mount -o subvol=@home "$ROOT_PART" /mnt/home
+  mount "$BOOT_PART" /mnt/boot
+  swapon "$SWAP_PART"
 }
 
 # ── Setup (Outside Chroot) ───────────────────────────────────────────
 setup() {
-  read -p "Enter hostname: " HOSTNAME
-  echo "Enter root password:"
-  stty -echo; read ROOT_PASSWORD; stty echo
-  read -p "Enter username: " USER_NAME
-  echo "Enter password for $USER_NAME:"
-  stty -echo; read USER_PASSWORD; stty echo
+  read -p "Hostname: " HOSTNAME
+  read -s -p "Root password: " ROOT_PASSWORD; echo
+  read -p "Username: " USER_NAME
+  read -s -p "User password: " USER_PASSWORD; echo
 
   select_drive
-  local drive="$DRIVE"
 
-  info_print "##### Creating partitions #####"
-  partition_drive "$drive"
-  info_print "##### Formatting filesystems #####"
+  info_print "Creating partitions..."
+  partition_drive "$DRIVE"
+
+  info_print "Formatting..."
   format_filesystems
-  echinfo_printo "##### Mounting filesystems #####"
+
+  info_print "Mounting..."
   mount_filesystems
-  info_print "##### Installing base system #####"
+
+  info_print "Installing base system..."
   pacstrap -K /mnt base linux linux-firmware
-  info_print "##### Generating fstab #####"
+
+  info_print "Generating fstab..."
   genfstab -U /mnt >> /mnt/etc/fstab
-  info_print "##### Chrooting #####"
+
+  info_print "Entering chroot..."
   cp "$0" /mnt/setup.sh
-  arch-chroot /mnt env HOSTNAME="$HOSTNAME" ROOT_PASSWORD="$ROOT_PASSWORD" USER_NAME="$USER_NAME" USER_PASSWORD="$USER_PASSWORD" ./setup.sh chroot
-  reboot
+  arch-chroot /mnt env \
+    HOSTNAME="$HOSTNAME" \
+    ROOT_PASSWORD="$ROOT_PASSWORD" \
+    USER_NAME="$USER_NAME" \
+    USER_PASSWORD="$USER_PASSWORD" \
+    /bin/bash /setup.sh chroot
+
+  info_print "Rebooting in 5 seconds..."
+  sleep 5 && reboot
 }
 
 # ── Configure (Inside Chroot) ────────────────────────────────────────
 configure() {
-  info_print "##### Installing essential packages #####"
+  info_print "Installing essentials..."
   pacman -Sy --noconfirm grub efibootmgr btrfs-progs nano networkmanager sudo
 
-  info_print "##### Setting timezone & region settings #####"
-  ln -sf /usr/share/zoneinfo/$TIMEZONE /etc/localtime
+  info_print "Setting timezone & locale..."
+  ln -sf "/usr/share/zoneinfo/$TIMEZONE" /etc/localtime
   hwclock --systohc
   sed -i 's/#en_US\.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen
   sed -i 's/#pt_PT\.UTF-8 UTF-8/pt_PT.UTF-8 UTF-8/' /etc/locale.gen
-  echo -e 'LANG=pt_PT.UTF-8\nLC_MESSAGES=en_US.UTF-8' > /etc/locale.conf
   locale-gen
+  echo "LANG=pt_PT.UTF-8" > /etc/locale.conf
   echo "KEYMAP=$KEYMAP" > /etc/vconsole.conf
 
-  info_print "##### Setting hostname, sudoers and users #####"
+  info_print "Setting hostname & users..."
   echo "$HOSTNAME" > /etc/hostname
-  sed -i 's/# %wheel ALL=(ALL:ALL) ALL/%wheel ALL=(ALL:ALL) ALL/' /etc/sudoers
-  echo -en "$ROOT_PASSWORD\n$ROOT_PASSWORD" | passwd
+  echo -e "$ROOT_PASSWORD\n$ROOT_PASSWORD" | passwd
   useradd -mG wheel -s /bin/bash "$USER_NAME"
-  echo -en "$USER_PASSWORD\n$USER_PASSWORD" | passwd "$USER_NAME"
+  echo -e "$USER_PASSWORD\n$USER_PASSWORD" | passwd "$USER_NAME"
+  sed -i 's/# %wheel ALL=(ALL:ALL) ALL/%wheel ALL=(ALL:ALL) ALL/' /etc/sudoers
 
-  info_print "##### Installing bootloader #####"
+  info_print "Installing GRUB..."
   grub-install --target=x86_64-efi --efi-directory=/boot --bootloader-id=GRUB
   grub-mkconfig -o /boot/grub/grub.cfg
-  
-  info_print "##### Enabling network manager #####"
+
+  info_print "Enabling NetworkManager..."
   systemctl enable NetworkManager
 
-  info_print "##### Downloading post reboot script #####"
-  curl -s -o "/home/$USER_NAME/post.sh" "https://raw.githubusercontent.com/macaricol/arch/refs/heads/main/post.sh" && \
-    chown "$USER_NAME:$USER_NAME" "/home/$USER_NAME/post.sh" && chmod 755 "/home/$USER_NAME/post.sh" || \
-    echo "Error: Failed to download or set up post.sh"
-    
-  rm /setup.sh
+  info_print "Downloading post-install script..."
+  local url="https://raw.githubusercontent.com/macaricol/arch/refs/heads/main/post.sh"
+  local dest="/home/$USER_NAME/post.sh"
+  if curl -fsSL "$url" -o "$dest"; then
+    chown "$USER_NAME:$USER_NAME" "$dest"
+    chmod 755 "$dest"
+    info_print "post.sh ready at $dest"
+  else
+    info_print "Failed to download post.sh"
+  fi
+
+  rm -f /setup.sh
 }
 
 # ── Main ─────────────────────────────────────────────────────────────
