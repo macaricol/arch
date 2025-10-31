@@ -83,6 +83,9 @@ sudo grub-mkconfig -o /boot/grub/grub.cfg
 # Comment out all lines containing 'echo' in /boot/grub/grub.cfg
 sudo sed -i '/echo/s/^/#/' /boot/grub/grub.cfg
 
+#uncomment multilib, required to install steam for example
+sudo sed -i '/\[multilib\]/,/Include/ s/^#//' /etc/pacman.conf
+
 clear
 echo "####################################################################"
 echo "######################## Setting mpv configs #######################"

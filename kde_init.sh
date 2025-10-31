@@ -90,10 +90,12 @@ kwriteconfig6 --file plasmashellrc --group PlasmaViews --group "Panel 2" --key f
 kwriteconfig6 --file plasmashellrc --group PlasmaViews --group "Panel 2" --key panelLengthMode 1
 # Set panel opacity (2 = adaptive)
 kwriteconfig6 --file plasmashellrc --group PlasmaViews --group "Panel 2" --key panelOpacity 2
+# Set panel visibility (2 = dodge windows)
+kwriteconfig6 --file plasmashellrc --group PlasmaViews --group "Panel 2" --key panelVisibility 2
 
 # Set panel visibility (2 = auto-hide)
 kwriteconfig6 --file ~/.config/plasmashellrc --group PlasmaViews --group "Panel 94" --key panelVisibility 2
 
 systemctl --user restart plasma-plasmashell.service
 
-rm post.sh kde_init.sh
+rm -f "$HOME/post.sh" "$HOME/kde_init.sh"
