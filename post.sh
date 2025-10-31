@@ -154,8 +154,10 @@ kwriteconfig6 --file kscreenlockerrc --group Greeter --group Wallpaper \
                 
 
 # 2. Desktop wallpaper (current user)
-kwriteconfig6 --file plasmarc --group Wallpaper --group org.kde.image --group General \
-                --key Image "file://$WALLPAPER_FILE"
+XML_FILE="/usr/share/plasma/wallpapers/org.kde.image/contents/config/main.xml"
+
+# Update XML file
+sudo sed -i "/<entry name=\"Image\" type=\"String\">/,/<\/entry>/ s|<default>.*</default>|<default>file://$WALLPAPER_FILE</default>|" "$XML_FILE"
 
 echo "Wallpaper set for current user (lock screen + desktop)."
 
