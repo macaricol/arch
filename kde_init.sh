@@ -10,10 +10,6 @@ echo "#################### KDE Plasma configs init ####################"
 echo "####################################################################"
 echo ""
 
-# Set Portuguese (pt) as the only keyboard layout
-kwriteconfig6 --file kxkbrc --group Layout --key LayoutList "pt"
-kwriteconfig6 --file kxkbrc --group Layout --key Use "true"
-
 #screen edges functions
 kwriteconfig6 --file kwinrc --group Effect-overview --key BorderActivate 9
 kwriteconfig6 --file kwinrc --group Effect-windowview --key BorderActivate 7

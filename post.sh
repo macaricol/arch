@@ -161,6 +161,10 @@ sudo sed -i "/<entry name=\"Image\" type=\"String\">/,/<\/entry>/ s|<default>.*<
 
 echo "Wallpaper set for current user (lock screen + desktop)."
 
+# Set Portuguese (pt) as the only keyboard layout
+kwriteconfig6 --file kxkbrc --group Layout --key LayoutList "pt"
+kwriteconfig6 --file kxkbrc --group Layout --key Use "true"
+
 #copy plasma session autostartscript
 url="https://raw.githubusercontent.com/macaricol/arch/refs/heads/main/kde_init.sh"
 
