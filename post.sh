@@ -55,8 +55,7 @@ elif [[ $gpu_vendor == *amd* ]]; then
     sudo pacman -S --noconfirm mesa vulkan-radeon libva-mesa-driver mesa-vdpau radeontop || exit 1
 elif [[ $gpu_vendor == *nvidia* ]]; then
     echo "Detected NVIDIA GPU. Installing NVIDIA GPU packages..."
-    ##TODO
-    #sudo pacman -S --noconfirm nvidia nvidia-utils || exit 1
+    sudo pacman -S --noconfirm nvidia nvidia-utils nvidia-settings opencl-nvidia || exit 1
 else
     echo "Warning: No supported GPU detected (Intel, AMD, or NVIDIA). Skipping GPU driver installation."
 fi
