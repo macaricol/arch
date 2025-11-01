@@ -40,14 +40,23 @@ select_drive() {
   }
 
   read_key() {
-    local key
+    local key seq
     read -rsn1 key
-    [[ $key == $'\x1b' ]] && read -rsn2 -t 0.1 key && case $key in
-      '[A') ((selected--)); (( selected < 0 )) && selected=$((total-1)) ;;
-      '[B') ((selected++)); (( selected >= total )) && selected=0 ;;
-    esac
-    [[ -z $key ]] && return 0  # Enter pressed
-    return 1
+
+    if [[ $key == $'\x1b' ]]; then
+      if read -rsn2 -t 0.1 seq; then
+        [[ $seq == '[A' ]] && ((selected--))
+        [[ $seq == '[B' ]] && ((selected++))
+        (( selected < 0 )) && selected=$((total-1))
+        (( selected >= total )) && selected=0
+      else
+        clear; info_print "Operation cancelled."; exit 0
+      fi
+      return 1
+    fi
+
+    [[ -z $key ]] && return 0  # Enter
+    return 1                   # Ignore others
   }
 
   while :; do
@@ -100,12 +109,23 @@ mount_filesystems() {
 
 # ── Setup (Outside Chroot) ───────────────────────────────────────────
 setup() {
+  clear
+  info_print "###########################################"
+  info_print "###### Capturing machine/user details #####"
+  info_print "###########################################"
+  info_print ""
   read -p "Hostname: " HOSTNAME
   read -s -p "Root password: " ROOT_PASSWORD; echo
   read -p "Username: " USER_NAME
   read -s -p "User password: " USER_PASSWORD; echo
 
   select_drive
+
+  clear
+  info_print "###########################################"
+  info_print "#### Preparing drive for installation #####"
+  info_print "###########################################"
+  info_print ""
 
   info_print "Creating partitions..."
   partition_drive "$DRIVE"
@@ -116,7 +136,12 @@ setup() {
   info_print "Mounting..."
   mount_filesystems
 
-  info_print "Installing base system..."
+  clear
+  info_print "###########################################"
+  info_print "########## Installing Arch Linux ##########"
+  info_print "###########################################"
+  info_print ""
+  info_print "Installing base packages..."
   pacstrap -K /mnt base linux linux-firmware
 
   info_print "Generating fstab..."
