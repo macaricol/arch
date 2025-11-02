@@ -76,36 +76,6 @@ box() {
   printf '\e[35m%s\e[0m\n' "$line"
 }
 
-#live output last N lines
-pacstrap() {
-    local lines="${1:-15}"
-    shift
-    local log=$(mktemp)
-
-    command pacstrap "$@" > "$log" 2>&1 &
-    local pid=$!
-
-    # Live rolling window: show every line, erase old ones
-    tail -f "$log" --pid="$pid" -n +1 2>/dev/null | \
-        awk -v max="$lines" '
-            {
-                buffer[NR % max] = $0
-                if (NR > max) {
-                    printf "\r\033[K%s\n", buffer[NR % max]
-                } else {
-                    print
-                }
-            }
-        '
-
-    wait "$pid"
-
-    # Final clean block
-    printf "\n\e[96;1m[ Ω ]\e[0m \e[97mInstallation complete (last %d lines):\e[0m\n" "$lines"
-    tail -n "$lines" "$log"
-    rm -f "$log"
-}
-
 # ── Config ───────────────────────────────────────────────────────
 TIMEZONE='Europe/Lisbon'
 KEYMAP='pt-latin9'
