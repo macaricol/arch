@@ -40,13 +40,14 @@ select_drive() {
     clear
     box "Select installation drive"
 
-    for ((i=0; i<total; i++)); do
-      [[ $i -eq $selected ]] && \
-        info_print "# > \033[7m${options[i]}\033[0m" || \
-        info_print "#   ${options[i]}  "
+    for ((i=0; i<${#options[@]}; i++)); do
+      if (( i == selected )); then
+        printf ' \e[7m>\e[0m %s\n' "${options[i]}"
+      else
+        printf '   %s\n' "${options[i]}"
+      fi
     done
-
-    box "↑↓ to navigate, Enter to select"
+    box "↑↓ navigate – Enter select – ESC cancel"
   }
 
   read_key() {
@@ -60,7 +61,7 @@ select_drive() {
         (( selected < 0 )) && selected=$((total-1))
         (( selected >= total )) && selected=0
       else
-        clear; info_print "Operation cancelled."; exit 0
+        clear; info "Operation cancelled."; exit 0
       fi
       return 1
     fi
