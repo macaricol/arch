@@ -6,6 +6,7 @@ IFS=$'\n\t'
 # ── Helpers ─────────────────────────────────────────────────────
 die() { printf '\e[1;31mERROR: %b\e[0m\n' "$*"; exit 1; } >&2
 info() { printf '\e[1;92m[•] %b\e[0m\n' "$*"; }
+
 box() {
   local title=" $1 "          # one space before & after
   local w="${2:-70}" c="${3:-#}"
@@ -33,13 +34,11 @@ MNT=/mnt
 select_drive() {
   mapfile -t options < <(printf '/dev/sdummy\n'; lsblk -dplno PATH,TYPE | awk '$2=="disk"{print $1}')
   (( ${#options[@]} )) || die "No block devices found"
-
   local selected=0 total=${#options[@]}
 
   draw_menu() {
     clear
     box "Select installation drive"
-
     for ((i=0; i<${#options[@]}; i++)); do
       if (( i == selected )); then
         printf ' \e[7m>\e[0m %s\n' "${options[i]}"
@@ -53,7 +52,6 @@ select_drive() {
   read_key() {
     local key seq
     read -rsn1 key
-
     if [[ $key == $'\x1b' ]]; then
       if read -rsn2 -t 0.1 seq; then
         [[ $seq == '[A' ]] && ((selected--))
@@ -76,7 +74,7 @@ select_drive() {
   done
 
   DRIVE=${options[selected]}
-  [[ -b $DRIVE ]] || { info_print "Invalid drive."; exit 1; }
+  [[ -b $DRIVE ]] || { info "Invalid drive."; exit 1; }
 
   echo -e "\n Use $DRIVE? ALL DATA WILL BE ERASED!"
   read -rn1 -p " Press Enter to confirm, any other key to cancel... " confirm
@@ -89,7 +87,6 @@ partition_drive() {
   local dev=$1
   local type=''
   [[ $dev =~ nvme ]] && type='p'
-
   info "Wiping & creating GPT partitions"
   sgdisk -Z \
     -n 1:1M:512M -t 1:ef00 -c 1:EFI \
@@ -127,62 +124,44 @@ install_base() {
   info "Pacstrap base system"
   pacstrap -K "$MNT" base linux linux-firmware btrfs-progs \
     grub efibootmgr nano networkmanager sudo || die "pacstrap failed"
-  
+
   info "Generating fstab"
   genfstab -U "$MNT" >> "$MNT/etc/fstab"
 }
 
-# ── Chroot (heredoc – no temp file) ─────────────────────────────
-chroot_setup() {
-  cat > "$MNT/etc/systemd/system/installer-chroot.service" <<'EOF'
-[Unit]
-Description=Arch post-install
-After=network.target
+# ── Chroot phase (executed when script is run with 'chroot' arg) ─
+chroot_phase() {
+  set -eo pipefail
 
-[Service]
-Type=oneshot
-ExecStart=/usr/bin/bash /installer.sh chroot
-StandardInput=tty
-StandardOutput=tty
-StandardError=tty
-EOF
-  systemctl --root="$MNT" enable installer-chroot.service
+  info() { printf '\e[1;92m[•] %b\e[0m\n' "$*"; }
 
-  arch-chroot "$MNT" /bin/bash -c "$(cat <<'INNER'
-set -euo pipefail
-export HOSTNAME USER_NAME ROOT_PASSWORD USER_PASSWORD TIMEZONE KEYMAP
-# ---- inside chroot -------------------------------------------------
-info() { printf '\e[1;92m[•] %b\e[0m\n' "$*"; }
+  pacman -Sy --noconfirm
 
-pacman -Sy --noconfirm
-ln -sf "/usr/share/zoneinfo/$TIMEZONE" /etc/localtime
-hwclock --systohc
+  ln -sf "/usr/share/zoneinfo/$TIMEZONE" /etc/localtime
+  hwclock --systohc
 
-sed -i '/^#.*UTF-8/ d;/en_US\.UTF-8/ s/#//;/pt_PT\.UTF-8/ s/#//' /etc/locale.gen
-locale-gen
-echo -e "LANG=pt_PT.UTF-8\nLC_MESSAGES=en_US.UTF-8" > /etc/locale.conf
-echo "KEYMAP=$KEYMAP" > /etc/vconsole.conf
+  sed -i '/^#.*UTF-8/ d;/en_US\.UTF-8/ s/#//;/pt_PT\.UTF-8/ s/#//' /etc/locale.gen
+  locale-gen
+  echo -e "LANG=pt_PT.UTF-8\nLC_MESSAGES=en_US.UTF-8" > /etc/locale.conf
+  echo "KEYMAP=$KEYMAP" > /etc/vconsole.conf
 
-echo "$HOSTNAME" > /etc/hostname
-printf '%s\n%s\n' "$ROOT_PASSWORD" "$ROOT_PASSWORD" | passwd --stdin root
-useradd -mG wheel -s /bin/bash "$USER_NAME"
-printf '%s\n%s\n' "$USER_PASSWORD" "$USER_PASSWORD" | passwd --stdin "$USER_NAME"
-sed -i 's/# %wheel ALL=(ALL:ALL) ALL/%wheel ALL=(ALL:ALL) ALL/' /etc/sudoers
+  echo "$HOSTNAME" > /etc/hostname
+  printf '%s\n%s\n' "$ROOT_PASSWORD" "$ROOT_PASSWORD" | passwd --stdin root
+  useradd -mG wheel -s /bin/bash "$USER_NAME"
+  printf '%s\n%s\n' "$USER_PASSWORD" "$USER_PASSWORD" | passwd --stdin "$USER_NAME"
+  sed -i 's/# %wheel ALL=(ALL:ALL) ALL/%wheel ALL=(ALL:ALL) ALL/' /etc/sudoers
 
-grub-install --target=x86_64-efi --efi-directory=/boot --bootloader-id=GRUB
-grub-mkconfig -o /boot/grub/grub.cfg
-systemctl enable NetworkManager
+  grub-install --target=x86_64-efi --efi-directory=/boot --bootloader-id=GRUB
+  grub-mkconfig -o /boot/grub/grub.cfg
+  systemctl enable NetworkManager
 
-# post-install helper
-curl -fsSL https://raw.githubusercontent.com/macaricol/arch/refs/heads/main/post.sh \
-     -o /home/"$USER_NAME"/post.sh && \
+  # post-install helper
+  curl -fsSL https://raw.githubusercontent.com/macaricol/arch/refs/heads/main/post.sh \
+      -o /home/"$USER_NAME"/post.sh && \
   chown "$USER_NAME:$USER_NAME" /home/"$USER_NAME"/post.sh && chmod +x /home/"$USER_NAME"/post.sh && \
   info "post.sh downloaded"
 
-rm -f /installer.sh
-# -------------------------------------------------------------------
-INNER
-)"
+  rm -f /installer.sh
 }
 
 # ── Main flow ───────────────────────────────────────────────────
@@ -199,16 +178,17 @@ main() {
   format_and_mount
   install_base
 
-  # copy this script for chroot (heredoc will read it later)
-  cp "$0" "$MNT/installer.sh"
+  info "Entering chroot..."
+  cp "$0" /mnt/setup.sh
+  arch-chroot /mnt env \
+    HOSTNAME="$HOSTNAME" \
+    ROOT_PASSWORD="$ROOT_PASSWORD" \
+    USER_NAME="$USER_NAME" \
+    USER_PASSWORD="$USER_PASSWORD" \
+    /bin/bash /setup.sh chroot
 
-  info "Entering chroot…"
-  chroot_setup
-
-  info "Installation finished – rebooting in 5 s"
+  info "Rebooting in 5 seconds..."
   sleep 5 && reboot
 }
 
-# ── Dispatch ────────────────────────────────────────────────────
-[[ "${1:-}" == "chroot" ]] && exit 0   # placeholder – real chroot runs from heredoc
-main
+[[ $1 == chroot ]] && chroot_phase || main
