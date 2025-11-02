@@ -120,9 +120,6 @@ format_and_mount() {
   mount -o noatime,compress=zstd,subvol=@home "$ROOT_PART" "$MNT/home"
   mount "$BOOT_PART" "$MNT/boot"
   swapon "$SWAP_PART"
-
-  info "Generating fstab"
-  genfstab -U "$MNT" >> "$MNT/etc/fstab"
 }
 
 # ── Base system ─────────────────────────────────────────────────
@@ -130,6 +127,9 @@ install_base() {
   info "Pacstrap base system"
   pacstrap -K "$MNT" base linux linux-firmware btrfs-progs \
     grub efibootmgr nano networkmanager sudo || die "pacstrap failed"
+  
+  info "Generating fstab"
+  genfstab -U "$MNT" >> "$MNT/etc/fstab"
 }
 
 # ── Chroot (heredoc – no temp file) ─────────────────────────────
