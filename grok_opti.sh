@@ -10,11 +10,51 @@ info()    { printf '\e[96;1m[ Ω ]\e[0m \e[97m%b\e[0m\n' "$*"; sleep 3; }
 warning() { printf '\e[93;1m[ Ω ]\e[0m \e[97m%b\e[0m\n' "$*" >&2; sleep 3; }
 error()   { printf '\e[91;1m[ Ω ]\e[0m \e[97m%b\e[0m\n' "$*" >&2; sleep 3; }
 die()     { error "$*"; exit 1; }
-info_prompt() {
-    read -rn1 -p "$(printf '\e[96;1m[\e[5mΩ\e[25m]\e[0m \e[97m%b\e[0m ' "$1")" confirm
-    echo
-    [[ $confirm == $'\n' ]] || [[ -z $confirm ]]
+info_input() {
+    local prompt_msg="$1"
+    local var_name="$2"
+    local secure="${3:-no}"        # "yes" = hide input
+    local validator="${4:-}"       # Optional: function name to validate
+    local input
+
+    while :; do
+        # Print styled prompt
+        printf '\e[96;1m[ \e[5mΩ\e[25m ]\e[0m \e[97m%b\e[0m' "$prompt_msg"
+
+        if [[ $secure == yes ]]; then
+            read -rs input
+            echo  # Newline after hidden input
+        else
+            read -r input
+            echo "$input"  # Echo visible input
+        fi
+
+        # Trim whitespace
+        input="${input#"${input%%[![:space:]]*}"}"  # leading
+        input="${input%"${input##*[![:space:]]}"}"  # trailing
+
+        # Validate if function provided
+        if [[ -n $validator ]] && ! "$validator" "$input"; then
+            warning "Invalid input. Try again."
+            continue
+        fi
+
+        # Non-empty check
+        if [[ -z $input ]]; then
+            warning "Input cannot be empty."
+            continue
+        fi
+
+        # Success: assign to variable
+        printf -v "$var_name" '%s' "$input"
+        return 0
+    done
 }
+
+# Validators
+valid_hostname() { [[ $1 =~ ^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$ ]] && [[ ${#1} -le 63 ]]; }
+valid_username() { [[ $1 =~ ^[a-z_][a-z0-9_-]{0,31}$ ]]; }
+valid_password() { [[ ${#1} -ge 8 ]]; }
 
 box() {
   local title=" $1 "          # one space before & after
@@ -175,10 +215,10 @@ main() {
   clear
   box "Capturing machine/user details" 70 Ω
   sleep 5
-  info_prompt "Hostname: " HOSTNAME
-  info_prompt "Root password: " ROOT_PASSWORD; echo
-  info_prompt "Username: " USER_NAME
-  info_prompt "User password: " USER_PASSWORD; echo
+  info_input "Hostname: " HOSTNAME no valid_hostname
+  info_input "Root password: " ROOT_PASSWORD yes valid_password
+  info_input "Username: " USER_NAME no valid_username
+  info_input "User password: " USER_PASSWORD yes valid_password
 
   select_drive
 
