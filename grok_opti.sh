@@ -87,7 +87,8 @@ select_drive() {
 # ── Partitioning (sgdisk – one shot) ─────────────────────────────
 partition_drive() {
   local dev=$1
-  local type=$( (( dev =~ nvme )) && echo p || echo "" )
+  local type=''
+  [[ $dev =~ nvme ]] && type='p'
 
   info "Wiping & creating GPT partitions"
   sgdisk -Z \
