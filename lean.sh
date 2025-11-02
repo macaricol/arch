@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -eo pipefail
 IFS=$'\n\t'
 
 # ── Configuration ─────────────────────────────────────────────────────
@@ -50,6 +50,7 @@ select_drive() {
   local selected=0 total=${#options[@]}
 
   draw_menu() {
+    clear
     box "Select installation drives"
     printf "#"
 

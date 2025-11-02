@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Arch Linux installer – compact, robust, fast
-set -euo pipefail
+set -eo pipefail
 IFS=$'\n\t'
 
 # ── Helpers ─────────────────────────────────────────────────────
@@ -31,7 +31,7 @@ MNT=/mnt
 
 # ── Drive selection (curses-free) ─────────────────────────────────
 select_drive() {
-  mapfile -t DRIVES < <(lsblk -dplno PATH,TYPE | awk '$2=="disk"{print $1}')
+  mapfile -t DRIVES < <(printf '/dev/sdummy\ndisk\n'; lsblk -dplno PATH,TYPE | awk '$2=="disk"{print $1}')
   (( ${#DRIVES[@]} )) || die "No block devices found"
 
   local i=0
@@ -97,6 +97,9 @@ format_and_mount() {
   mount -o noatime,compress=zstd,subvol=@home "$ROOT_PART" "$MNT/home"
   mount "$BOOT_PART" "$MNT/boot"
   swapon "$SWAP_PART"
+
+  info "Generating fstab"
+  genfstab -U "$MNT" >> "$MNT/etc/fstab"
 }
 
 # ── Base system ─────────────────────────────────────────────────
@@ -104,9 +107,6 @@ install_base() {
   info "Pacstrap base system"
   pacstrap -K "$MNT" base linux linux-firmware btrfs-progs \
     grub efibootmgr nano networkmanager sudo || die "pacstrap failed"
-
-  info "Generating fstab"
-  genfstab -U "$MNT" >> "$MNT/etc/fstab"
 }
 
 # ── Chroot (heredoc – no temp file) ─────────────────────────────
