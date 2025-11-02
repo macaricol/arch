@@ -10,6 +10,12 @@ info()    { printf '\e[96;1m[ Ω ]\e[0m \e[97m%b\e[0m\n' "$*"; sleep 3; }
 warning() { printf '\e[93;1m[ Ω ]\e[0m \e[97m%b\e[0m\n' "$*" >&2; sleep 3; }
 error()   { printf '\e[91;1m[ Ω ]\e[0m \e[97m%b\e[0m\n' "$*" >&2; sleep 3; }
 die()     { error "$*"; exit 1; }
+info_prompt() {
+    local confirm
+    read -rn1 -p "$(printf '\e[96;1m[\e[5mΩ\e[25m]\e[0m \e[97m%b\e[0m ' "$1")" confirm
+    echo
+    [[ $confirm == $'\n' ]] || [[ -z $confirm ]]
+}
 info_input() {
     local prompt_msg="$1"
     local var_name="$2"
