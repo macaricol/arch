@@ -5,7 +5,7 @@ IFS=$'\n\t'
 
 # ── Helpers ─────────────────────────────────────────────────────
 info()    { printf '\e[96;1m[ Ω ]\e[0m \e[97m%b\e[0m\n' "$*"; sleep 2; }
-warning() { printf '\e[93;1m[ Ω ]\e[0m \e[97m%b\e[0m\n' "$*" >&2; sleep 2; }
+warning() { printf '\e[93;1m[ Ω ]\e[0m \e[97m%b\e[0m\n' "$*" >&2; }
 error()   { printf '\e[91;1m[ Ω ]\e[0m \e[97m%b\e[0m\n' "$*" >&2; sleep 2; }
 die()     { error "$*"; exit 1; }
 info_prompt() {
