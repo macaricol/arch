@@ -10,7 +10,7 @@ error()   { printf '\e[91;1m[ Ω ]\e[0m \e[97m%b\e[0m\n' "$*" >&2; sleep 2; }
 die()     { error "$*"; exit 1; }
 info_prompt() {
     local confirm
-    read -rn1 -p "$(printf '\e[96;1m[\e[5mΩ\e[25m]\e[0m \e[97m%b\e[0m ' "$1")" confirm
+    read -rn1 -p "$(printf '\e[96;1m[ Ω ]\e[0m \e[97m%b\e[0m ' "$1")" confirm
     echo
     [[ $confirm == $'\n' ]] || [[ -z $confirm ]]
 }
@@ -29,7 +29,6 @@ info_input() {
             echo
         else
             read -r input
-            echo "$input"  # Echo visible input
         fi
 
         # Trim whitespace
