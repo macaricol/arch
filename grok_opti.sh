@@ -24,12 +24,6 @@ box() {
   printf '\e[35m%s\e[0m\n' "$line"
 }
 
-cleanup() {
-  [[ -n ${MNT:-} ]] && umount -R "$MNT" 2>/dev/null || true
-  [[ -n ${SWAP_PART:-} ]] && swapoff "$SWAP_PART" 2>/dev/null || true
-}
-trap cleanup ERR EXIT
-
 # ── Config ───────────────────────────────────────────────────────
 TIMEZONE='Europe/Lisbon'
 KEYMAP='pt-latin9'
