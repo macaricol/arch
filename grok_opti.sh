@@ -19,7 +19,7 @@ info_input() {
 
     while :; do
         # Print styled prompt
-        printf '\e[96;1m[ \e[5mΩ\e[25m ]\e[0m \e[97m%b\e[0m' "$prompt_msg"
+        printf '\e[96;1m[ Ω ]\e[0m \e[97m%b\e[0m' "$prompt_msg"
 
         if [[ $secure == yes ]]; then
             read -rs input
