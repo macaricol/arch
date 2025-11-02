@@ -30,7 +30,6 @@ info_input() {
             echo  # Newline after hidden input
         else
             read -r input
-            echo "$input"  # Echo visible input
         fi
 
         # Trim whitespace
