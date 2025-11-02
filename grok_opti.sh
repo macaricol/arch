@@ -133,8 +133,6 @@ install_base() {
 chroot_phase() {
   set -eo pipefail
 
-  info() { printf '\e[1;92m[•] %b\e[0m\n' "$*"; }
-
   pacman -Sy --noconfirm
 
   ln -sf "/usr/share/zoneinfo/$TIMEZONE" /etc/localtime
@@ -161,7 +159,7 @@ chroot_phase() {
   chown "$USER_NAME:$USER_NAME" /home/"$USER_NAME"/post.sh && chmod +x /home/"$USER_NAME"/post.sh && \
   info "post.sh downloaded"
 
-  rm -f /installer.sh
+  rm -f /setup.sh
 }
 
 # ── Main flow ───────────────────────────────────────────────────
