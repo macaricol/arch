@@ -78,20 +78,41 @@ box() {
 
 #live output last N lines
 pacstrap() {
-    local lines="${1:-25}"
+    local lines="${1:-15}"
     shift
     local log=$(mktemp)
 
-    command pacstrap "$@" 2>&1 | tee "$log" &
+    # Start pacstrap
+    command pacstrap "$@" > "$log" 2>&1 &
     local pid=$!
-    tail -n "$lines" -f "$log" 2>/dev/null &
-    local tail_pid=$!
 
-    wait $pid
-    kill $tail_pid 2>/dev/null || true
+    # Live rolling window: print every new line, but keep only last N
+    tail -f "$log" --pid="$pid" -n +1 2>/dev/null | \
+        awk -v max="$lines" '
+            {
+                # Store line
+                buffer[NR % max] = $0
+                # Print only the last "max" lines
+                if (NR > max) {
+                    printf "\r\e[K%s\n", buffer[NR % max]
+                } else {
+                    print
+                }
+            }
+            END {
+                # Final clean print of last N lines
+                for (i = NR - max + 1; i <= NR; i++) {
+                    if (i > 0) print buffer[i % max]
+                }
+            }
+        '
 
-    info "Installation complete (last $lines lines)"
+    wait "$pid"
+
+    # Final clean block
+    printf '\n\e[96;1m[ Ω ]\e[0m \e[97mInstallation complete (last %d lines):\e[0m\n' "$lines"
     tail -n "$lines" "$log"
+
     rm -f "$log"
 }
 
