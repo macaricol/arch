@@ -80,7 +80,7 @@ box() {
 TIMEZONE='Europe/Lisbon'
 KEYMAP='pt-latin9'
 
-# ── Drive selection (curses-free) ─────────────────────────────────
+# ── Drive selection ──────────────────────────────────────────────
 select_drive() {
   mapfile -t options < <(printf '/dev/sdummy\n'; lsblk -dplno PATH,TYPE | awk '$2=="disk"{print $1}')
   (( ${#options[@]} )) || die "No block devices found"
@@ -213,7 +213,7 @@ chroot_phase() {
 # ── Main flow ───────────────────────────────────────────────────
 main() {
   clear
-  box "Capturing machine/user details" 70 Ω
+  box "Enter machine/user details" 70 Ω
   info_input "Hostname: " HOSTNAME no valid_hostname
   info_input "Root password: " ROOT_PASSWORD yes valid_password
   info_input "Username: " USER_NAME no valid_username
