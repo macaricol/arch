@@ -173,13 +173,17 @@ format_and_mount() {
 install_base() {
 
   # Get top 10 fastest HTTPS mirrors, synced in last 12h
-  reflector --latest 10 \
+  reflector --country 'PT,ES' \
+            --latest 8 \
+            --fastest 8 \
             --protocol https \
             --sort rate \
-            --save /etc/pacman.d/mirrorlist || die "Reflector failed"
+            --number 6 \
+            --save /etc/pacman.d/mirrorlist \
+            --verbose || die "Reflector failed"
 
   info "Updated mirrorlist:"
-  head -n 10 /etc/pacman.d/mirrorlist
+  head -n 20 /etc/pacman.d/mirrorlist
   sleep 3
 
   # Force refresh package databases with new mirrors
