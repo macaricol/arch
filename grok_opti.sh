@@ -124,7 +124,7 @@ select_drive() {
   DRIVE=${options[selected]}
   [[ -b $DRIVE ]] || { die "Invalid drive."; }
 
-  warning "\n Use $DRIVE? ALL DATA WILL BE ERASED!"
+  warning " Use $DRIVE? ALL DATA WILL BE ERASED!"
   info_prompt " Press Enter to confirm, any other key to cancel... " confirm
   [[ -z $confirm ]] || exit 0
   info "Selected: $DRIVE"
