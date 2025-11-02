@@ -191,7 +191,7 @@ format_and_mount() {
 # ── Base system ─────────────────────────────────────────────────
 install_base() {
   info "Pacstrap base system"
-  pacstr -K /mnt base linux linux-firmware btrfs-progs \
+  pacstrap -K /mnt base linux linux-firmware btrfs-progs \
     grub efibootmgr nano networkmanager sudo || die "pacstrap failed"
 
   info "Generating fstab"
