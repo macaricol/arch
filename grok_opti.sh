@@ -76,10 +76,23 @@ box() {
   printf '\e[35m%s\e[0m\n' "$line"
 }
 
-pacstr() {
+#live output last N lines
+pacstrap() {
     local lines="${1:-25}"
     shift
-    command pacstrap "$@" 2>&1 | tail -n "$lines"
+    local log=$(mktemp)
+
+    command pacstrap "$@" 2>&1 | tee "$log" &
+    local pid=$!
+    tail -n "$lines" -f "$log" 2>/dev/null &
+    local tail_pid=$!
+
+    wait $pid
+    kill $tail_pid 2>/dev/null || true
+
+    info "Installation complete (last $lines lines)"
+    tail -n "$lines" "$log"
+    rm -f "$log"
 }
 
 # ── Config ───────────────────────────────────────────────────────
