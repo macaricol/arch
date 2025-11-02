@@ -4,11 +4,9 @@ set -eo pipefail
 IFS=$'\n\t'
 
 # ── Helpers ─────────────────────────────────────────────────────
-#die() { printf '\e[1;31m[ ✗ ]ERROR: %b\e[0m\n' "$*"; exit 1; } >&2
-#info() { printf '\e[1;92m[ Ω ] %b\e[0m\n' "$*"; }
-info()    { printf '\e[96;1m[ Ω ]\e[0m \e[97m%b\e[0m\n' "$*"; sleep 3; }
-warning() { printf '\e[93;1m[ Ω ]\e[0m \e[97m%b\e[0m\n' "$*" >&2; sleep 3; }
-error()   { printf '\e[91;1m[ Ω ]\e[0m \e[97m%b\e[0m\n' "$*" >&2; sleep 3; }
+info()    { printf '\e[96;1m[ Ω ]\e[0m \e[97m%b\e[0m\n' "$*"; sleep 2; }
+warning() { printf '\e[93;1m[ Ω ]\e[0m \e[97m%b\e[0m\n' "$*" >&2; sleep 2; }
+error()   { printf '\e[91;1m[ Ω ]\e[0m \e[97m%b\e[0m\n' "$*" >&2; sleep 2; }
 die()     { error "$*"; exit 1; }
 info_prompt() {
     local confirm
@@ -60,7 +58,7 @@ info_input() {
 # Validators
 valid_hostname() { [[ $1 =~ ^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$ ]] && [[ ${#1} -le 63 ]]; }
 valid_username() { [[ $1 =~ ^[a-z_][a-z0-9_-]{0,31}$ ]]; }
-valid_password() { [[ ${#1} -ge 8 ]]; }
+valid_password() { [[ ${#1} -ge 5 ]]; }
 
 box() {
   local title=" $1 "          # one space before & after
@@ -220,7 +218,6 @@ chroot_phase() {
 main() {
   clear
   box "Capturing machine/user details" 70 Ω
-  sleep 5
   info_input "Hostname: " HOSTNAME no valid_hostname
   info_input "Root password: " ROOT_PASSWORD yes valid_password
   info_input "Username: " USER_NAME no valid_username
@@ -228,13 +225,15 @@ main() {
 
   select_drive
 
+  clear
   box "Preparing drive for installation" 70 Ω
-  sleep 5
+  sleep 2
   partition_drive "$DRIVE"
   format_and_mount
 
+  clear
   box "Installing Arch Linux" 70 Ω
-  sleep 5
+  sleep 2
   install_base
 
   info "Entering chroot..."
@@ -246,6 +245,7 @@ main() {
     USER_PASSWORD="$USER_PASSWORD" \
     /bin/bash /setup.sh chroot
 
+  clear
   box "Rebooting in 5 seconds..." 70 Ω
   sleep 5 && reboot
 }
