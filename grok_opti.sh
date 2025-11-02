@@ -31,10 +31,11 @@ MNT=/mnt
 
 # ── Drive selection (curses-free) ─────────────────────────────────
 select_drive() {
-  mapfile -t DRIVES < <(printf '/dev/sdummy\ndisk\n'; lsblk -dplno PATH,TYPE | awk '$2=="disk"{print $1}')
+  mapfile -t DRIVES < <(printf '/dev/sdummy\n'; lsblk -dplno PATH,TYPE | awk '$2=="disk"{print $1}')
   (( ${#DRIVES[@]} )) || die "No block devices found"
 
-  local i=0
+  local i=0 selected=0 key seq
+
   while :; do
     clear
     box "Select installation drive"
@@ -47,13 +48,31 @@ select_drive() {
     done
     box "↑↓ navigate – Enter select – ESC cancel"
 
+    # Read one character
     read -rsn1 key
-    [[ $key == $'\x1b' ]] && read -rsn2 -t .1 seq \
-      && { [[ $seq == '[A' ]] && ((selected--)); [[ $seq == '[B' ]] && ((selected++)); } \
-      || exit 0
+
+    # If it's ESC (start of escape sequence)
+    if [[ $key == $'\x1b' ]]; then
+      # Try to read the rest of the sequence with timeout
+      if read -rsn2 -t 0.1 seq; then
+        case "$seq" in
+          '[A') ((selected--)) ;;  # Up
+          '[B') ((selected++)) ;;  # Down
+          '[C'|'[D') : ;;          # Left/Right - ignore
+          *) : ;;                  # Unknown sequence
+        esac
+      else
+        # No further input within timeout → this was a lone ESC key
+        exit 0
+      fi
+    elif [[ -z $key ]]; then
+      # Enter key (empty input)
+      break
+    fi
+
+    # Wrap selection
     (( selected < 0 )) && selected=$((${#DRIVES[@]}-1))
     (( selected >= ${#DRIVES[@]} )) && selected=0
-    [[ -z $key ]] && break
   done
 
   DRIVE="${DRIVES[selected]}"
