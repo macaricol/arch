@@ -31,54 +31,56 @@ MNT=/mnt
 
 # ── Drive selection (curses-free) ─────────────────────────────────
 select_drive() {
-  mapfile -t DRIVES < <(printf '/dev/sdummy\n'; lsblk -dplno PATH,TYPE | awk '$2=="disk"{print $1}')
-  (( ${#DRIVES[@]} )) || die "No block devices found"
+  mapfile -t options < <(printf '/dev/sdummy\n'; lsblk -dplno PATH,TYPE | awk '$2=="disk"{print $1}')
+  (( ${#options[@]} )) || die "No block devices found"
 
-  local i=0 selected=0 key seq
+  local selected=0 total=${#options[@]}
 
-  while :; do
+  draw_menu() {
     clear
     box "Select installation drive"
-    for ((i=0; i<${#DRIVES[@]}; i++)); do
-      if (( i == selected )); then
-        printf ' \e[7m>\e[0m %s\n' "${DRIVES[i]}"
-      else
-        printf '   %s\n' "${DRIVES[i]}"
-      fi
-    done
-    box "↑↓ navigate – Enter select – ESC cancel"
 
-    # Read one character
+    for ((i=0; i<total; i++)); do
+      [[ $i -eq $selected ]] && \
+        info_print "# > \033[7m${options[i]}\033[0m" || \
+        info_print "#   ${options[i]}  "
+    done
+
+    box "↑↓ to navigate, Enter to select"
+  }
+
+  read_key() {
+    local key seq
     read -rsn1 key
 
-    # If it's ESC (start of escape sequence)
     if [[ $key == $'\x1b' ]]; then
-      # Try to read the rest of the sequence with timeout
       if read -rsn2 -t 0.1 seq; then
-        case "$seq" in
-          '[A') ((selected--)) ;;  # Up
-          '[B') ((selected++)) ;;  # Down
-          '[C'|'[D') : ;;          # Left/Right - ignore
-          *) : ;;                  # Unknown sequence
-        esac
+        [[ $seq == '[A' ]] && ((selected--))
+        [[ $seq == '[B' ]] && ((selected++))
+        (( selected < 0 )) && selected=$((total-1))
+        (( selected >= total )) && selected=0
       else
-        # No further input within timeout → this was a lone ESC key
-        exit 0
+        clear; info_print "Operation cancelled."; exit 0
       fi
-    elif [[ -z $key ]]; then
-      # Enter key (empty input)
-      break
+      return 1
     fi
 
-    # Wrap selection
-    (( selected < 0 )) && selected=$((${#DRIVES[@]}-1))
-    (( selected >= ${#DRIVES[@]} )) && selected=0
+    [[ -z $key ]] && return 0  # Enter
+    return 1                   # Ignore others
+  }
+
+  while :; do
+    draw_menu
+    read_key && break
   done
 
-  DRIVE="${DRIVES[selected]}"
-  read -rn1 -p $'\n\e[33mUse '"$DRIVE"'? ALL DATA WILL BE ERASED! (Enter=yes)\e[0m ' c
-  [[ -z $c ]] || exit 0
-  info "Selected $DRIVE"
+  DRIVE=${options[selected]}
+  [[ -b $DRIVE ]] || { info_print "Invalid drive."; exit 1; }
+
+  echo -e "\n Use $DRIVE? ALL DATA WILL BE ERASED!"
+  read -rn1 -p " Press Enter to confirm, any other key to cancel... " confirm
+  [[ -z $confirm ]] || exit 0
+  info "Selected: $DRIVE"
 }
 
 # ── Partitioning (sgdisk – one shot) ─────────────────────────────
