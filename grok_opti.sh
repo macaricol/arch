@@ -17,38 +17,38 @@ info_prompt() {
 info_input() {
     local prompt_msg="$1"
     local var_name="$2"
-    local secure="${3:-no}"        # "yes" = hide input
-    local validator="${4:-}"       # Optional: function name to validate
+    local secure="${3:-no}"
+    local validator="${4:-}"
     local input
 
     while :; do
-        # Print styled prompt
         printf '\e[96;1m[ Ω ]\e[0m \e[97m%b\e[0m' "$prompt_msg"
 
         if [[ $secure == yes ]]; then
             read -rs input
-            echo  # Newline after hidden input
+            echo
         else
             read -r input
+            echo "$input"  # Echo visible input
         fi
 
         # Trim whitespace
-        input="${input#"${input%%[![:space:]]*}"}"  # leading
-        input="${input%"${input##*[![:space:]]}"}"  # trailing
+        input="${input#"${input%%[![:space:]]*}"}"
+        input="${input%"${input##*[![:space:]]}"}"
 
-        # Validate if function provided
-        if [[ -n $validator ]] && ! "$validator" "$input"; then
-            warning "Invalid input. Try again."
-            continue
+        # If validator exists, enforce non-empty AND validate
+        if [[ -n $validator ]]; then
+            if [[ -z $input ]]; then
+                warning "Input cannot be empty."
+                continue
+            fi
+            if ! "$validator" "$input"; then
+                warning "Invalid input. Try again."
+                continue
+            fi
         fi
 
-        # Non-empty check
-        if [[ -z $input ]]; then
-            warning "Input cannot be empty."
-            continue
-        fi
-
-        # Success: assign to variable
+        # Success: assign (even if empty)
         printf -v "$var_name" '%s' "$input"
         return 0
     done
