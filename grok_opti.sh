@@ -4,8 +4,17 @@ set -eo pipefail
 IFS=$'\n\t'
 
 # ── Helpers ─────────────────────────────────────────────────────
-die() { printf '\e[1;31mERROR: %b\e[0m\n' "$*"; exit 1; } >&2
-info() { printf '\e[1;92m[•] %b\e[0m\n' "$*"; }
+#die() { printf '\e[1;31m[ ✗ ]ERROR: %b\e[0m\n' "$*"; exit 1; } >&2
+#info() { printf '\e[1;92m[ Ω ] %b\e[0m\n' "$*"; }
+info()    { printf '\e[96;1m[ Ω ]\e[0m \e[97m%b\e[0m\n' "$*"; sleep 3; }
+warning() { printf '\e[93;1m[ Ω ]\e[0m \e[97m%b\e[0m\n' "$*" >&2; sleep 3; }
+error()   { printf '\e[91;1m[ Ω ]\e[0m \e[97m%b\e[0m\n' "$*" >&2; sleep 3; }
+die()     { error "$*"; exit 1; }
+info_prompt() {
+    read -rn1 -p "$(printf '\e[96;1m[\e[5mΩ\e[25m]\e[0m \e[97m%b\e[0m ' "$1")" confirm
+    echo
+    [[ $confirm == $'\n' ]] || [[ -z $confirm ]]
+}
 
 box() {
   local title=" $1 "          # one space before & after
@@ -28,7 +37,6 @@ box() {
 # ── Config ───────────────────────────────────────────────────────
 TIMEZONE='Europe/Lisbon'
 KEYMAP='pt-latin9'
-MNT=/mnt
 
 # ── Drive selection (curses-free) ─────────────────────────────────
 select_drive() {
@@ -74,10 +82,10 @@ select_drive() {
   done
 
   DRIVE=${options[selected]}
-  [[ -b $DRIVE ]] || { info "Invalid drive."; exit 1; }
+  [[ -b $DRIVE ]] || { die "Invalid drive."; }
 
-  echo -e "\n Use $DRIVE? ALL DATA WILL BE ERASED!"
-  read -rn1 -p " Press Enter to confirm, any other key to cancel... " confirm
+  warning "\n Use $DRIVE? ALL DATA WILL BE ERASED!"
+  info_prompt " Press Enter to confirm, any other key to cancel... " confirm
   [[ -z $confirm ]] || exit 0
   info "Selected: $DRIVE"
 }
@@ -107,26 +115,26 @@ format_and_mount() {
   mkfs.btrfs -f -L ROOT "$ROOT_PART"
 
   info "Mounting"
-  mount "$ROOT_PART" "$MNT"
-  btrfs su cr "$MNT"/@
-  btrfs su cr "$MNT"/@home
-  umount "$MNT"
+  mount "$ROOT_PART" /mnt
+  btrfs su cr /mnt/@
+  btrfs su cr /mnt/@home
+  umount /mnt
 
-  mount -o noatime,compress=zstd,subvol=@ "$ROOT_PART" "$MNT"
-  mkdir -p "$MNT"/{boot,home}
-  mount -o noatime,compress=zstd,subvol=@home "$ROOT_PART" "$MNT/home"
-  mount "$BOOT_PART" "$MNT/boot"
+  mount -o noatime,compress=zstd,subvol=@ "$ROOT_PART" /mnt
+  mkdir -p /mnt/{boot,home}
+  mount -o noatime,compress=zstd,subvol=@home "$ROOT_PART" /mnt/home
+  mount "$BOOT_PART" /mnt/boot
   swapon "$SWAP_PART"
 }
 
 # ── Base system ─────────────────────────────────────────────────
 install_base() {
   info "Pacstrap base system"
-  pacstrap -K "$MNT" base linux linux-firmware btrfs-progs \
+  pacstrap -K /mnt base linux linux-firmware btrfs-progs \
     grub efibootmgr nano networkmanager sudo || die "pacstrap failed"
 
   info "Generating fstab"
-  genfstab -U "$MNT" >> "$MNT/etc/fstab"
+  genfstab -U /mnt >> /mnt/etc/fstab
 }
 
 # ── Chroot phase (executed when script is run with 'chroot' arg) ─
@@ -165,19 +173,22 @@ chroot_phase() {
 # ── Main flow ───────────────────────────────────────────────────
 main() {
   clear
-  box "Capturing machine/user details" 70 =
-  read -p "Hostname: " HOSTNAME
-  read -s -p "Root password: " ROOT_PASSWORD; echo
-  read -p "Username: " USER_NAME
-  read -s -p "User password: " USER_PASSWORD; echo
+  box "Capturing machine/user details" 70 Ω
+  sleep 5
+  info_prompt "Hostname: " HOSTNAME
+  info_prompt "Root password: " ROOT_PASSWORD; echo
+  info_prompt "Username: " USER_NAME
+  info_prompt "User password: " USER_PASSWORD; echo
 
   select_drive
 
-  box "Preparing drive for installation" 70 =
+  box "Preparing drive for installation" 70 Ω
+  sleep 5
   partition_drive "$DRIVE"
   format_and_mount
 
-  box "Installing Arch Linux" 70 =
+  box "Installing Arch Linux" 70 Ω
+  sleep 5
   install_base
 
   info "Entering chroot..."
@@ -189,7 +200,7 @@ main() {
     USER_PASSWORD="$USER_PASSWORD" \
     /bin/bash /setup.sh chroot
 
-  box "Rebooting in 5 seconds..." 70 =
+  box "Rebooting in 5 seconds..." 70 Ω
   sleep 5 && reboot
 }
 
