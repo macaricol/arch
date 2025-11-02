@@ -82,27 +82,18 @@ pacstrap() {
     shift
     local log=$(mktemp)
 
-    # Start pacstrap
     command pacstrap "$@" > "$log" 2>&1 &
     local pid=$!
 
-    # Live rolling window: print every new line, but keep only last N
+    # Live rolling window: show every line, erase old ones
     tail -f "$log" --pid="$pid" -n +1 2>/dev/null | \
         awk -v max="$lines" '
             {
-                # Store line
                 buffer[NR % max] = $0
-                # Print only the last "max" lines
                 if (NR > max) {
-                    printf "\r\e[K%s\n", buffer[NR % max]
+                    printf "\r\033[K%s\n", buffer[NR % max]
                 } else {
                     print
-                }
-            }
-            END {
-                # Final clean print of last N lines
-                for (i = NR - max + 1; i <= NR; i++) {
-                    if (i > 0) print buffer[i % max]
                 }
             }
         '
@@ -110,9 +101,8 @@ pacstrap() {
     wait "$pid"
 
     # Final clean block
-    printf '\n\e[96;1m[ Ω ]\e[0m \e[97mInstallation complete (last %d lines):\e[0m\n' "$lines"
+    printf "\n\e[96;1m[ Ω ]\e[0m \e[97mInstallation complete (last %d lines):\e[0m\n" "$lines"
     tail -n "$lines" "$log"
-
     rm -f "$log"
 }
 
