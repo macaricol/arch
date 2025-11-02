@@ -171,12 +171,30 @@ format_and_mount() {
 
 # ── Base system ─────────────────────────────────────────────────
 install_base() {
+
+  # Get top 10 fastest HTTPS mirrors, synced in last 12h
+  reflector --latest 10 \
+            --protocol https \
+            --sort rate \
+            --save /etc/pacman.d/mirrorlist || die "Reflector failed"
+
+  info "Updated mirrorlist:"
+  head -n 10 /etc/pacman.d/mirrorlist
+  sleep 3
+
+  # Force refresh package databases with new mirrors
+  pacman -Syy || die "pacman -Syy failed"
+
   info "Pacstrap base system"
   pacstrap -K /mnt base linux linux-firmware btrfs-progs \
     grub efibootmgr nano networkmanager sudo || die "pacstrap failed"
 
   info "Generating fstab"
   genfstab -U /mnt >> /mnt/etc/fstab
+
+  # Copy fast mirrorlist into installed system
+  info "Copying optimized mirrorlist to new system"
+  cp /etc/pacman.d/mirrorlist /mnt/etc/pacman.d/mirrorlist
 }
 
 # ── Chroot phase (executed when script is run with 'chroot' arg) ─
