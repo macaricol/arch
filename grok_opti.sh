@@ -76,6 +76,12 @@ box() {
   printf '\e[35m%s\e[0m\n' "$line"
 }
 
+pacstr() {
+    local lines="${1:-25}"
+    shift
+    command pacstrap "$@" 2>&1 | tail -n "$lines"
+}
+
 # ── Config ───────────────────────────────────────────────────────
 TIMEZONE='Europe/Lisbon'
 KEYMAP='pt-latin9'
@@ -172,7 +178,7 @@ format_and_mount() {
 # ── Base system ─────────────────────────────────────────────────
 install_base() {
   info "Pacstrap base system"
-  pacstrap -K /mnt base linux linux-firmware btrfs-progs \
+  pacstr -K /mnt base linux linux-firmware btrfs-progs \
     grub efibootmgr nano networkmanager sudo || die "pacstrap failed"
 
   info "Generating fstab"
@@ -182,8 +188,6 @@ install_base() {
 # ── Chroot phase (executed when script is run with 'chroot' arg) ─
 chroot_phase() {
   set -eo pipefail
-
-  pacman -Sy --noconfirm
 
   ln -sf "/usr/share/zoneinfo/$TIMEZONE" /etc/localtime
   hwclock --systohc
