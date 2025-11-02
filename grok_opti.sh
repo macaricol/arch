@@ -167,15 +167,19 @@ chroot_phase() {
 # ── Main flow ───────────────────────────────────────────────────
 main() {
   clear
-  box "Arch Linux Installer" 70 =
+  box "Capturing machine/user details" 70 =
   read -p "Hostname: " HOSTNAME
   read -s -p "Root password: " ROOT_PASSWORD; echo
   read -p "Username: " USER_NAME
   read -s -p "User password: " USER_PASSWORD; echo
 
   select_drive
+
+  box "Preparing drive for installation" 70 =
   partition_drive "$DRIVE"
   format_and_mount
+
+  box "Installing Arch Linux" 70 =
   install_base
 
   info "Entering chroot..."
@@ -187,7 +191,7 @@ main() {
     USER_PASSWORD="$USER_PASSWORD" \
     /bin/bash /setup.sh chroot
 
-  info "Rebooting in 5 seconds..."
+  box "Rebooting in 5 seconds..." 70 =
   sleep 5 && reboot
 }
 
