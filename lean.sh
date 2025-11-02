@@ -1,5 +1,6 @@
-#!/bin/bash
-set -eo pipefail  # Fail fast: exit on error, pipe fail
+#!/usr/bin/env bash
+set -euo pipefail
+IFS=$'\n\t'
 
 # ── Configuration ─────────────────────────────────────────────────────
 TIMEZONE='Europe/Lisbon'
@@ -7,6 +8,34 @@ KEYMAP='pt-latin9'
 
 # ── Colors ───────────────────────────────────────────────────────────
 BOLD='\e[1m' BGREEN='\e[92m' BYELLOW='\e[93m' RESET='\e[0m'
+
+
+die() { printf '\e[1;31mERROR: %b\e[0m\n' "$*"; exit 1; } >&2
+info() { printf '\e[1;92m[•] %b\e[0m\n' "$*"; }
+box() {
+  local title=" $1 "          # one space before & after
+  local w="${2:-70}" c="${3:-#}"
+  local line=$(printf '%*s' "$w" '' | tr ' ' "$c")
+
+  local inner=$(( w - 2 ))
+  local left=$(( (inner - ${#title}) / 2 ))
+  local right=$(( inner - ${#title} - left ))
+
+  local left_fill=$(printf '%*s' "$left" '' | tr ' ' "$c")
+  local right_fill=$(printf '%*s' "$right" '' | tr ' ' "$c")
+
+  # top
+  printf '\e[35m%s\e[0m\n' "$line"
+
+  # middle: # + fill + title + fill + #
+  printf '\e[35m%s\e[36m%s\e[0m\e[35m%s\e[0m\n' \
+         "${c}${left_fill}" "$title" "${right_fill}${c}"
+
+  # bottom
+  printf '\e[35m%s\e[0m\n' "$line"
+}
+
+# ── Colored outputs ──────────────────────────────────────────
 
 info_print() { printf "${BOLD}${BGREEN}[ ${BYELLOW}•${BGREEN} ] %b${RESET}\n" "$1"; }
 
@@ -21,11 +50,8 @@ select_drive() {
   local selected=0 total=${#options[@]}
 
   draw_menu() {
-    clear
-    info_print "###########################################"
-    info_print "#        Select installation drive        #"
-    info_print "###########################################"
-    info_print ""
+    box "Select installation drives"
+    printf "#"
 
     for ((i=0; i<total; i++)); do
       [[ $i -eq $selected ]] && \
@@ -33,10 +59,8 @@ select_drive() {
         info_print "#   ${options[i]}  "
     done
 
-    info_print ""
-    info_print "###########################################"
-    info_print "#   ↑↓ to navigate, Enter to select       #"
-    info_print "###########################################"
+    printf "#"
+    box "↑↓ navigate – Enter select – ESC cancel"
   }
 
   read_key() {
@@ -64,55 +88,62 @@ select_drive() {
     read_key && break
   done
 
-  DRIVE=${options[selected]}
-  [[ -b $DRIVE ]] || { info_print "Invalid drive."; exit 1; }
-
-  echo -e "\nUse $DRIVE? ALL DATA WILL BE ERASED!"
-  read -rn1 -p "Press Enter to confirm, any other key to cancel... " confirm
-  [[ -z $confirm ]] || exit 0
-  info_print "Selected: $DRIVE"
-  DRIVE_TYPE=$(get_drive_type "$DRIVE")
+  DRIVE="${options[selected]}"
+  read -rn1 -p $'\n\e[33mUse '"$DRIVE"'? ALL DATA WILL BE ERASED! (Enter=yes)\e[0m ' c
+  [[ -z $c ]] || exit 0
+  info "Selected $DRIVE"
 }
 
-get_drive_type() { [[ $1 =~ /dev/nvme ]] && echo "nvme" || echo "sda"; }
-
-# ── Partitioning ─────────────────────────────────────────────────────
+# ── Partitioning (sgdisk – one shot) ─────────────────────────────
 partition_drive() {
-  local drive=$1 suffix=$([[ $DRIVE_TYPE == nvme ]] && echo "p" || echo "")
-  parted -s "$drive" mklabel gpt \
-    mkpart primary fat32 1MiB 513MiB set 1 esp on \
-    mkpart primary linux-swap 513MiB 8705MiB \
-    mkpart primary btrfs 8705MiB 100%
+  local dev=$1
+  local type=$( (( dev =~ nvme )) && echo p || echo "" )
 
-  BOOT_PART="${drive}${suffix}1"
-  SWAP_PART="${drive}${suffix}2"
-  ROOT_PART="${drive}${suffix}3"
+  info "Wiping & creating GPT partitions"
+  sgdisk -Z \
+    -n 1:1M:512M -t 1:ef00 -c 1:EFI \
+    -n 2:513M:8704M -t 2:8200 -c 2:Swap \
+    -n 3:8705M:0 -t 3:8300 -c 3:Root \
+    "$dev" || die "sgdisk failed"
+
+  BOOT_PART="${dev}${type}1"
+  SWAP_PART="${dev}${type}2"
+  ROOT_PART="${dev}${type}3"
 }
 
-format_filesystems() {
+# ── Filesystems & mount (single mount, subvols on-the-fly) ───────
+format_and_mount() {
+  info "Formatting"
   mkfs.fat -F32 -n BOOT "$BOOT_PART"
-  mkfs.btrfs -f -L ROOT "$ROOT_PART"
   mkswap -L SWAP "$SWAP_PART"
-}
+  mkfs.btrfs -f -L ROOT "$ROOT_PART"
 
-mount_filesystems() {
+  info "Mounting"
   mount "$ROOT_PART" /mnt
-  btrfs subvolume create /mnt/@ /mnt/@home
+  btrfs su cr /mnt/@
+  btrfs su cr /mnt/@home
   umount /mnt
 
-  mount -o subvol=@ "$ROOT_PART" /mnt
+  mount -o noatime,compress=zstd,subvol=@ "$ROOT_PART" /mnt
   mkdir -p /mnt/{boot,home}
-  mount -o subvol=@home "$ROOT_PART" /mnt/home
+  mount -o noatime,compress=zstd,subvol=@home "$ROOT_PART" /mnt/home
   mount "$BOOT_PART" /mnt/boot
   swapon "$SWAP_PART"
+
+  info "Generating fstab"
+  genfstab -U /mnt >> /mnt/etc/fstab
+}
+
+# ── Base system ─────────────────────────────────────────────────
+install_base() {
+  info "Pacstrap base system"
+  pacstrap -K /mnt base linux linux-firmware btrfs-progs \
+    grub efibootmgr nano networkmanager sudo || die "pacstrap failed"
 }
 
 # ── Setup (Outside Chroot) ───────────────────────────────────────────
 setup() {
-  clear
-  info_print "###########################################"
-  info_print "###### Capturing machine/user details #####"
-  info_print "###########################################"
+  box "Capturing machine/user details"
   info_print ""
   read -p "Hostname: " HOSTNAME
   read -s -p "Root password: " ROOT_PASSWORD; echo
@@ -121,31 +152,19 @@ setup() {
 
   select_drive
 
-  clear
-  info_print "###########################################"
-  info_print "#### Preparing drive for installation #####"
-  info_print "###########################################"
-  info_print ""
+  box "Preparing drive for installation"
+  printf ""
 
   info_print "Creating partitions..."
   partition_drive "$DRIVE"
 
-  info_print "Formatting..."
-  format_filesystems
+  info_print "Formatting and mounting..."
+  format_and_mount
 
-  info_print "Mounting..."
-  mount_filesystems
-
-  clear
-  info_print "###########################################"
-  info_print "########## Installing Arch Linux ##########"
-  info_print "###########################################"
-  info_print ""
+  box "Installing Arch Linux"
+  printf ""
   info_print "Installing base packages..."
-  pacstrap -K /mnt base linux linux-firmware
-
-  info_print "Generating fstab..."
-  genfstab -U /mnt >> /mnt/etc/fstab
+  install_base
 
   info_print "Entering chroot..."
   cp "$0" /mnt/setup.sh
@@ -162,9 +181,6 @@ setup() {
 
 # ── Configure (Inside Chroot) ────────────────────────────────────────
 configure() {
-  info_print "Installing essentials..."
-  pacman -Sy --noconfirm grub efibootmgr btrfs-progs nano networkmanager sudo
-
   info_print "Setting timezone & locale..."
   ln -sf "/usr/share/zoneinfo/$TIMEZONE" /etc/localtime
   hwclock --systohc
