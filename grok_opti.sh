@@ -189,10 +189,10 @@ chroot_phase() {
 
   ln -sf "/usr/share/zoneinfo/$TIMEZONE" /etc/localtime
   hwclock --systohc
-
-  sed -i '/^#.*UTF-8/ d;/en_US\.UTF-8/ s/#//;/pt_PT\.UTF-8/ s/#//' /etc/locale.gen
+  sed -i 's/#en_US\.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen
+  sed -i 's/#pt_PT\.UTF-8 UTF-8/pt_PT.UTF-8 UTF-8/' /etc/locale.gen
   locale-gen
-  echo -e "LANG=pt_PT.UTF-8\nLC_MESSAGES=en_US.UTF-8" > /etc/locale.conf
+  echo -e 'LANG=pt_PT.UTF-8\nLC_MESSAGES=en_US.UTF-8' > /etc/locale.conf
   echo "KEYMAP=$KEYMAP" > /etc/vconsole.conf
 
   echo "$HOSTNAME" > /etc/hostname
