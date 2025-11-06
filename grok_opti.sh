@@ -198,56 +198,89 @@ install_base() {
   printf '   \e[96;1mCounting packages...\e[0m\n\n'
   tput civis
 
-  # ── 100% DYNAMIC COUNT — NO DB TOUCH, NO CRASH ─────────────
-  local total_pkgs=0
+  # ── 100% DYNAMIC COUNT – NO HARDCODED NUMBERS AT ALL ───────
+  local total_pkgs="???"
   local count_output
-  count_output=$(pacman -Swp --noconfirm $pkg_list 2>/dev/null || true)
-  
-  if [[ -n $count_output ]]; then
-    total_pkgs=$(echo "$count_output" | grep -c '^http.*\.pkg\.tar')
-    # If no URLs (cached), count package names instead
-    [[ $total_pkgs -eq 0 ]] && total_pkgs=$(echo "$count_output" | grep -c '^[a-zA-Z0-9]')
+
+  # Try method 1: exact count from pacman -Si
+  if count_output=$(pacman -Si $pkg_list 2>/dev/null); then
+    total_pkgs=$(awk '
+      $1=="Name" {name=$3}
+      $1=="Depends" && name {deps[name]++; next}
+      END {c=0; for(p in deps) c++; print c+'${#pkgs[@]}'}
+    ' <<< "$count_output")
   fi
-  
-  # Absolute fallback — never zero
-  (( total_pkgs < 40 )) && total_pkgs=128
+
+  # Method 2: count download URLs
+  if [[ $total_pkgs == "???" ]]; then
+    count_output=$(pacman -Swp --noconfirm $pkg_list 2>/dev/null || true)
+    if [[ -n $count_output ]]; then
+      total_pkgs=$(grep -c '^http.*\.pkg\.tar' <<< "$count_output")
+      [[ $total_pkgs -eq 0 ]] && total_pkgs=$(grep -c '^[a-zA-Z0-9]' <<< "$count_output")
+    fi
+  fi
+
+  # Method 3: parse pacman -Qp (cached case)
+  if [[ $total_pkgs == "???" ]]; then
+    total_pkgs=$(pacman -Qp --noconfirm $pkg_list 2>/dev/null | wc -l)
+    [[ $total_pkgs -eq 0 ]] && total_pkgs="???"
+  fi
 
   local width=50
   local done=0
+  local last_spin=0
 
-  # ── LIVE PROGRESS — NEVER DIES ─────────────────────────────
+  # ── SPINNER EVERY SECOND + PROGRESS ON REAL EVENTS ────────
   set +e
-  run pacstrap -K /mnt $pkg_list 2>&1 | while IFS= read -r line; do
-    if echo "$line" | grep -Eq "installing |retrieving |resolving |checking |::"; then
+  (
+    run pacstrap -K /mnt $pkg_list 8000>&1 &
+    pacstrap_pid=$!
+    while kill -0 $pacstrap_pid 2>/dev/null; do
+      now=$(date +%s)
+      if (( now != last_spin )); then
+        last_spin=$now
+        local spin=('Installing   ' 'Installing.  ' 'Installing..' 'Installing...')
+        local s="${spin[$(( now % 4 ))]}"
+
+        local percent=0
+        if [[ $total_pkgs != "???" ]]; then
+          percent=$(( done * 100 / total_pkgs ))
+          [[ $percent -gt 100 ]] && percent=100
+        fi
+        local filled=$(( percent * width / 100 ))
+        local bar=$(printf '█%.0s' $(seq 1 $filled))
+        local space=$(printf ' %.0s' $(seq 1 $((width - filled))))
+
+        printf '\r  \e[96;1m%s\e[0m %s%s \e[35m[ %s]\e[0m \e[97m%3d%%\e[0m  \e[2m%s/%s\e[0m' \
+               "$s" "$bar" "$space" "█" "$percent" "$done" "$total_pkgs"
+      fi
+      sleep 0.25
+    done
+    wait $pacstrap_pid
+    echo "EXIT:$?" > /tmp/pacstrap_result
+  ) | while IFS= read -r line; do
+    if echo "$line" | grep -Eq "installing |retrieving |::|checking|resolving"; then
       ((done++))
-      (( done > total_pkgs )) && done=$total_pkgs
-
-      local percent=$(( done * 100 / total_pkgs ))
-      local filled=$(( percent * width / 100 ))
-      local bar=$(printf '█%.0s' $(seq 1 $filled))
-      local space=$(printf ' %.0s' $(seq 1 $((width - filled))))
-
-      local spin=('Installing   ' 'Installing.  ' 'Installing..' 'Installing...')
-      local s="${spin[$(( done % 4 ))]}"
-
-      printf '\r  \e[96;1m%s\e[0m %s%s \e[35m[ %s]\e[0m \e[97m%3d%%\e[0m  \e[2m%d/%d\e[0m' \
-             "$s" "$bar" "$space" "█" "$percent" "$done" "$total_pkgs"
     fi
   done
-  local pacstrap_exit=${PIPESTATUS[0]}
+
+  local pacstrap_exit=$(cat /tmp/pacstrap_result | cut -d: -f2 || echo 1)
+  rm -f /tmp/pacstrap_result
   set -e
 
   # Final bar
   if (( pacstrap_exit == 0 )); then
-    printf '\r  \e[92;1mSuccess!\e[0m     %s%s \e[35m[ %s]\e[0m \e[97m100%%\e[0m  \e[32mArch Linux ready!\e[0m        \n\n' \
-           "$(printf '█%.0s' {1..50})" "" "█"
+    local final_bar=$(printf '█%.0s' {1..50})
+    printf '\r  \e[92;1mSuccess!\e[0m     %s \e[35m[ %s]\e[0m \e[97m100%%\e[0m  \e[32mArch Linux ready!\e[0m        \n\n' \
+           "$final_bar" "█"
   else
-    printf '\r  \e[91;1mFailed!\e[0m      %s%s \e[35m[ %s]\e[0m \e[97m 99%%\e[0m  \e[31mretrying in 5s...\e[0m\n' \
-           "$(printf '█%.0s' {1..49})" "" "█"
+    printf '\r  \e[91;1mFailed!\e[0m      %s \e[35m[ %s]\e[0m \e[97m 99%%\e[0m  \e[31mretrying in 5s...\e[0m\n' \
+           "$(printf '█%.0s' {1..49})" "█"
     sleep 5
     run pacstrap -K /mnt $pkg_list || die "pacstrap failed after retry"
-    printf '\r  \e[92;1mSuccess!\e[0m     %s%s \e[35m[ %s]\e[0m \e[97m100%%\e[0m  \e[32mArch Linux ready!\e[0m        \n\n' \
-           "$(printf '█%.0s' {1..50})" "" "█"
+    local final_bar=$(printf '█%.0s' {1..50})
+    printf '\r  \e[92;1mSuccess!\e[0m     %s \e[35m[ %s]\e[0m \e[97m100%%\e[0m  \e[32mArch Linux ready!\e[0m        \n\n' \
+           "$final_bar" "█"
   fi
 
   tput cnorm
