@@ -26,7 +26,7 @@ box() {
 }
 
 # ── INPUT & VALIDATION ────────────────────────────────────────────────
-ask() { printf '\e[96;1m[Ω]\e[0m \e[97m%s\e[0m ' "$1"; }
+ask() { printf '\e[96;1m[ Ω ]\e[0m \e[97m%s\e[0m ' "$1"; }
 valid_hostname() { [[ $1 =~ ^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$ ]] && (( ${#1} <= 63 )); }
 valid_username() { [[ $1 =~ ^[a-z_][a-z0-9_-]{0,31}$ ]]; }
 valid_password() { (( ${#1} >= 6 )); }
@@ -37,8 +37,8 @@ input() {
     ask "$prompt"
     if [[ $secure == yes ]]; then read -rs val; echo; else read -r val; fi
     val="${val##+([[:space:]])}"; val="${val%%+([[:space:]])}"
-    [[ -n $validator && -z $val ]] && { echo -e '\e[93m[Ω] Cannot be empty\e[0m'; continue; }
-    [[ -n $validator ]] && ! "$validator" "$val" && { echo -e '\e[93m[Ω] Invalid\e[0m'; continue; }
+    [[ -n $validator && -z $val ]] && { echo -e '\e[93m[ Ω ] Cannot be empty\e[0m'; continue; }
+    [[ -n $validator ]] && ! "$validator" "$val" && { echo -e '\e[93m[ Ω ] Invalid\e[0m'; continue; }
     printf -v "$var" '%s' "$val"
     return 0
   done
@@ -84,8 +84,8 @@ select_drive() {
   done  
   DRIVE=${options[selected]}
   [[ -b $DRIVE ]] || die "Invalid drive."  
-  warning "Use $DRIVE? ALL DATA WILL BE ERASED!"
-  info_prompt "Press Enter to confirm, any other key to cancel... "
+  info "Use $DRIVE? ALL DATA WILL BE ERASED!"
+  ask "Press Enter to confirm, any other key to cancel... "
   [[ -z $confirm ]] || exit 0
   info "Selected: $DRIVE"
 }
