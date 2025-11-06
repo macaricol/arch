@@ -115,6 +115,8 @@ select_drive() {
 
     [[ -z $key ]] && return 0
     return 1
+  }
+  
   while :; do
     draw_menu
     read_key && break
