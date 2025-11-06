@@ -258,7 +258,7 @@ main() {
   partition_drive "$DRIVE"
   format_and_mount
 
-  clear; box "Installing Base System" 70 Ω
+  clear; box "Installing Arch Linux" 70 Ω
   install_base
 
   info "Entering chroot to finalize..."
