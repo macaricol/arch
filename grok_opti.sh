@@ -43,29 +43,43 @@ input() {
 
 # ── DRIVE SELECTION (TUI) ─────────────────────────────────────────────
 select_drive() {
-  mapfile -t disks < <(lsblk -dplno PATH,TYPE | awk '$2=="disk"{print $1}')
-  (( ${#disks[@]} )) || die "No disks found"
-  disks=("/dev/sdummy" "${disks[@]}")  # dummy first entry
-  local i=1 cur=1
+  mapfile -t options < <(printf '/dev/sdummy\n'; lsblk -dplno PATH,TYPE | awk '$2=="disk"{print $1}')
+  (( ${#options[@]} )) || die "No block devices found"
+
+  local cur=0 total=${#options[@]}
+
   while :; do
-    clear; box "Select installation drive"
-    for d in "${disks[@]}"; do
-      (( i++ == cur )) && printf ' \e[7m>\e[0m %s\n' "$d" || printf '   %s\n' "$d"
+    clear
+    box "Select installation drive – ALL DATA WILL BE ERASED!"
+    for i in "${!options[@]}"; do
+      if (( i == cur )); then
+        printf ' \e[7;97m➤ %s\e[0m\n' "${options[i]}"
+      else
+        printf '   %s\n' "${options[i]}"
+      fi
     done
-    box "↑↓ navigate – Enter select – ESC cancel"
-    read -rsn1 k; [[ $k == $'\x1b' ]] && read -rsn2 -t 0.1 k
+    box "↑↓ or k/j navigate – Enter select – ESC cancel"
+
+    read -rsn1 k
+    [[ $k == $'\x1b' ]] && read -rsn2 -t 0.1 seq && k=$k$seq
+
     case $k in
-      '[A') ((cur--)) ;;
-      '[B') ((cur++)) ;;
+      $'\x1b[A'|k) ((cur--)) ;;
+      $'\x1b[B'|j) ((cur++)) ;;
       '') break ;;
       *) clear; info "Cancelled"; exit 0 ;;
     esac
-    (( cur < 1 )) && cur=${#disks[@]}
-    (( cur > ${#disks[@]} )) && cur=1
+
+    (( cur < 0 )) && cur=$((total-1))
+    (( cur >= total )) && cur=0
   done
-  DRIVE=${disks[cur]}
-  info "Selected: $DRIVE – ALL DATA WILL BE ERASED!"
-  ask "Press Enter to confirm, anything else to cancel... "; read -rn1 || exit 0
+
+  DRIVE=${options[cur]}
+  [[ $DRIVE == /dev/sdummy ]] && { clear; info "Dummy selected – nice troll!"; exit 0; }
+
+  info "Selected: $DRIVE"
+  ask "Press Enter to confirm, any other key to cancel... "
+  read -rn1 || exit 0
   echo
 }
 
