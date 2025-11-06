@@ -190,59 +190,63 @@ install_base() {
 
   info "Installing base system (this may take a while)..."
 
-  # ── THE ONLY PACSTRAP BAR THAT SURVIVES set -e ───────────────
+  # ── ONE PACSTRAP + REAL PROGRESS (ALL DEPS INCLUDED) ────────
   local pkgs=(base linux linux-firmware btrfs-progs grub efibootmgr nano networkmanager sudo)
-  local total=${#pkgs[@]}
-  local i=0
-  local width=50
+  local pkg_list="${pkgs[*]}"
 
   clear
   box "Installing Arch Linux" 70 Ω
   printf '\n'
   tput civis
 
-  # ←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←
-  # THIS IS THE MAGIC LINE — DISABLE set -e FOR THIS BLOCK ONLY
+  # Count total packages including dependencies
+  local total_pkgs
+  total_pkgs=$(pacman -Swp --noconfirm $pkg_list 2>/dev/null | grep -c '^http') || total_pkgs=120
+  (( total_pkgs < 50 )) && total_pkgs=120  # safety
+
+  local width=50
+  local done=0
+
+  # MAGIC: disable set -e for the one dangerous command
   set +e
-  # ←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←
+  run pacstrap -K /mnt $pkg_list > >( 
+    while IFS= read -r line; do
+      # Detect when a package is being downloaded/installed
+      if [[ $line == *"::"* ]] || [[ $line == *"retrieving"* ]] || [[ $line == *"installing"* ]] || [[ $line == *".pkg.tar"* ]]; then
+        ((done++))
+        local percent=$(( done * 100 / total_pkgs ))
+        [[ $percent -gt 100 ]] && percent=100
+        local filled=$(( percent * width / 100 ))
+        local empty=$(( width - filled ))
+        local bar="$(printf '█%.0s' $(seq 1 $filled))"
+        local space="$(printf ' %.0s' $(seq 1 $empty))"
 
-  for pkg in "${pkgs[@]}"; do
-    ((i++))
-    local percent=$(( i * 100 / total ))
-    local filled=$(( percent * width / 100 ))
-    local empty=$(( width - filled ))
-    local bar="$(printf '█%.0s' $(seq 1 $filled))"
-    local space="$(printf ' %.0s' $(seq 1 $empty))"
+        local spinner=('⠋' '⠙' '⠹' '⠸' '⠼' '⠴' '⠦' '⠧' '⠇' '⠏')
+        local spin="${spinner[$(( done % 10 ))]}"
 
-    local spin=('Installing' 'Installing.' 'Installing..' 'Installing...')
-    local s="${spin[$(( i % 4 ))]}"
-
-    printf '\r  \e[96;1m%s\e[0m  %s\e[96;1m%s\e[0m%s  \e[35m[%s]\e[0m  \e[97m%3d%%\e[0m  \e[2m%s\e[0m' \
-           "$s" "$bar" "$space" "[" "]" "$percent" "$pkg"
-
-    # Run pacstrap — we DON'T CARE if it fails here
-    run pacstrap -K /mnt "$pkg" || {
-      printf ' \e[91mfailed → retrying\e[0m'
-      sleep 3
-      run pacstrap -K /mnt "$pkg" || {
-        printf ' \e[91mFAILED\e[0m'
-        sleep 2
-      }
-    }
-  done
-
-  # ←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←
-  # RE-ENABLE set -e — safety restored
+        printf '\r  %s \e[96;1m%s\e[0m%s  \e[35m[%s]\e[0m  \e[97m%3d%%\e[0m  \e[2m%d/%d packages\e[0m' \
+               "$spin" "$bar" "$space" "█" "$percent" "$done" "$total_pkgs"
+      fi
+    done
+  ) 2>&1
+  local pacstrap_exit=$?
   set -e
-  # ←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←
 
   # Final bar
-  printf '\r  \e[92;1mDone!\e[0m      %s\e[96;1m%s\e[0m%s  \e[35m[%s]\e[0m  \e[97m100%%\e[0m  \e[32mArch Linux installed\e[0m          \n\n' \
-         "$(printf '█%.0s' $(seq 1 $width))" "" "" "█"
+  if (( pacstrap_exit == 0 )); then
+    printf '\r  \e[92;1mSuccess!\e[0m  %s\e[96;1m%s\e[0m%s  \e[35m[%s]\e[0m  \e[97m100%%\e[0m  \e[32mArch Linux installed\e[0m     \n\n' \
+           "$(printf '█%.0s' $(seq 1 $width))" "" "" "█"
+  else
+    printf '\r  \e[91;1mFailed!\e[0m   %s\e[96;1m%s\e[0m%s  \e[35m[%s]\e[0m  \e[97m%3d%%\e[0m  \e[31mretrying in 5s...\e[0m\n' \
+           "$(printf '█%.0s' $(seq 1 $width))" "" "" "█" "99"
+    sleep 5
+    run pacstrap -K /mnt $pkg_list || die "pacstrap failed after retry"
+    printf '\r  \e[92;1mSuccess!\e[0m  %s\e[96;1m%s\e[0m%s  \e[35m[%s]\e[0m  \e[97m100%%\e[0m  \e[32mArch Linux installed\e[0m     \n\n' \
+           "$(printf '█%.0s' $(seq 1 $width))" "" "" "█"
+  fi
 
   tput cnorm
   sleep 1
-  # ── END PROGRESS BAR ────────────────────────────────────────
 
   info "Generating fstab..."
   genfstab -U /mnt >> /mnt/etc/fstab
