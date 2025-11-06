@@ -52,26 +52,26 @@ select_drive() {
     clear
     box "Select installation drive – ALL DATA WILL BE ERASED!"
     for i in "${!options[@]}"; do
-      if (( i == cur )); then
-        printf ' \e[7;97m➤ %s\e[0m\n' "${options[i]}"
-      else
+      (( i == cur )) &&
+        printf ' \e[7;97m➤ %s\e[0m\n' "${options[i]}" ||
         printf '   %s\n' "${options[i]}"
-      fi
     done
     box "↑↓ or k/j navigate – Enter select – ESC cancel"
 
-    read -rsn1 k                # first key
+    read -rsn1 k
     if [[ $k == $'\x1b' ]]; then
-      read -rsn2 -t 0.1 seq     # arrow sequence
-      [[ -z $seq ]] && { clear; info "Cancelled"; exit 0; }  # plain ESC
-      k=$k$seq
+      if read -rsn2 -t 0.1 seq; then
+        k=$k$seq
+      else
+        clear; info "Cancelled"; exit 0          # pure ESC
+      fi
     fi
 
     case $k in
       $'\x1b[A'|k) ((cur--)) ;;
       $'\x1b[B'|j) ((cur++)) ;;
-      '') break ;;               # Enter → accept selection
-      *) continue ;;             # any other key = ignore (no exit)
+      "") break ;;                             # Enter → accept
+      *) continue ;;                           # ANY other key = ignore
     esac
 
     (( cur < 0 )) && cur=$((total-1))
