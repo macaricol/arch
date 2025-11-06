@@ -1,96 +1,54 @@
 #!/usr/bin/env bash
-# Arch Linux installer – compact, robust, fast
+# Arch Linux installer – ultra-compact, robust & fast (2025 edition)
 set -eo pipefail
 IFS=$'\n\t'
+shopt -s nocasematch extglob
 
-# ── VERBOSE CONTROL ─────────────────────────────────────────────
-: "${VERBOSE:=1}"  # Default: 1 (see all output), set to 0 for silent
+# ── CONFIG ─────────────────────────────────────────────────────────────
+VERBOSE=${VERBOSE:-1}
+TIMEZONE='Europe/Lisbon'
+KEYMAP='pt-latin9'
+POST_URL="https://raw.githubusercontent.com/macaricol/arch/refs/heads/main/post.sh"
 
-run() {
-    if (( VERBOSE )); then
-        "$@"
-    else
-        "$@" &>/dev/null
-    fi
+# ── TOOLS ─────────────────────────────────────────────────────────────
+run() { ((VERBOSE)) && "$@" || "$@" &>/dev/null; }
+die() { printf '\e[91;1m[ Ω ] %b\e[0m\n' "$*" >&2; exit 1; }
+info() { printf '\e[96;1m[ Ω ]\e[0m \e[97m%s\e[0m\n\n' "$*"; }
+box() {
+  local t=" $1 " w=${2:-70} c=${3:-Ω}
+  local line=$(printf '%*s' "$w" '' | tr ' ' "$c")
+  local pad=$(( (w - 2 - ${#t}) / 2 ))
+  local side=$(printf '%*s' "$pad" '' | tr ' ' "$c")
+  local rest=$(printf '%*s' "$((w - 2 - ${#t} - pad))" '' | tr ' ' "$c")
+
+  printf '\n\e[35m%s\n%s\e[36m%s\e[35m%s\e[0m\n\e[35m%s\e[0m\n\n' \
+    "$line" "$c$side" "$t" "$rest$c" "$line"
 }
 
-# ── Helpers ─────────────────────────────────────────────────────
-info()    { printf '\e[96;1m[ Ω ]\e[0m \e[97m%s\e[0m\n' "$*"; }
-warning() { printf '\e[93;1m[ Ω ]\e[0m \e[97m%s\e[0m\n' "$*" >&2; }
-error()   { printf '\e[91;1m[ Ω ]\e[0m \e[97m%s\e[0m\n' "$*" >&2; }
-die()     { error "$*"; exit 1; }
-
-info_prompt() {
-    local confirm
-    read -rn1 -p "$(printf '\e[96;1m[ Ω ]\e[0m \e[97m%s\e[0m ' "$1")" confirm
-    echo
-    [[ $confirm == $'\n' ]] || [[ -z $confirm ]]
-}
-
-info_input() {
-    local prompt_msg="$1" var_name="$2" secure="${3:-no}" validator="${4:-}"
-    local input
-
-    while :; do
-        printf '\e[96;1m[ Ω ]\e[0m \e[97m%s\e[0m' "$prompt_msg"
-
-        if [[ $secure == yes ]]; then
-            read -rs input
-            echo
-        else
-            read -r input
-        fi
-
-        # Trim
-        input="${input#"${input%%[![:space:]]*}"}"
-        input="${input%"${input##*[![:space:]]}"}"
-
-        if [[ -n $validator ]]; then
-            [[ -z $input ]] && { warning "Cannot be empty."; continue; }
-            if ! "$validator" "$input"; then
-                warning "Invalid input."
-                continue
-            fi
-        fi
-
-        printf -v "$var_name" '%s' "$input"
-        return 0
-    done
-}
-
-# Validators
-valid_hostname() { [[ $1 =~ ^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$ ]] && (( ${#1} <= 63 )); }
+# ── INPUT & VALIDATION ────────────────────────────────────────────────
+ask() { printf '\e[96;1m[ Ω ]\e[0m \e[97m%s\e[0m ' "$1"; }
+valid_hostname() { [[ $1 =~ ^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$ ]] && (( ${#1} <= 63 )); }
 valid_username() { [[ $1 =~ ^[a-z_][a-z0-9_-]{0,31}$ ]]; }
 valid_password() { (( ${#1} >= 6 )); }
 
-box() {
-  local title=" $1 "          # one space before & after
-  local w="${2:-70}" c="${3:-#}"
-  local line=$(printf '%*s' "$w" '' | tr ' ' "$c")
-  local inner=$(( w - 2 ))
-  local left=$(( (inner - ${#title}) / 2 ))
-  local right=$(( inner - ${#title} - left ))
-  local left_fill=$(printf '%*s' "$left" '' | tr ' ' "$c")
-  local right_fill=$(printf '%*s' "$right" '' | tr ' ' "$c")
-  # top
-  printf '\e[35m%s\e[0m\n' "$line"
-  # middle: # + fill + title + fill + #
-  printf '\e[35m%s\e[36m%s\e[0m\e[35m%s\e[0m\n' \
-         "${c}${left_fill}" "$title" "${right_fill}${c}"
-  # bottom
-  printf '\e[35m%s\e[0m\n' "$line"
+input() {
+  local prompt=$1 var=$2 secure=${3:-no} validator=${4:-}
+  while :; do
+    ask "$prompt"
+    if [[ $secure == yes ]]; then read -rs val; echo; else read -r val; fi
+    val="${val##+([[:space:]])}"; val="${val%%+([[:space:]])}"
+    [[ -n $validator && -z $val ]] && { echo -e '\e[93m[ Ω ] Cannot be empty\e[0m'; continue; }
+    [[ -n $validator ]] && ! "$validator" "$val" && { echo -e '\e[93m[ Ω ] Invalid\e[0m'; continue; }
+    printf -v "$var" '%s' "$val"
+    return 0
+  done
 }
 
-# ── Config ───────────────────────────────────────────────────────
-TIMEZONE='Europe/Lisbon'
-KEYMAP='pt-latin9'
-
-# ── Drive selection (UNCHANGED as requested) ─────────────────────
+# ── DRIVE SELECTION (TUI) ─────────────────────────────────────────────
 select_drive() {
   mapfile -t options < <(printf '/dev/sdummy\n'; lsblk -dplno PATH,TYPE | awk '$2=="disk"{print $1}')
   (( ${#options[@]} )) || die "No block devices found"
-  local selected=0 total=${#options[@]}
-
+  local selected=0 total=${#options[@]}  
   draw_menu() {
     clear
     box "Select installation drive"
@@ -102,8 +60,7 @@ select_drive() {
       fi
     done
     box "↑↓ navigate – Enter select – ESC cancel"
-  }
-
+  }  
   read_key() {
     local key seq
     read -rsn1 key
@@ -118,163 +75,117 @@ select_drive() {
       fi
       return 1
     fi
-
     [[ -z $key ]] && return 0
-    return 1
-  }
-
+    return 1  
+  }  
   while :; do
     draw_menu
     read_key && break
-  done
-
+  done  
   DRIVE=${options[selected]}
-  [[ -b $DRIVE ]] || die "Invalid drive."
-
-  warning "Use $DRIVE? ALL DATA WILL BE ERASED!"
-  info_prompt "Press Enter to confirm, any other key to cancel... "
+  [[ -b $DRIVE ]] || die "Invalid drive."  
+  info "Use $DRIVE? ALL DATA WILL BE ERASED!"
+  ask "Press Enter to confirm, any other key to cancel... "
   [[ -z $confirm ]] || exit 0
   info "Selected: $DRIVE"
 }
 
-# ── Partitioning ─────────────────────────────────────────────────
-partition_drive() {
-  local dev=$1 type=''
-  [[ $dev =~ nvme ]] && type='p'
-
-  info "Wiping and creating GPT partitions..."
+# ── PARTITION & FORMAT ───────────────────────────────────────────────
+partition_and_mount() {
+  local type=''
+  [[ $DRIVE =~ nvme ]] && type=p
+  info "Wiping & partitioning $DRIVE..."
   run sgdisk -Z \
-    -n 1:1M:512M -t 1:ef00 -c 1:EFI \
-    -n 2:513M:8704M -t 2:8200 -c 2:Swap \
-    -n 3:8705M:0 -t 3:8300 -c 3:Root \
-    "$dev" || die "sgdisk failed"
+    -n1:1M:512M   -t1:ef00 -c1:EFI \
+    -n2:513M:8704M -t2:8200 -c2:Swap \
+    -n3:8705M:0    -t3:8300 -c3:Root "$DRIVE"
 
-  BOOT_PART="${dev}${type}1"
-  SWAP_PART="${dev}${type}2"
-  ROOT_PART="${dev}${type}3"
+  local boot="${DRIVE}${type}1" swap="${DRIVE}${type}2" root="${DRIVE}${type}3"
+  [[ -b $boot && -b $swap && -b $root ]] || die "Partitioning failed"
 
-  # Verify partitions exist
-  [[ -b $BOOT_PART ]] || die "EFI partition not created"
-  [[ -b $SWAP_PART ]] || die "Swap partition not created"
-  [[ -b $ROOT_PART ]] || die "Root partition not created"
-}
+  info "Formatting..."
+  run mkfs.fat -F32 -n BOOT "$boot"
+  run mkswap -L SWAP "$swap"
+  run mkfs.btrfs -f -L ROOT "$root"
 
-# ── Format & Mount ───────────────────────────────────────────────
-format_and_mount() {
-  info "Formatting filesystems..."
-  run mkfs.fat -F32 -n BOOT "$BOOT_PART"
-  run mkswap -L SWAP "$SWAP_PART"
-  run mkfs.btrfs -f -L ROOT "$ROOT_PART"
-
-  info "Mounting with Btrfs subvolumes..."
-  mount "$ROOT_PART" /mnt
-  run btrfs su cr /mnt/@
-  run btrfs su cr /mnt/@home
+  info "Mounting Btrfs subvolumes..."
+  mount "$root" /mnt
+  btrfs su cr /mnt/@ /mnt/@home
   umount /mnt
 
-  mount -o noatime,compress=zstd:1,subvol=@ "$ROOT_PART" /mnt
+  mount -o noatime,compress=zstd:1,subvol=@ "$root" /mnt
   mkdir -p /mnt/{boot,home}
-  mount -o noatime,compress=zstd:1,subvol=@home "$ROOT_PART" /mnt/home
-  mount "$BOOT_PART" /mnt/boot
-  swapon "$SWAP_PART"
+  mount -o noatime,compress=zstd:1,subvol=@home "$root" /mnt/home
+  mount "$boot" /mnt/boot
+  swapon "$swap"
 }
 
-# ── Base Install ─────────────────────────────────────────────────
+# ── BASE INSTALL ─────────────────────────────────────────────────────
 install_base() {
-  info "Optimizing mirrors (Portugal & Spain)..."
-  run reflector --country 'PT,ES' --latest 8 --protocol https --sort rate \
-            --number 6 --save /etc/pacman.d/mirrorlist --verbose || true
+  info "Optimizing mirrors (PT+ES)..."
+  run reflector --country 'PT,ES' --latest 8 --protocol https --sort rate --number 6 --save /etc/pacman.d/mirrorlist --verbose || true
 
-  info "Syncing package databases..."
-  run pacman -Syy --noconfirm || die "Failed to sync databases"
+  run pacman -Syy --noconfirm
+  sed -i '/\[options\]/a ILoveCandy' /etc/pacman.conf
 
-  sed -i '/^\[options\]/a ILoveCandy' /etc/pacman.conf && info "ILoveCandy activated – enjoy the chomp!"
+  info "Pacstrap base system..."
+  run pacstrap -K /mnt base linux linux-firmware btrfs-progs grub efibootmgr nano networkmanager sudo
 
-  info "Installing base system..."
-  run pacstrap -K /mnt base linux linux-firmware btrfs-progs \
-    grub efibootmgr nano networkmanager sudo || die "pacstrap failed"
-
-  info "Generating fstab..."
   genfstab -U /mnt >> /mnt/etc/fstab
-
-  info "Copying optimized mirrorlist..."
   cp /etc/pacman.d/mirrorlist /mnt/etc/pacman.d/mirrorlist
 }
 
-# ── Chroot Phase ─────────────────────────────────────────────────
+# ── CHROOT PHASE ─────────────────────────────────────────────────────
 chroot_phase() {
-  set -eo pipefail
-
-  info "Setting timezone: $TIMEZONE"
   ln -sf "/usr/share/zoneinfo/$TIMEZONE" /etc/localtime
   hwclock --systohc --utc
 
-  info "Configuring locale..."
-  sed -i 's/#en_US\.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen
-  sed -i 's/#pt_PT\.UTF-8 UTF-8/pt_PT.UTF-8 UTF-8/' /etc/locale.gen
-  run locale-gen
+  sed -i 's/#\(en_US\|pt_PT\)\.UTF-8 UTF-8/\1.UTF-8 UTF-8/' /etc/locale.gen
+  locale-gen
   echo -e 'LANG=pt_PT.UTF-8\nLC_MESSAGES=en_US.UTF-8' > /etc/locale.conf
   echo "KEYMAP=$KEYMAP" > /etc/vconsole.conf
 
-  info "Setting hostname: $HOSTNAME"
   echo "$HOSTNAME" > /etc/hostname
+  echo -e "$ROOT_PASSWORD\n$ROOT_PASSWORD" | passwd root
 
-  info "Setting root password..."
-  printf '%s\n%s\n' "$ROOT_PASSWORD" "$ROOT_PASSWORD" | run passwd root
-
-  info "Creating user: $USER_NAME"
   useradd -mG wheel -s /bin/bash "$USER_NAME"
-  printf '%s\n%s\n' "$USER_PASSWORD" "$USER_PASSWORD" | run passwd "$USER_NAME"
+  echo -e "$USER_PASSWORD\n$USER_PASSWORD" | passwd "$USER_NAME"
   sed -i 's/# %wheel ALL=(ALL:ALL) ALL/%wheel ALL=(ALL:ALL) ALL/' /etc/sudoers
 
-  info "Installing GRUB..."
-  run grub-install --target=x86_64-efi --efi-directory=/boot --bootloader-id=GRUB
-  run grub-mkconfig -o /boot/grub/grub.cfg
+  grub-install --target=x86_64-efi --efi-directory=/boot --bootloader-id=GRUB
+  grub-mkconfig -o /boot/grub/grub.cfg
+  systemctl enable NetworkManager
 
-  info "Enabling NetworkManager..."
-  run systemctl enable NetworkManager
-
-  info "Downloading post-install helper..."
-  local post_url="https://raw.githubusercontent.com/macaricol/arch/refs/heads/main/post.sh"
-  curl -fsSL "$post_url" -o "/home/$USER_NAME/post.sh" && \
-    chown "$USER_NAME:$USER_NAME" "/home/$USER_NAME/post.sh" && \
-    chmod +x "/home/$USER_NAME/post.sh" && \
-    info "post.sh ready at /home/$USER_NAME/post.sh"
-
-  rm -f /setup.sh
+  info "Downloading post-install script..."
+  curl -fsSL "$POST_URL" -o "/home/$USER_NAME/post.sh"
+  chown "$USER_NAME:$USER_NAME" "/home/$USER_NAME/post.sh"
+  chmod +x "/home/$USER_NAME/post.sh"
 }
 
-# ── Main ─────────────────────────────────────────────────────────
+# ── MAIN ─────────────────────────────────────────────────────────────
 main() {
-  clear
-  box "Enter machine/user details" 70 Ω
-
-  info_input "Hostname: " HOSTNAME no valid_hostname
-  info_input "Root password (min 6 chars): " ROOT_PASSWORD yes valid_password
-  info_input "Username: " USER_NAME no valid_username
-  info_input "User password (min 6 chars): " USER_PASSWORD yes valid_password
+  clear; box "Enter machine details" 70 Ω
+  input "Hostname: " HOSTNAME no valid_hostname
+  input "Root password (min 6 chars): " ROOT_PASSWORD yes valid_password
+  input "Username: " USER_NAME no valid_username
+  input "User password (min 6 chars): " USER_PASSWORD yes valid_password
 
   select_drive
-
   clear; box "Partitioning & Formatting" 70 Ω
-  partition_drive "$DRIVE"
-  format_and_mount
+  partition_and_mount
 
   clear; box "Installing Arch Linux" 70 Ω
   install_base
 
-  info "Entering chroot to finalize..."
-  sync  # Ensure all writes are flushed
+  info "Entering chroot..."
   cp "$0" /mnt/setup.sh
   arch-chroot /mnt env \
-    HOSTNAME="$HOSTNAME" \
-    ROOT_PASSWORD="$ROOT_PASSWORD" \
-    USER_NAME="$USER_NAME" \
-    USER_PASSWORD="$USER_PASSWORD" \
-    /bin/bash /setup.sh chroot
+    HOSTNAME="$HOSTNAME" ROOT_PASSWORD="$ROOT_PASSWORD" \
+    USER_NAME="$USER_NAME" USER_PASSWORD="$USER_PASSWORD" \
+    VERBOSE="$VERBOSE" /bin/bash /setup.sh chroot
 
-  clear; box "Installation Complete! Rebooting in 5s..." 70 Ω
+  clear; box "DONE! Rebooting in 5s..." 70 Ω
   sleep 5 && reboot
 }
 
-[[ $1 == chroot ]] && chroot_phase || main
+[[ ${1:-} == chroot ]] && chroot_phase || main
