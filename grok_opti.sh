@@ -189,41 +189,55 @@ install_base() {
   run pacman -Syy --noconfirm || die "Failed to sync databases"
 
   info "Installing base system (this may take a while)..."
-  
-  # ── PROGRESS BAR FOR PACSTRAP ONLY ───────────────────────────
-  local width=50
+
+  # ── ROBUST PROGRESS BAR FOR PACSTRAP ONLY ───────────────────
   local pkgs=(base linux linux-firmware btrfs-progs grub efibootmgr nano networkmanager sudo)
   local total=${#pkgs[@]}
   local i=0
+  local width=50
 
-  clear
-  box "Installing Arch Linux" 70 Ω
-  printf '\n'
+  # Save cursor position and hide it
+  tput civis
+  printf '\033[?25l'
 
   for pkg in "${pkgs[@]}"; do
     ((i++))
+
+    # Run pacstrap safely — NEVER let it kill the script
+    if run pacstrap -K /mnt "$pkg"; then
+      local status="OK"
+      local color="\e[92m"  # green
+    else
+      local status="retrying..."
+      local color="\e[93m"  # yellow
+      # Retry once
+      sleep 2
+      run pacstrap -K /mnt "$pkg" || { tput cnorm; die "Failed to install $pkg"; }
+    fi
+
     local percent=$(( i * 100 / total ))
     local filled=$(( percent * width / 100 ))
     local empty=$(( width - filled ))
     local bar="$(printf '█%.0s' $(seq 1 $filled))"
     local space="$(printf ' %.0s' $(seq 1 $empty))"
 
-    # Spinner animation
-    local spin=('Installing' 'Installing.' 'Installing..' 'Installing...')
-    local s="${spin[$(( i % 4 ))]}"
+    local spinner=('⠋' '⠙' '⠹' '⠸' '⠼' '⠴' '⠦' '⠧' '⠇' '⠏')
+    local spin="${spinner[$(( i % 10 ))]}"
 
-    printf '\r  \e[96;1m%s\e[0m  %s\e[96;1m%s\e[0m%s  \e[35m[%s]\e[0m  \e[97m%3d%%\e[0m  \e[2m%s\e[0m' \
-           "$s" "$bar" "$space" "[" "]" "$percent" "$pkg"
+    printf '\r  %s \e[96;1m%s\e[0m%s  \e[35m[%s]\e[0m  \e[97m%3d%%\e[0m  \e[2m%s\e[0m %s%s\e[0m' \
+           "$spin" "$bar" "$space" "█" "$percent" "$pkg" "$color" "$status"
 
-    run pacstrap -K /mnt "$pkg" || die "Failed to install $pkg"
   done
 
-  # Final 100%
-  printf '\r  \e[92;1mDone!\e[0m       %s\e[96;1m%s\e[0m%s  \e[35m[%s]\e[0m  \e[97m100%%\e[0m  \e[2mbase system installed\e[0m\n\n' \
+  # Final 100% line
+  printf '\r  \e[92;1m✓ Done!\e[0m     %s\e[96;1m%s\e[0m%s  \e[35m[%s]\e[0m  \e[97m100%%\e[0m  \e[32mall packages installed\e[0m          \n\n' \
          "$(printf '█%.0s' $(seq 1 $width))" "" "" "█"
 
-  sleep 1.2
-  # ── END OF PROGRESS BAR ──────────────────────────────────────
+  # Restore cursor
+  tput cnorm
+  printf '\033[?25h'
+  sleep 1
+  # ── END PROGRESS BAR ────────────────────────────────────────
 
   info "Generating fstab..."
   genfstab -U /mnt >> /mnt/etc/fstab
