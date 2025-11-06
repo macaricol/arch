@@ -64,15 +64,21 @@ valid_username() { [[ $1 =~ ^[a-z_][a-z0-9_-]{0,31}$ ]]; }
 valid_password() { (( ${#1} >= 6 )); }
 
 box() {
-    local title=" $1 " w="${2:-70}" c="${3:-#}"
-    local line=$(printf '%*s' "$w" '' | tr ' ' "$c")
-    local inner=$((w - 2)) left=$(((inner - ${#title}) / 2)) right=$((inner - ${#title} - left))
-    local left_fill=$(printf '%*s' "$left" '' | tr ' ' "$c")
-    local right_fill=$(printf '%*s' "$right" '' | tr ' ' "$c")
-
-    printf '\e[35m%s\e[0m\n' "$line"
-    printf '\e[35m%s\e[36m%s\e[0m\e[35m%s\e[0m\n' "${c}${left_fill}" "$title" "${right_fill}${c}"
-    printf '\e[35m%s\e[0m\n' "$line"
+  local title=" $1 "          # one space before & after
+  local w="${2:-70}" c="${3:-#}"
+  local line=$(printf '%*s' "$w" '' | tr ' ' "$c")
+  local inner=$(( w - 2 ))
+  local left=$(( (inner - ${#title}) / 2 ))
+  local right=$(( inner - ${#title} - left ))
+  local left_fill=$(printf '%*s' "$left" '' | tr ' ' "$c")
+  local right_fill=$(printf '%*s' "$right" '' | tr ' ' "$c")
+  # top
+  printf '\e[35m%s\e[0m\n' "$line"
+  # middle: # + fill + title + fill + #
+  printf '\e[35m%s\e[36m%s\e[0m\e[35m%s\e[0m\n' \
+         "${c}${left_fill}" "$title" "${right_fill}${c}"
+  # bottom
+  printf '\e[35m%s\e[0m\n' "$line"
 }
 
 # ── Config ───────────────────────────────────────────────────────
@@ -116,7 +122,7 @@ select_drive() {
     [[ -z $key ]] && return 0
     return 1
   }
-  
+
   while :; do
     draw_menu
     read_key && break
