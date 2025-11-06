@@ -60,14 +60,18 @@ select_drive() {
     done
     box "↑↓ or k/j navigate – Enter select – ESC cancel"
 
-    read -rsn1 k
-    [[ $k == $'\x1b' ]] && read -rsn2 -t 0.1 seq && k=$k$seq
+    read -rsn1 k                # first key
+    if [[ $k == $'\x1b' ]]; then
+      read -rsn2 -t 0.1 seq     # arrow sequence
+      [[ -z $seq ]] && { clear; info "Cancelled"; exit 0; }  # plain ESC
+      k=$k$seq
+    fi
 
     case $k in
       $'\x1b[A'|k) ((cur--)) ;;
       $'\x1b[B'|j) ((cur++)) ;;
-      '') break ;;
-      *) clear; info "Cancelled"; exit 0 ;;
+      '') break ;;               # Enter → accept selection
+      *) continue ;;             # any other key = ignore (no exit)
     esac
 
     (( cur < 0 )) && cur=$((total-1))
@@ -75,7 +79,7 @@ select_drive() {
   done
 
   DRIVE=${options[cur]}
-  [[ $DRIVE == /dev/sdummy ]] && { clear; info "Dummy selected – nice troll!"; exit 0; }
+  [[ $DRIVE == /dev/sdummy ]] && { clear; info "Dummy selected – nice try bro"; exit 0; }
 
   info "Selected: $DRIVE"
   ask "Press Enter to confirm, any other key to cancel... "
