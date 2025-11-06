@@ -92,7 +92,8 @@ select_drive() {
 
 # ── PARTITION & FORMAT ───────────────────────────────────────────────
 partition_and_mount() {
-  local type='' [[ $DRIVE =~ nvme ]] && type=p
+  local type=''
+  [[ $DRIVE =~ nvme ]] && type=p
   info "Wiping & partitioning $DRIVE..."
   run sgdisk -Z \
     -n1:1M:512M   -t1:ef00 -c1:EFI \
