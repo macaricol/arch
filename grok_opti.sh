@@ -166,9 +166,9 @@ chroot_phase() {
 main() {
   clear; box "Enter machine details" 70 Ω
   input "Hostname: " HOSTNAME no valid_hostname
-  input "Root password (≥6): " ROOT_PASSWORD yes valid_password
+  input "Root password (min 6 chars): " ROOT_PASSWORD yes valid_password
   input "Username: " USER_NAME no valid_username
-  input "User password (≥6): " USER_PASSWORD yes valid_password
+  input "User password (min 6 chars): " USER_PASSWORD yes valid_password
 
   select_drive
   clear; box "Partitioning & Formatting" 70 Ω
