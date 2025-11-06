@@ -188,9 +188,42 @@ install_base() {
   info "Syncing package databases..."
   run pacman -Syy --noconfirm || die "Failed to sync databases"
 
-  info "Installing base system..."
-  run pacstrap -K /mnt base linux linux-firmware btrfs-progs \
-    grub efibootmgr nano networkmanager sudo || die "pacstrap failed"
+  info "Installing base system (this may take a while)..."
+  
+  # ── PROGRESS BAR FOR PACSTRAP ONLY ───────────────────────────
+  local width=50
+  local pkgs=(base linux linux-firmware btrfs-progs grub efibootmgr nano networkmanager sudo)
+  local total=${#pkgs[@]}
+  local i=0
+
+  clear
+  box "Installing Arch Linux" 70 Ω
+  printf '\n'
+
+  for pkg in "${pkgs[@]}"; do
+    ((i++))
+    local percent=$(( i * 100 / total ))
+    local filled=$(( percent * width / 100 ))
+    local empty=$(( width - filled ))
+    local bar="$(printf '█%.0s' $(seq 1 $filled))"
+    local space="$(printf ' %.0s' $(seq 1 $empty))"
+
+    # Spinner animation
+    local spin=('Installing' 'Installing.' 'Installing..' 'Installing...')
+    local s="${spin[$(( i % 4 ))]}"
+
+    printf '\r  \e[96;1m%s\e[0m  %s\e[96;1m%s\e[0m%s  \e[35m[%s]\e[0m  \e[97m%3d%%\e[0m  \e[2m%s\e[0m' \
+           "$s" "$bar" "$space" "[" "]" "$percent" "$pkg"
+
+    run pacstrap -K /mnt "$pkg" || die "Failed to install $pkg"
+  done
+
+  # Final 100%
+  printf '\r  \e[92;1mDone!\e[0m       %s\e[96;1m%s\e[0m%s  \e[35m[%s]\e[0m  \e[97m100%%\e[0m  \e[2mbase system installed\e[0m\n\n' \
+         "$(printf '█%.0s' $(seq 1 $width))" "" "" "█"
+
+  sleep 1.2
+  # ── END OF PROGRESS BAR ──────────────────────────────────────
 
   info "Generating fstab..."
   genfstab -U /mnt >> /mnt/etc/fstab
