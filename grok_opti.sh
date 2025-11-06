@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Arch Linux installer – ultra-compact, robust & fast (2025 edition)
-set -euo pipefail
+set -eo pipefail
 IFS=$'\n\t'
 shopt -s nocasematch extglob
 
@@ -21,7 +21,7 @@ box() {
   local side=$(printf '%*s' "$pad" '' | tr ' ' "$c")
   local rest=$(printf '%*s' "$((w - 2 - ${#t} - pad))" '' | tr ' ' "$c")
 
-  printf '\e[35m%s\n%s\e[36m%s\e[35m%s\e[0m\n\e[35m%s\e[0m\n' \
+  printf '\n\e[35m%s\n%s\e[36m%s\e[35m%s\e[0m\n\e[35m%s\e[0m\n\n' \
     "$line" "$c$side" "$t" "$rest$c" "$line"
 }
 
