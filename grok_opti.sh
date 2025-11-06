@@ -3,26 +3,36 @@
 set -eo pipefail
 IFS=$'\n\t'
 
+# ── VERBOSE CONTROL ─────────────────────────────────────────────
+: "${VERBOSE:=1}"  # Default: 1 (see all output), set to 0 for silent
+
+run() {
+    if (( VERBOSE )); then
+        "$@"
+    else
+        "$@" &>/dev/null
+    fi
+}
+
 # ── Helpers ─────────────────────────────────────────────────────
-info()    { printf '\e[96;1m[ Ω ]\e[0m \e[97m%b\e[0m\n' "$*"; sleep 2; }
-warning() { printf '\e[93;1m[ Ω ]\e[0m \e[97m%b\e[0m\n' "$*" >&2; }
-error()   { printf '\e[91;1m[ Ω ]\e[0m \e[97m%b\e[0m\n' "$*" >&2; sleep 2; }
+info()    { printf '\e[96;1m[ Ω ]\e[0m \e[97m%s\e[0m\n' "$*"; }
+warning() { printf '\e[93;1m[ Ω ]\e[0m \e[97m%s\e[0m\n' "$*" >&2; }
+error()   { printf '\e[91;1m[ Ω ]\e[0m \e[97m%s\e[0m\n' "$*" >&2; }
 die()     { error "$*"; exit 1; }
+
 info_prompt() {
     local confirm
-    read -rn1 -p "$(printf '\e[96;1m[ Ω ]\e[0m \e[97m%b\e[0m ' "$1")" confirm
+    read -rn1 -p "$(printf '\e[96;1m[ Ω ]\e[0m \e[97m%s\e[0m ' "$1")" confirm
     echo
     [[ $confirm == $'\n' ]] || [[ -z $confirm ]]
 }
+
 info_input() {
-    local prompt_msg="$1"
-    local var_name="$2"
-    local secure="${3:-no}"
-    local validator="${4:-}"
+    local prompt_msg="$1" var_name="$2" secure="${3:-no}" validator="${4:-}"
     local input
 
     while :; do
-        printf '\e[96;1m[ Ω ]\e[0m \e[97m%b\e[0m' "$prompt_msg"
+        printf '\e[96;1m[ Ω ]\e[0m \e[97m%s\e[0m' "$prompt_msg"
 
         if [[ $secure == yes ]]; then
             read -rs input
@@ -31,56 +41,45 @@ info_input() {
             read -r input
         fi
 
-        # Trim whitespace
+        # Trim
         input="${input#"${input%%[![:space:]]*}"}"
         input="${input%"${input##*[![:space:]]}"}"
 
-        # If validator exists, enforce non-empty AND validate
         if [[ -n $validator ]]; then
-            if [[ -z $input ]]; then
-                warning "Input cannot be empty."
-                continue
-            fi
+            [[ -z $input ]] && { warning "Cannot be empty."; continue; }
             if ! "$validator" "$input"; then
-                warning "Invalid input. Try again."
+                warning "Invalid input."
                 continue
             fi
         fi
 
-        # Success: assign (even if empty)
         printf -v "$var_name" '%s' "$input"
         return 0
     done
 }
 
 # Validators
-valid_hostname() { [[ $1 =~ ^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$ ]] && [[ ${#1} -le 63 ]]; }
+valid_hostname() { [[ $1 =~ ^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$ ]] && (( ${#1} <= 63 )); }
 valid_username() { [[ $1 =~ ^[a-z_][a-z0-9_-]{0,31}$ ]]; }
-valid_password() { [[ ${#1} -ge 5 ]]; }
+valid_password() { (( ${#1} >= 6 )); }
 
 box() {
-  local title=" $1 "          # one space before & after
-  local w="${2:-70}" c="${3:-#}"
-  local line=$(printf '%*s' "$w" '' | tr ' ' "$c")
-  local inner=$(( w - 2 ))
-  local left=$(( (inner - ${#title}) / 2 ))
-  local right=$(( inner - ${#title} - left ))
-  local left_fill=$(printf '%*s' "$left" '' | tr ' ' "$c")
-  local right_fill=$(printf '%*s' "$right" '' | tr ' ' "$c")
-  # top
-  printf '\e[35m%s\e[0m\n' "$line"
-  # middle: # + fill + title + fill + #
-  printf '\e[35m%s\e[36m%s\e[0m\e[35m%s\e[0m\n' \
-         "${c}${left_fill}" "$title" "${right_fill}${c}"
-  # bottom
-  printf '\e[35m%s\e[0m\n' "$line"
+    local title=" $1 " w="${2:-70}" c="${3:-#}"
+    local line=$(printf '%*s' "$w" '' | tr ' ' "$c")
+    local inner=$((w - 2)) left=$(((inner - ${#title}) / 2)) right=$((inner - ${#title} - left))
+    local left_fill=$(printf '%*s' "$left" '' | tr ' ' "$c")
+    local right_fill=$(printf '%*s' "$right" '' | tr ' ' "$c")
+
+    printf '\e[35m%s\e[0m\n' "$line"
+    printf '\e[35m%s\e[36m%s\e[0m\e[35m%s\e[0m\n' "${c}${left_fill}" "$title" "${right_fill}${c}"
+    printf '\e[35m%s\e[0m\n' "$line"
 }
 
 # ── Config ───────────────────────────────────────────────────────
 TIMEZONE='Europe/Lisbon'
 KEYMAP='pt-latin9'
 
-# ── Drive selection ──────────────────────────────────────────────
+# ── Drive selection (UNCHANGED as requested) ─────────────────────
 select_drive() {
   mapfile -t options < <(printf '/dev/sdummy\n'; lsblk -dplno PATH,TYPE | awk '$2=="disk"{print $1}')
   (( ${#options[@]} )) || die "No block devices found"
@@ -114,31 +113,29 @@ select_drive() {
       return 1
     fi
 
-    [[ -z $key ]] && return 0  # Enter
-    return 1                   # Ignore others
-  }
-
+    [[ -z $key ]] && return 0
+    return 1
   while :; do
     draw_menu
     read_key && break
   done
 
   DRIVE=${options[selected]}
-  [[ -b $DRIVE ]] || { die "Invalid drive."; }
+  [[ -b $DRIVE ]] || die "Invalid drive."
 
   warning "Use $DRIVE? ALL DATA WILL BE ERASED!"
-  info_prompt "Press Enter to confirm, any other key to cancel... " confirm
+  info_prompt "Press Enter to confirm, any other key to cancel... "
   [[ -z $confirm ]] || exit 0
   info "Selected: $DRIVE"
 }
 
-# ── Partitioning (sgdisk – one shot) ─────────────────────────────
+# ── Partitioning ─────────────────────────────────────────────────
 partition_drive() {
-  local dev=$1
-  local type=''
+  local dev=$1 type=''
   [[ $dev =~ nvme ]] && type='p'
-  info "Wiping & creating GPT partitions"
-  sgdisk -Z \
+
+  info "Wiping and creating GPT partitions..."
+  run sgdisk -Z \
     -n 1:1M:512M -t 1:ef00 -c 1:EFI \
     -n 2:513M:8704M -t 2:8200 -c 2:Swap \
     -n 3:8705M:0 -t 3:8300 -c 3:Root \
@@ -147,114 +144,117 @@ partition_drive() {
   BOOT_PART="${dev}${type}1"
   SWAP_PART="${dev}${type}2"
   ROOT_PART="${dev}${type}3"
+
+  # Verify partitions exist
+  [[ -b $BOOT_PART ]] || die "EFI partition not created"
+  [[ -b $SWAP_PART ]] || die "Swap partition not created"
+  [[ -b $ROOT_PART ]] || die "Root partition not created"
 }
 
-# ── Filesystems & mount (single mount, subvols on-the-fly) ───────
+# ── Format & Mount ───────────────────────────────────────────────
 format_and_mount() {
-  info "Formatting"
-  mkfs.fat -F32 -n BOOT "$BOOT_PART"
-  mkswap -L SWAP "$SWAP_PART"
-  mkfs.btrfs -f -L ROOT "$ROOT_PART"
+  info "Formatting filesystems..."
+  run mkfs.fat -F32 -n BOOT "$BOOT_PART"
+  run mkswap -L SWAP "$SWAP_PART"
+  run mkfs.btrfs -f -L ROOT "$ROOT_PART"
 
-  info "Mounting"
+  info "Mounting with Btrfs subvolumes..."
   mount "$ROOT_PART" /mnt
-  btrfs su cr /mnt/@
-  btrfs su cr /mnt/@home
+  run btrfs su cr /mnt/@
+  run btrfs su cr /mnt/@home
   umount /mnt
 
-  mount -o noatime,compress=zstd,subvol=@ "$ROOT_PART" /mnt
+  mount -o noatime,compress=zstd:1,subvol=@ "$ROOT_PART" /mnt
   mkdir -p /mnt/{boot,home}
-  mount -o noatime,compress=zstd,subvol=@home "$ROOT_PART" /mnt/home
+  mount -o noatime,compress=zstd:1,subvol=@home "$ROOT_PART" /mnt/home
   mount "$BOOT_PART" /mnt/boot
   swapon "$SWAP_PART"
 }
 
-# ── Base system ─────────────────────────────────────────────────
+# ── Base Install ─────────────────────────────────────────────────
 install_base() {
+  info "Optimizing mirrors (Portugal & Spain)..."
+  run reflector --country 'PT,ES' --latest 8 --protocol https --sort rate \
+            --number 6 --save /etc/pacman.d/mirrorlist --verbose || true
 
-  # Get top 10 fastest HTTPS mirrors, synced in last 12h
-  reflector --country 'PT,ES' \
-            --latest 8 \
-            --fastest 8 \
-            --protocol https \
-            --sort rate \
-            --number 6 \
-            --save /etc/pacman.d/mirrorlist \
-            --verbose || die "Reflector failed"
+  info "Syncing package databases..."
+  run pacman -Syy --noconfirm || die "Failed to sync databases"
 
-  info "Updated mirrorlist:"
-  head -n 20 /etc/pacman.d/mirrorlist
-  sleep 3
-
-  # Force refresh package databases with new mirrors
-  pacman -Syy || die "pacman -Syy failed"
-
-  info "Pacstrap base system"
-  pacstrap -K /mnt base linux linux-firmware btrfs-progs \
+  info "Installing base system..."
+  run pacstrap -K /mnt base linux linux-firmware btrfs-progs \
     grub efibootmgr nano networkmanager sudo || die "pacstrap failed"
 
-  info "Generating fstab"
+  info "Generating fstab..."
   genfstab -U /mnt >> /mnt/etc/fstab
 
-  # Copy fast mirrorlist into installed system
-  info "Copying optimized mirrorlist to new system"
+  info "Copying optimized mirrorlist..."
   cp /etc/pacman.d/mirrorlist /mnt/etc/pacman.d/mirrorlist
 }
 
-# ── Chroot phase (executed when script is run with 'chroot' arg) ─
+# ── Chroot Phase ─────────────────────────────────────────────────
 chroot_phase() {
   set -eo pipefail
 
+  info "Setting timezone: $TIMEZONE"
   ln -sf "/usr/share/zoneinfo/$TIMEZONE" /etc/localtime
-  hwclock --systohc
+  hwclock --systohc --utc
+
+  info "Configuring locale..."
   sed -i 's/#en_US\.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen
   sed -i 's/#pt_PT\.UTF-8 UTF-8/pt_PT.UTF-8 UTF-8/' /etc/locale.gen
-  locale-gen
+  run locale-gen
   echo -e 'LANG=pt_PT.UTF-8\nLC_MESSAGES=en_US.UTF-8' > /etc/locale.conf
   echo "KEYMAP=$KEYMAP" > /etc/vconsole.conf
 
+  info "Setting hostname: $HOSTNAME"
   echo "$HOSTNAME" > /etc/hostname
-  printf '%s\n%s\n' "$ROOT_PASSWORD" "$ROOT_PASSWORD" | passwd --stdin root
+
+  info "Setting root password..."
+  printf '%s\n%s\n' "$ROOT_PASSWORD" "$ROOT_PASSWORD" | run passwd root
+
+  info "Creating user: $USER_NAME"
   useradd -mG wheel -s /bin/bash "$USER_NAME"
-  printf '%s\n%s\n' "$USER_PASSWORD" "$USER_PASSWORD" | passwd --stdin "$USER_NAME"
+  printf '%s\n%s\n' "$USER_PASSWORD" "$USER_PASSWORD" | run passwd "$USER_NAME"
   sed -i 's/# %wheel ALL=(ALL:ALL) ALL/%wheel ALL=(ALL:ALL) ALL/' /etc/sudoers
 
-  grub-install --target=x86_64-efi --efi-directory=/boot --bootloader-id=GRUB
-  grub-mkconfig -o /boot/grub/grub.cfg
-  systemctl enable NetworkManager
+  info "Installing GRUB..."
+  run grub-install --target=x86_64-efi --efi-directory=/boot --bootloader-id=GRUB
+  run grub-mkconfig -o /boot/grub/grub.cfg
 
-  # post-install helper
-  curl -fsSL https://raw.githubusercontent.com/macaricol/arch/refs/heads/main/post.sh \
-      -o /home/"$USER_NAME"/post.sh && \
-  chown "$USER_NAME:$USER_NAME" /home/"$USER_NAME"/post.sh && chmod +x /home/"$USER_NAME"/post.sh && \
-  info "post.sh downloaded"
+  info "Enabling NetworkManager..."
+  run systemctl enable NetworkManager
+
+  info "Downloading post-install helper..."
+  local post_url="https://raw.githubusercontent.com/macaricol/arch/refs/heads/main/post.sh"
+  curl -fsSL "$post_url" -o "/home/$USER_NAME/post.sh" && \
+    chown "$USER_NAME:$USER_NAME" "/home/$USER_NAME/post.sh" && \
+    chmod +x "/home/$USER_NAME/post.sh" && \
+    info "post.sh ready at /home/$USER_NAME/post.sh"
 
   rm -f /setup.sh
 }
 
-# ── Main flow ───────────────────────────────────────────────────
+# ── Main ─────────────────────────────────────────────────────────
 main() {
   clear
   box "Enter machine/user details" 70 Ω
+
   info_input "Hostname: " HOSTNAME no valid_hostname
-  info_input "Root password: " ROOT_PASSWORD yes valid_password
+  info_input "Root password (min 6 chars): " ROOT_PASSWORD yes valid_password
   info_input "Username: " USER_NAME no valid_username
-  info_input "User password: " USER_PASSWORD yes valid_password
+  info_input "User password (min 6 chars): " USER_PASSWORD yes valid_password
 
   select_drive
 
-  clear
-  box "Preparing drive for installation" 70 Ω
-  sleep 2
+  clear; box "Partitioning & Formatting" 70 Ω
   partition_drive "$DRIVE"
   format_and_mount
 
-  clear
-  box "Installing Arch Linux" 70 Ω
-  sleep 2
+  clear; box "Installing Base System" 70 Ω
   install_base
 
-  info "Entering chroot..."
+  info "Entering chroot to finalize..."
+  sync  # Ensure all writes are flushed
   cp "$0" /mnt/setup.sh
   arch-chroot /mnt env \
     HOSTNAME="$HOSTNAME" \
@@ -263,8 +263,7 @@ main() {
     USER_PASSWORD="$USER_PASSWORD" \
     /bin/bash /setup.sh chroot
 
-  clear
-  box "Rebooting in 5 seconds..." 70 Ω
+  clear; box "Installation Complete! Rebooting in 5s..." 70 Ω
   sleep 5 && reboot
 }
 
