@@ -12,14 +12,17 @@ POST_URL="https://raw.githubusercontent.com/macaricol/arch/refs/heads/main/post.
 
 # ── TOOLS ─────────────────────────────────────────────────────────────
 run() { ((VERBOSE)) && "$@" || "$@" &>/dev/null; }
-die() { printf '\e[91;1m[Ω] %b\e[0m\n' "$*" >&2; exit 1; }
-info() { printf '\e[96;1m[Ω]\e[0m \e[97m%s\e[0m\n' "$*"; }
+die() { printf '\e[91;1m[ Ω ] %b\e[0m\n' "$*" >&2; exit 1; }
+info() { printf '\e[96;1m[ Ω ]\e[0m \e[97m%s\e[0m\n\n' "$*"; }
 box() {
   local t=" $1 " w=${2:-70} c=${3:-Ω}
   local line=$(printf '%*s' "$w" '' | tr ' ' "$c")
-  local pad=$(( (w-2-${#t})/2 ))
-  printf '\e[35m%s\n%s\e[36m%s\e[35m%s\e[0m\n%s\e[0m\n' \
-    "$line" "${c}$(printf '%*s' "$pad" '' | tr ' ' "$c")" "$t" "$(printf '%*s' "$((w-2-${#t}-pad))" '' | tr ' ' "$c")${c}" "$line"
+  local pad=$(( (w - 2 - ${#t}) / 2 ))
+  local side=$(printf '%*s' "$pad" '' | tr ' ' "$c")
+  local rest=$(printf '%*s' "$((w - 2 - ${#t} - pad))" '' | tr ' ' "$c")
+
+  printf '\e[35m%s\n%s\e[36m%s\e[35m%s\e[0m\n\e[35m%s\e[0m\n' \
+    "$line" "$c$side" "$t" "$rest$c" "$line"
 }
 
 # ── INPUT & VALIDATION ────────────────────────────────────────────────
@@ -45,46 +48,46 @@ input() {
 select_drive() {
   mapfile -t options < <(printf '/dev/sdummy\n'; lsblk -dplno PATH,TYPE | awk '$2=="disk"{print $1}')
   (( ${#options[@]} )) || die "No block devices found"
-
-  local cur=0 total=${#options[@]}
-
-  while :; do
+  local selected=0 total=${#options[@]}  
+  draw_menu() {
     clear
-    box "Select installation drive – ALL DATA WILL BE ERASED!"
-    for i in "${!options[@]}"; do
-      (( i == cur )) &&
-        printf ' \e[7;97m➤ %s\e[0m\n' "${options[i]}" ||
-        printf '   %s\n' "${options[i]}"
-    done
-    box "↑↓ or k/j navigate – Enter select – ESC cancel"
-
-    read -rsn1 k
-    if [[ $k == $'\x1b' ]]; then
-      if read -rsn2 -t 0.1 seq; then
-        k=$k$seq
+    box "Select installation drive"
+    for ((i=0; i<${#options[@]}; i++)); do
+      if (( i == selected )); then
+        printf ' \e[7m>\e[0m %s\n' "${options[i]}"
       else
-        clear; info "Cancelled"; exit 0          # pure ESC
+        printf '   %s\n' "${options[i]}"
       fi
+    done
+    box "↑↓ navigate – Enter select – ESC cancel"
+  }  
+  read_key() {
+    local key seq
+    read -rsn1 key
+    if [[ $key == $'\x1b' ]]; then
+      if read -rsn2 -t 0.1 seq; then
+        [[ $seq == '[A' ]] && ((selected--))
+        [[ $seq == '[B' ]] && ((selected++))
+        (( selected < 0 )) && selected=$((total-1))
+        (( selected >= total )) && selected=0
+      else
+        clear; info "Operation cancelled."; exit 0
+      fi
+      return 1
     fi
-
-    case $k in
-      $'\x1b[A'|k) ((cur--)) ;;
-      $'\x1b[B'|j) ((cur++)) ;;
-      "") break ;;                             # Enter → accept
-      *) continue ;;                           # ANY other key = ignore
-    esac
-
-    (( cur < 0 )) && cur=$((total-1))
-    (( cur >= total )) && cur=0
-  done
-
-  DRIVE=${options[cur]}
-  [[ $DRIVE == /dev/sdummy ]] && { clear; info "Dummy selected – nice try bro"; exit 0; }
-
+    [[ -z $key ]] && return 0
+    return 1  
+  }  
+  while :; do
+    draw_menu
+    read_key && break
+  done  
+  DRIVE=${options[selected]}
+  [[ -b $DRIVE ]] || die "Invalid drive."  
+  warning "Use $DRIVE? ALL DATA WILL BE ERASED!"
+  info_prompt "Press Enter to confirm, any other key to cancel... "
+  [[ -z $confirm ]] || exit 0
   info "Selected: $DRIVE"
-  ask "Press Enter to confirm, any other key to cancel... "
-  read -rn1 || exit 0
-  echo
 }
 
 # ── PARTITION & FORMAT ───────────────────────────────────────────────
