@@ -190,63 +190,71 @@ install_base() {
 
   info "Installing base system (this may take a while)..."
 
-  # ── ONE PACSTRAP + REAL PROGRESS (ALL DEPS INCLUDED) ────────
   local pkgs=(base linux linux-firmware btrfs-progs grub efibootmgr nano networkmanager sudo)
   local pkg_list="${pkgs[*]}"
 
   clear
   box "Installing Arch Linux" 70 Ω
-  printf '\n'
+  printf '   \e[96;1mResolving dependencies...\e[0m\n\n'
   tput civis
 
-  # Count total packages including dependencies
-  local total_pkgs
-  total_pkgs=$(pacman -Swp --noconfirm $pkg_list 2>/dev/null | grep -c '^http') || total_pkgs=120
-  (( total_pkgs < 50 )) && total_pkgs=120  # safety
+  # ── DYNAMIC TOTAL: Count every package that will be installed ──
+  local total_pkgs=0
+  local temp_file=$(mktemp)
+
+  # Simulate install to count exact number of packages
+  if pacman -Swp --noconfirm $pkg_list >"$temp_file" 2>&1; then
+    total_pkgs=$(pacman -Qp --noconfirm $pkg_list 2>/dev/null | wc -l)
+    (( total_pkgs == 0 )) && total_pkgs=$(grep -c " installing " "$temp_file" || echo 120)
+  else
+    total_pkgs=120  # fallback
+  fi
+  rm -f "$temp_file"
+
+  # Fallback sanity
+  (( total_pkgs < 50 )) && total_pkgs=120
 
   local width=50
   local done=0
 
-  # MAGIC: disable set -e for the one dangerous command
+  # ── LIVE PROGRESS WITH REAL COUNT ─────────────────────────────
   set +e
-  run pacstrap -K /mnt $pkg_list > >( 
-    while IFS= read -r line; do
-      # Detect when a package is being downloaded/installed
-      if [[ $line == *"::"* ]] || [[ $line == *"retrieving"* ]] || [[ $line == *"installing"* ]] || [[ $line == *".pkg.tar"* ]]; then
-        ((done++))
-        local percent=$(( done * 100 / total_pkgs ))
-        [[ $percent -gt 100 ]] && percent=100
-        local filled=$(( percent * width / 100 ))
-        local empty=$(( width - filled ))
-        local bar="$(printf '█%.0s' $(seq 1 $filled))"
-        local space="$(printf ' %.0s' $(seq 1 $empty))"
+  run pacstrap -K /mnt $pkg_list 2>&1 | while IFS= read -r line; do
+    if echo "$line" | grep -Eq "installing|retrieving|resolving|checking|::"; then
+      ((done++))
+      [[ $done -gt $total_pkgs ]] && done=$total_pkgs
 
-        local spinner=('⠋' '⠙' '⠹' '⠸' '⠼' '⠴' '⠦' '⠧' '⠇' '⠏')
-        local spin="${spinner[$(( done % 10 ))]}"
+      local percent=$(( done * 100 / total_pkgs ))
+      local filled=$(( percent * width / 100 ))
+      local bar=""
+      printf -v bar '%*s' "$filled" ''; bar=${bar// /█}
+      printf -v space '%*s' "$(( width - filled ))" ''
 
-        printf '\r  %s \e[96;1m%s\e[0m%s  \e[35m[%s]\e[0m  \e[97m%3d%%\e[0m  \e[2m%d/%d packages\e[0m' \
-               "$spin" "$bar" "$space" "█" "$percent" "$done" "$total_pkgs"
-      fi
-    done
-  ) 2>&1
-  local pacstrap_exit=$?
+      local spin=('Installing   ' 'Installing.  ' 'Installing..' 'Installing...')
+      local s="${spin[$(( done % 4 ))]}"
+
+      printf '\r  \e[96;1m%s\e[0m %s%s \e[35m[ %s]\e[0m \e[97m%3d%%\e[0m  \e[2m%d/%d\e[0m' \
+             "$s" "$bar" "$space" "█" "$percent" "$done" "$total_pkgs"
+    fi
+  done
+  local exit_code=${PIPESTATUS[0]}
   set -e
 
   # Final bar
-  if (( pacstrap_exit == 0 )); then
-    printf '\r  \e[92;1mSuccess!\e[0m  %s\e[96;1m%s\e[0m%s  \e[35m[%s]\e[0m  \e[97m100%%\e[0m  \e[32mArch Linux installed\e[0m     \n\n' \
-           "$(printf '█%.0s' $(seq 1 $width))" "" "" "█"
+  if (( exit_code == 0 )); then
+    printf '\r  \e[92;1mSuccess!\e[0m     %s%s \e[35m[ %s]\e[0m \e[97m100%%\e[0m  \e[32mArch Linux ready!\e[0m     \n\n' \
+           "$(printf '█%.0s' {1..50})" "" "█"
   else
-    printf '\r  \e[91;1mFailed!\e[0m   %s\e[96;1m%s\e[0m%s  \e[35m[%s]\e[0m  \e[97m%3d%%\e[0m  \e[31mretrying in 5s...\e[0m\n' \
-           "$(printf '█%.0s' $(seq 1 $width))" "" "" "█" "99"
+    printf '\r  \e[91;1mFailed!\e[0m      %s%s \e[35m[ %s]\e[0m \e[97m 99%%\e[0m  \e[31mretrying...\e[0m\n' \
+           "$(printf '█%.0s' {1..49})" "" "█"
     sleep 5
     run pacstrap -K /mnt $pkg_list || die "pacstrap failed after retry"
-    printf '\r  \e[92;1mSuccess!\e[0m  %s\e[96;1m%s\e[0m%s  \e[35m[%s]\e[0m  \e[97m100%%\e[0m  \e[32mArch Linux installed\e[0m     \n\n' \
-           "$(printf '█%.0s' $(seq 1 $width))" "" "" "█"
+    printf '\r  \e[92;1mSuccess!\e[0m     %s%s \e[35m[ %s]\e[0m \e[97m100%%\e[0m  \e[32mArch Linux ready!\e[0m     \n\n' \
+           "$(printf '█%.0s' {1..50})" "" "█"
   fi
 
   tput cnorm
-  sleep 1
+  sleep 1.2
 
   info "Generating fstab..."
   genfstab -U /mnt >> /mnt/etc/fstab
