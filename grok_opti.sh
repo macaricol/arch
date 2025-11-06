@@ -188,6 +188,8 @@ install_base() {
   info "Syncing package databases..."
   run pacman -Syy --noconfirm || die "Failed to sync databases"
 
+  sed -i '/^\[options\]/a ILoveCandy' /etc/pacman.conf && info "ILoveCandy activated – enjoy the chomp!"
+
   info "Installing base system..."
   run pacstrap -K /mnt base linux linux-firmware btrfs-progs \
     grub efibootmgr nano networkmanager sudo || die "pacstrap failed"
