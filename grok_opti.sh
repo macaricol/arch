@@ -123,7 +123,7 @@ partition_and_mount() {
 # ── BASE INSTALL ─────────────────────────────────────────────────────
 install_base() {
   info "Optimizing mirrors (PT+ES)..."
-  run reflector --country 'PT,ES' --latest 8 --protocol https --sort rate --number 6 --save /etc/pacman.d/mirrorlist || true
+  run reflector --country 'PT,ES' --latest 8 --protocol https --sort rate --number 6 --save /etc/pacman.d/mirrorlist --verbose || true
 
   run pacman -Syy --noconfirm
   sed -i '/\[options\]/a ILoveCandy' /etc/pacman.conf
