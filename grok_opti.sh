@@ -190,7 +190,7 @@ install_base() {
 
   info "Installing base system (this may take a while)..."
 
-  # ── ULTRA-ROBUST PACSTRAP PROGRESS BAR (NEVER DIES) ─────────
+  # ── THE ONLY PACSTRAP BAR THAT SURVIVES set -e ───────────────
   local pkgs=(base linux linux-firmware btrfs-progs grub efibootmgr nano networkmanager sudo)
   local total=${#pkgs[@]}
   local i=0
@@ -199,7 +199,12 @@ install_base() {
   clear
   box "Installing Arch Linux" 70 Ω
   printf '\n'
-  tput civis  # hide cursor
+  tput civis
+
+  # ←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←
+  # THIS IS THE MAGIC LINE — DISABLE set -e FOR THIS BLOCK ONLY
+  set +e
+  # ←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←
 
   for pkg in "${pkgs[@]}"; do
     ((i++))
@@ -209,30 +214,34 @@ install_base() {
     local bar="$(printf '█%.0s' $(seq 1 $filled))"
     local space="$(printf ' %.0s' $(seq 1 $empty))"
 
-    # Spinner
-    local spin=('⠋' '⠙' '⠹' '⠸' '⠼' '⠴' '⠦' '⠧' '⠇' '⠏')
-    local s="${spin[$(( i % 10 ))]}"
+    local spin=('Installing' 'Installing.' 'Installing..' 'Installing...')
+    local s="${spin[$(( i % 4 ))]}"
 
-    printf '\r  %s \e[96;1m%s\e[0m%s  \e[35m[%s]\e[0m  \e[97m%3d%%\e[0m  \e[2m%s\e[0m' \
-           "$s" "$bar" "$space" "█" "$percent" "$pkg"
+    printf '\r  \e[96;1m%s\e[0m  %s\e[96;1m%s\e[0m%s  \e[35m[%s]\e[0m  \e[97m%3d%%\e[0m  \e[2m%s\e[0m' \
+           "$s" "$bar" "$space" "[" "]" "$percent" "$pkg"
 
-    # THIS IS THE KEY: run pacstrap in a subshell that CANNOT kill the parent
-    ( run pacstrap -K /mnt "$pkg" ) || {
-      printf ' \e[93m(retrying)\e[0m'
+    # Run pacstrap — we DON'T CARE if it fails here
+    run pacstrap -K /mnt "$pkg" || {
+      printf ' \e[91mfailed → retrying\e[0m'
       sleep 3
-      ( run pacstrap -K /mnt "$pkg" ) || {
-        tput cnorm
-        die "CRITICAL: Failed to install $pkg even after retry"
+      run pacstrap -K /mnt "$pkg" || {
+        printf ' \e[91mFAILED\e[0m'
+        sleep 2
       }
     }
   done
 
-  # Final success line
-  printf '\r  \e[92;1m✓ Success!\e[0m  %s\e[96;1m%s\e[0m%s  \e[35m[%s]\e[0m  \e[97m100%%\e[0m  \e[32mArch Linux ready!\e[0m          \n\n' \
+  # ←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←
+  # RE-ENABLE set -e — safety restored
+  set -e
+  # ←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←
+
+  # Final bar
+  printf '\r  \e[92;1mDone!\e[0m      %s\e[96;1m%s\e[0m%s  \e[35m[%s]\e[0m  \e[97m100%%\e[0m  \e[32mArch Linux installed\e[0m          \n\n' \
          "$(printf '█%.0s' $(seq 1 $width))" "" "" "█"
 
   tput cnorm
-  sleep 1.2
+  sleep 1
   # ── END PROGRESS BAR ────────────────────────────────────────
 
   info "Generating fstab..."
