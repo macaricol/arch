@@ -3,7 +3,10 @@
 # Ensure stdin is bound to the terminal
 exec </dev/tty
 
-# Update the system before installing packages
+#uncomment multilib, required to install steam for example
+sudo sed -i '/\[multilib\]/,/Include/ s/^#//' /etc/pacman.conf
+
+# Sync databases + yes to everything + upgrade all installed packages
 sudo pacman -Syu
 
 clear
@@ -66,7 +69,7 @@ echo "#################### Install extra utils packages ##################"
 echo "####################################################################"
 echo ""
 
-sudo pacman -S fastfetch mpv krdc freerdp firefox kde-gtk-config kio-admin git vscode pacman-contrib fakeroot
+sudo pacman -S fastfetch mpv krdc krdp freerdp firefox kde-gtk-config kio-admin git vscode pacman-contrib fakeroot
 
 clear
 echo "####################################################################"
@@ -82,9 +85,6 @@ sudo grub-mkconfig -o /boot/grub/grub.cfg
 
 # Comment out all lines containing 'echo' in /boot/grub/grub.cfg
 sudo sed -i '/echo/s/^/#/' /boot/grub/grub.cfg
-
-#uncomment multilib, required to install steam for example
-sudo sed -i '/\[multilib\]/,/Include/ s/^#//' /etc/pacman.conf
 
 clear
 echo "####################################################################"
