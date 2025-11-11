@@ -45,3 +45,29 @@ sudo sed -i 's/hosts:.*/hosts: files mdns_minimal [NOTFOUND=return] dns mdns/' /
 testparm -s && systemctl status smb nmb avahi-daemon --no-pager
 echo "SUCCESS! Share is live."
 EOF
+
+
+## Simplified use kde package
+
+# 1. Install
+sudo pacman -S samba kdenetwork-filesharing
+
+# 2. Enable usershares (required for GUI)
+sudo mkdir -p /var/lib/samba/usershares
+sudo groupadd -r sambashare
+sudo chown root:sambashare /var/lib/samba/usershares
+sudo chmod 1770 /var/lib/samba/usershares
+sudo gpasswd sambashare -a $USER   # add your user
+
+# 3. Add to smb.conf [global]
+sudo nano /etc/samba/smb.conf
+# Add these lines:
+   usershare path = /var/lib/samba/usershares
+   usershare max shares = 100
+   usershare allow guests = yes
+   usershare owner only = yes
+
+# 4. Restart
+sudo systemctl restart smb nmb
+
+# 5. Re-login or restart Dolphin
