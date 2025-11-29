@@ -187,6 +187,13 @@ echo "####################################################################"
 echo "################ TESTING SAMBA CONFIGS ################"
 echo "####################################################################"
 echo ""
+
+sudo mkdir -p /var/lib/samba/usershares
+sudo groupadd -r sambashare
+sudo chown root:sambashare /var/lib/samba/usershares
+sudo chmod 1770 /var/lib/samba/usershares
+sudo gpasswd sambashare -a $USER   # add your user
+
 sudo tee /etc/samba/smb.conf > /dev/null << EOF
 [global]
 workgroup = WORKGROUP
