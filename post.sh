@@ -184,6 +184,27 @@ if ! chmod +x "$HOME/kde_init.sh"; then
 fi
 
 echo "####################################################################"
+echo "################ TESTING SAMBA CONFIGS ################"
+echo "####################################################################"
+echo ""
+sudo tee /etc/samba/smb.conf > /dev/null << EOF
+[global]
+workgroup = WORKGROUP
+server string = Arch Linux Samba Server
+netbios name = $(hostname)
+security = user
+map to guest = bad user
+dns proxy = no
+logging = systemd
+usershare path = /var/lib/samba/usershares
+usershare max shares = 100
+usershare allow guests = yes
+usershare owner only = no
+force create mode = 0775
+force directory mode = 0775
+EOF
+
+echo "####################################################################"
 echo "################ Enabling and starting sddm service ################"
 echo "####################################################################"
 echo ""
