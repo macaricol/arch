@@ -15,7 +15,7 @@ echo "########## Install minimal essentials for KDE Plasma GUI ###########"
 echo "####################################################################"
 echo ""
 
-sudo pacman -S --noconfirm sddm sddm-kcm plasma-desktop bluedevil kdeconnect kscreen konsole kate kwalletmanager dolphin ark kdegraphics-thumbnailers ffmpegthumbs plasma-pa plasma-nm gwenview plasma-systemmonitor pipewire-jack
+sudo pacman -S --noconfirm sddm sddm-kcm plasma-desktop bluedevil kdeconnect kdenetwork-filesharing kscreen konsole kate kwalletmanager dolphin ark kdegraphics-thumbnailers ffmpegthumbs plasma-pa plasma-nm gwenview plasma-systemmonitor pipewire-jack
 
 clear
 echo "####################################################################"
