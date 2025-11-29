@@ -196,20 +196,35 @@ sudo gpasswd sambashare -a $USER   # add your user
 
 sudo tee /etc/samba/smb.conf > /dev/null << EOF
 [global]
-workgroup = WORKGROUP
-server string = Arch Linux Samba Server
-netbios name = $(hostname)
-security = user
-map to guest = bad user
-dns proxy = no
-logging = systemd
-usershare path = /var/lib/samba/usershares
-usershare max shares = 100
-usershare allow guests = yes
-usershare owner only = no
-force create mode = 0775
-force directory mode = 0775
+   workgroup = WORKGROUP
+   server string = Samba Server %v
+   netbios name = $(hostname)
+   security = user
+   map to guest = Bad User
+   dns proxy = no
+
+   # Modern SMB versions (safe and recommended)
+   server min protocol = SMB2
+   server max protocol = SMB3
+
+   # Browser elections & discovery (helps Windows/macOS see you)
+   local master = yes
+   preferred master = yes
+   os level = 65
+   multicast dns register = yes
+
+   # Apple Bonjour / Avahi support (optional but harmless)
+   fruit:mdns = yes
+   server multi channel support = yes
+
+   # THIS IS THE IMPORTANT PART FOR DOLPHIN ===
+   usershare path = /var/lib/samba/usershares
+   usershare max shares = 100
+   usershare allow guests = yes
+   usershare owner only = no
 EOF
+
+sudo systemctl enable smb nmb
 
 echo "####################################################################"
 echo "################ Enabling and starting sddm service ################"
