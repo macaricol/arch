@@ -198,7 +198,7 @@ sudo tee /etc/samba/smb.conf > /dev/null << EOF
 [global]
    workgroup = WORKGROUP
    server string = Samba Server %v
-   netbios name = $(hostname)
+   netbios name = $(hostnamectl hostname | tr '[:lower:]' '[:upper:]')
    security = user
    map to guest = Bad User
    dns proxy = no
