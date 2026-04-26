@@ -16,52 +16,6 @@ TIMEZONE='Europe/Lisbon'
 KEYMAP='pt-latin9'
 POST_URL="https://raw.githubusercontent.com/macaricol/arch/refs/heads/main/post.sh"
 
-# ── DRIVE SELECTION (TUI) ─────────────────────────────────────────────
-select_drive() {
-  mapfile -t options < <(printf '/dev/sdummy\n'; lsblk -dplno PATH,TYPE | awk '$2=="disk"{print $1}')
-  (( ${#options[@]} )) || die "No block devices found"
-  local selected=0 total=${#options[@]}  
-  draw_menu() {
-    clear
-    box "Select installation drive"
-    for ((i=0; i<${#options[@]}; i++)); do
-      if (( i == selected )); then
-        printf ' \e[7m>\e[0m %s\n' "${options[i]}"
-      else
-        printf '   %s\n' "${options[i]}"
-      fi
-    done
-    box "↑↓ navigate – Enter select – ESC cancel"
-  }  
-  read_key() {
-    local key seq
-    read -rsn1 key
-    if [[ $key == $'\x1b' ]]; then
-      if read -rsn2 -t 0.1 seq; then
-        [[ $seq == '[A' ]] && ((selected--))
-        [[ $seq == '[B' ]] && ((selected++))
-        (( selected < 0 )) && selected=$((total-1))
-        (( selected >= total )) && selected=0
-      else
-        clear; info "Operation cancelled."; exit 0
-      fi
-      return 1
-    fi
-    [[ -z $key ]] && return 0
-    return 1  
-  }  
-  while :; do
-    draw_menu
-    read_key && break
-  done  
-  DRIVE=${options[selected]}
-  [[ -b $DRIVE ]] || die "Invalid drive."  
-  info "Use $DRIVE? ALL DATA WILL BE ERASED!"
-  ask "Press Enter to confirm, any other key to cancel... "
-  [[ -z $confirm ]] || exit 0
-  info "Selected: $DRIVE"
-}
-
 # ── PARTITION & FORMAT ───────────────────────────────────────────────
 partition_and_mount() {
   local type=''
