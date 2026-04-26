@@ -49,3 +49,47 @@ We welcome contributions! Please follow these guidelines:
 ## Conclusion
 
 This README serves as a comprehensive guide for utilizing the scripts in this repository. Follow the instructions carefully to ensure a smooth installation and configuration process.
+
+## Annex
+
+installed packages in main installer
+
+1. base — Essential (not optional)This is the core meta-package for any Arch Linux installation.
+It pulls in the absolute minimum needed for a working system: glibc, bash, pacman, systemd (init system), core utilities (coreutils, file, findutils, etc.), shadow (user management), util-linux, basic networking tools (iproute2, iputils), and more.
+Without base, you don't have a functional Arch system.
+Note: In modern Arch (post-2019/2020 changes), base is very minimal. It no longer includes a text editor, the Linux kernel, or many tools that used to be in the old "base" group.
+
+2. linux — Essential (highly recommended)The main Linux kernel.
+Required to actually boot the system (unless you're using a different kernel like linux-lts, linux-zen, or installing in a container/VM without needing a kernel).
+Most users install this or linux-lts.
+
+3. linux-firmware — Essential for most hardwareContains firmware blobs for many devices (Wi-Fi, Bluetooth, GPUs, storage controllers, etc.).
+Without it, many laptops and desktops will have non-working hardware (especially wireless networking, graphics, etc.).
+Optional only in very specific cases (e.g., virtual machines with virtio drivers or servers with no proprietary firmware needs). For real hardware → keep it.
+
+4. btrfs-progs — Required for this scriptUser-space tools for managing Btrfs filesystems (btrfs command, subvolume creation, scrubbing, snapshots, etc.).
+Since the script uses Btrfs with subvolumes (@ and @home), this package is required.
+Without it, you can't create subvolumes or manage the filesystem properly after installation.
+
+5. grub — Required (for this bootloader)The GRUB bootloader itself.
+Needed to install and configure the boot menu.
+
+6. efibootmgr — Required for UEFI systemsTool to interact with the UEFI firmware (creates boot entries).
+Essential when installing GRUB in UEFI mode (grub-install --target=x86_64-efi).
+If you were doing BIOS (legacy) boot, this would not be needed — but almost all modern systems use UEFI.
+
+7. nano — Optional (but very convenient)A simple, beginner-friendly text editor.
+Not required at all.
+The base package no longer includes any text editor. Without nano (or vim, neovim, etc.), you would have to use vi (which is minimal and present via busybox or similar in live environment, but not ideal in the new system) or install another editor later.
+Many minimal installs replace it with vim, neovim, or even skip it and use cat + redirection for simple edits.
+
+8. networkmanager — Highly recommended / practically essentialFull-featured network management daemon (handles wired, Wi-Fi, VPNs, etc.).
+Makes networking easy after reboot (systemctl enable --now NetworkManager).
+You could replace it with systemd-networkd + iwd (for Wi-Fi) for a more minimal setup, but that requires more manual configuration.
+For a user-friendly first install → keep it.
+
+9. sudo — Highly recommendedAllows the normal user to run commands as root with a password.
+The script enables the %wheel group in /etc/sudoers, so your created user can use sudo.
+Technically optional (you could use su or run everything as root), but almost everyone installs it. A system without any privilege escalation tool is inconvenient.
+
+
