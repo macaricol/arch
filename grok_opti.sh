@@ -6,7 +6,7 @@ shopt -s nocasematch extglob
 
 #TODO ── Source utilities ─────────────────────────────────────────────────────
 UTILS_URL="https://raw.githubusercontent.com/macaricol/arch/refs/heads/main/utils.sh"
-curl -fsSL "$UTILS_URL"
+curl -fsSL -O "$UTILS_URL"
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/utils.sh" || { echo "Failed to load utils.sh" >&2; exit 1; }
 
