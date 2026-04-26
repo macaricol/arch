@@ -4,6 +4,10 @@ set -eo pipefail
 IFS=$'\n\t'
 shopt -s nocasematch extglob
 
+#TODO ── Source utilities ─────────────────────────────────────────────────────
+#readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+#source "${SCRIPT_DIR}/utils.sh" || { echo "Failed to load utils.sh" >&2; exit 1; }
+
 # ── CONFIG ─────────────────────────────────────────────────────────────
 VERBOSE=${VERBOSE:-1}
 TIMEZONE='Europe/Lisbon'
