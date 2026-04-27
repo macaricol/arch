@@ -93,19 +93,62 @@ clear; box "Downloading KDE autostart script" 70 Ω
 curl -s -o "$HOME/kde_init.sh" "https://raw.githubusercontent.com/macaricol/arch/refs/heads/main/kde_init.sh"
 chmod +x "$HOME/kde_init.sh"
 
-clear; box "Setting up Samba file sharing" 70 Ω
+#clear; box "Setting up Samba file sharing" 70 Ω
+
+#sudo mkdir -p /var/lib/samba/usershares
+#sudo groupadd -r sambashare 2>/dev/null || true
+#sudo chown root:sambashare /var/lib/samba/usershares
+#sudo chmod 1770 /var/lib/samba/usershares
+#sudo gpasswd sambashare -a "$USER"
+
+#sudo sed -i '/^\[global\]/a\
+#   usershare path = /var/lib/samba/usershares\
+#   usershare max shares = 100\
+#   usershare allow guests = yes\
+#   usershare owner only = yes' /etc/samba/smb.conf
+
+#sudo systemctl enable --now smb nmb
+
+echo "####################################################################"
+echo "################ TESTING SAMBA CONFIGS ################"
+echo "####################################################################"
+echo ""
 
 sudo mkdir -p /var/lib/samba/usershares
-sudo groupadd -r sambashare 2>/dev/null || true
+sudo groupadd -r sambashare
 sudo chown root:sambashare /var/lib/samba/usershares
 sudo chmod 1770 /var/lib/samba/usershares
-sudo gpasswd sambashare -a "$USER"
+sudo gpasswd sambashare -a $USER   # add your user
 
-sudo sed -i '/^\[global\]/a\
-   usershare path = /var/lib/samba/usershares\
-   usershare max shares = 100\
-   usershare allow guests = yes\
-   usershare owner only = yes' /etc/samba/smb.conf
+sudo tee /etc/samba/smb.conf > /dev/null << EOF
+[global]
+   workgroup = WORKGROUP
+   server string = Samba Server %v
+   netbios name = $(hostnamectl hostname | tr '[:lower:]' '[:upper:]')
+   security = user
+   map to guest = Bad User
+   dns proxy = no
+
+   # Modern SMB versions (safe and recommended)
+   server min protocol = SMB2
+   server max protocol = SMB3
+
+   # Browser elections & discovery (helps Windows/macOS see you)
+   local master = yes
+   preferred master = yes
+   os level = 65
+   multicast dns register = yes
+
+   # Apple Bonjour / Avahi support (optional but harmless)
+   fruit:mdns = yes
+   server multi channel support = yes
+
+   # THIS IS THE IMPORTANT PART FOR DOLPHIN ===
+   usershare path = /var/lib/samba/usershares
+   usershare max shares = 100
+   usershare allow guests = yes
+   usershare owner only = no
+EOF
 
 sudo systemctl enable --now smb nmb
 
