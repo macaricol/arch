@@ -6,7 +6,7 @@ curl -fsSL -O "$UTILS_URL"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/utils.sh" || { echo "Failed to load utils.sh" >&2; exit 1; }
 
-clear; box "Installing CPU microcode" 70 Ω
+clear; box "Installing CPU microcode" 70 Ω; sleep 3
 cpu_vendor=$(lscpu | grep "Vendor ID" | awk '{print $3}')
 case "$cpu_vendor" in
     GenuineIntel) sudo pacman -S --noconfirm intel-ucode ;;
@@ -14,7 +14,7 @@ case "$cpu_vendor" in
     *) echo "Unknown CPU vendor: $cpu_vendor. Skipping microcode." ;;
 esac
 
-clear; box "Installing GPU drivers" 70 Ω
+clear; box "Installing GPU drivers" 70 Ω; sleep 3
 gpu_vendor=$(lspci | grep -E "VGA|3D" | grep -Ei "intel|amd|nvidia" | awk '{print tolower($0)}')
 if [[ $gpu_vendor == *intel* ]]; then
     sudo pacman -S --noconfirm mesa vulkan-intel intel-media-driver
@@ -26,14 +26,14 @@ else
     echo "No supported GPU detected. Skipping GPU drivers."
 fi
 
-clear; box "Enabling Bluetooth" 70 Ω
+clear; box "Enabling Bluetooth" 70 Ω; sleep 3
 sudo systemctl enable --now bluetooth.service
 
-clear; box "Adding multilib support and updating system" 70 Ω
+clear; box "Adding multilib support and updating system" 70 Ω; sleep 3
 sudo sed -i '/\[multilib\]/,/Include/ s/^#//' /etc/pacman.conf
 sudo pacman -Syyu --noconfirm
 
-clear; box "Installing KDE Plasma (minimal essentials)" 70 Ω
+clear; box "Installing KDE Plasma (minimal essentials)" 70 Ω; sleep 3
 sudo pacman -S --noconfirm plasma-desktop sddm sddm-kcm \
     bluedevil kdeconnect kdenetwork-filesharing kscreen konsole kate \
     dolphin ark kdegraphics-thumbnailers ffmpegthumbs plasma-pa plasma-nm \
@@ -42,18 +42,18 @@ sudo pacman -S --noconfirm plasma-desktop sddm sddm-kcm \
 
 
 
-clear; box "Installing extra utilities" 70 Ω
+clear; box "Installing extra utilities" 70 Ω; sleep 3
 sudo pacman -S --noconfirm fastfetch mpv krdc krdp freerdp firefox kde-gtk-config \
     kio-admin git vscode pacman-contrib fakeroot
 
-clear; box "Setting up fast boot (GRUB)" 70 Ω
+clear; box "Setting up fast boot (GRUB)" 70 Ω; sleep 3
 sudo sed -i 's/GRUB_TIMEOUT=.*/GRUB_TIMEOUT=0/' /etc/default/grub
 sudo sed -i 's/GRUB_TIMEOUT_STYLE=.*/GRUB_TIMEOUT_STYLE=hidden/' /etc/default/grub
 sudo grub-mkconfig -o /boot/grub/grub.cfg
 # Comment out all lines containing 'echo' in /boot/grub/grub.cfg
 sudo sed -i '/echo/s/^/#/' /boot/grub/grub.cfg
 
-clear; box "Setting mpv wheel controls" 70 Ω
+clear; box "Setting mpv wheel controls" 70 Ω; sleep 3
 sudo mkdir -p /etc/mpv
 sudo tee /etc/mpv/input.conf > /dev/null << 'EOF'
 WHEEL_UP      seek 10
@@ -62,7 +62,7 @@ WHEEL_LEFT    add volume -2
 WHEEL_RIGHT   add volume 2
 EOF
 
-clear; box "Installing & configuring SDDM Astronaut theme" 70 Ω
+clear; box "Installing & configuring SDDM Astronaut theme" 70 Ω; sleep 3
 sudo git clone -b master --depth 1 https://github.com/macaricol/sddm-astronaut-theme.git /usr/share/sddm/themes/sddm-astronaut-theme
 sudo cp -r /usr/share/sddm/themes/sddm-astronaut-theme/Fonts/* /usr/share/fonts/
 sudo fc-cache -fv
@@ -74,7 +74,7 @@ sudo kwriteconfig6 --file /etc/sddm.conf.d/kde_settings.conf --group General --k
 sudo kwriteconfig6 --file /etc/sddm.conf.d/kde_settings.conf --group Users --key MinimumUid 1000
 sudo kwriteconfig6 --file /etc/sddm.conf.d/kde_settings.conf --group Users --key MaximumUid 60513
 
-clear; box "Setting wallpaper, lock screen and keyboard layout" 70 Ω
+clear; box "Setting wallpaper, lock screen and keyboard layout" 70 Ω; sleep 3
 WALLPAPER="file:///usr/share/sddm/themes/sddm-astronaut-theme/Wallpapers/cyberpunk2077.jpg"
 
 # Lock screen
@@ -89,7 +89,7 @@ sudo sed -i "/<entry name=\"Image\" type=\"String\">/,/<\/entry>/ s|<default>.*<
 kwriteconfig6 --file kxkbrc --group Layout --key LayoutList "pt"
 kwriteconfig6 --file kxkbrc --group Layout --key Use "true"
 
-clear; box "Downloading KDE autostart script" 70 Ω
+clear; box "Downloading KDE autostart script" 70 Ω; sleep 3
 curl -s -o "$HOME/kde_init.sh" "https://raw.githubusercontent.com/macaricol/arch/refs/heads/main/kde_init.sh"
 chmod +x "$HOME/kde_init.sh"
 
@@ -140,5 +140,5 @@ sudo systemctl enable --now smb nmb
 
 
 # This needs to be run last otherwise it will simply exit running script and present the login GUI
-clear; box "Enabling SDDM (last step)" 70 Ω
+clear; box "Enabling SDDM (last step)" 70 Ω; sleep 3
 sudo systemctl enable --now sddm
