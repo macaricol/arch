@@ -36,21 +36,20 @@ sudo systemctl enable --now bluetooth.service
 
 sleep 2;clear; box "Installing KDE Plasma (minimal essentials)" 70 Ω
 sudo pacman -S --noconfirm plasma-desktop sddm sddm-kcm \
-    bluedevil kdeconnect kdenetwork-filesharing kscreen konsole kate \
+    bluedevil kdeconnect kdenetwork-filesharing kscreen konsole featherpad \
     dolphin ark kdegraphics-thumbnailers ffmpegthumbs plasma-pa plasma-nm \
-    gwenview plasma-systemmonitor pipewire-jack kwalletmanager
+    plasma-systemmonitor pipewire-jack kwalletmanager
 
 
-# ── To be structured ─────────────────────────────────────────────────────
+# ── Other applications ───────────────────────────────────────────────────
 
-sleep 2;clear; box "Adding multilib support and updating system" 70 Ω
-sudo sed -i '/\[multilib\]/,/Include/ s/^#//' /etc/pacman.conf
-sudo pacman -Syyu --noconfirm
+#removed: freerdp, firefox, kde-gtk-config, pacman-contrib
+sleep 2;clear; box "Installing extra applications" 70 Ω
+sudo pacman -S --noconfirm fastfetch mpv krdc krdp  \
+    git vscode kio-admin fakeroot
 
 
-sleep 2;clear; box "Installing extra utilities" 70 Ω
-sudo pacman -S --noconfirm fastfetch mpv krdc krdp freerdp firefox kde-gtk-config \
-    kio-admin git vscode pacman-contrib fakeroot
+# ── Quality of life tweaks ───────────────────────────────────────────────
 
 sleep 2;clear; box "Setting up fast boot (GRUB)" 70 Ω
 sudo sed -i 's/GRUB_TIMEOUT=.*/GRUB_TIMEOUT=0/' /etc/default/grub
@@ -67,6 +66,8 @@ WHEEL_DOWN    seek -10
 WHEEL_LEFT    add volume -2
 WHEEL_RIGHT   add volume 2
 EOF
+
+# ── Desktop theme ────────────────────────────────────────────────────────
 
 sleep 2;clear; box "Installing & configuring SDDM Astronaut theme" 70 Ω
 sudo git clone -b master --depth 1 https://github.com/macaricol/sddm-astronaut-theme.git /usr/share/sddm/themes/sddm-astronaut-theme
@@ -95,10 +96,8 @@ sudo sed -i "/<entry name=\"Image\" type=\"String\">/,/<\/entry>/ s|<default>.*<
 kwriteconfig6 --file kxkbrc --group Layout --key LayoutList "pt"
 kwriteconfig6 --file kxkbrc --group Layout --key Use "true"
 
-sleep 2;clear; box "Downloading KDE autostart script" 70 Ω
-curl -s -o "$HOME/kde_init.sh" "https://raw.githubusercontent.com/macaricol/arch/refs/heads/main/kde_init.sh"
-chmod +x "$HOME/kde_init.sh"
 
+# ── Samba file sharing ───────────────────────────────────────────────────
 
 sleep 2;clear; box "Setting up Samba file sharing" 70 Ω
 
@@ -126,6 +125,23 @@ EOF
 
 sudo systemctl enable --now smb nmb
 
+# ── Steam ────────────────────────────────────────────────────────────────
+
+sleep 2;clear; box "Adding multilib support and updating system" 70 Ω
+sudo sed -i '/\[multilib\]/,/Include/ s/^#//' /etc/pacman.conf
+sudo pacman -Syyu --noconfirm steam
+
+# ── Paru Zen qimgv ──────────────────────────────────────────────────────
+
+sudo pacman -S --needed --noconfirm base-devel
+git clone https://aur.archlinux.org/paru.git && (cd paru && makepkg -si --noconfirm) && rm -rf paru
+paru -S --noconfirm zen-browser-bin qimgv-git
+
+# ── Finish ───────────────────────────────────────────────────────────────
+
+sleep 2;clear; box "Downloading KDE autostart script" 70 Ω
+curl -s -o "$HOME/kde_init.sh" "https://raw.githubusercontent.com/macaricol/arch/refs/heads/main/kde_init.sh"
+chmod +x "$HOME/kde_init.sh"
 
 # This needs to be run last otherwise it will simply exit running script and present the login GUI
 sleep 2;clear; box "Enabling SDDM (last step)" 70 Ω
