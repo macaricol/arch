@@ -129,20 +129,6 @@ sudo tee /etc/samba/smb.conf > /dev/null << EOF
    map to guest = Bad User
    dns proxy = no
 
-   # Modern SMB versions (safe and recommended)
-   server min protocol = SMB2
-   server max protocol = SMB3
-
-   # Browser elections & discovery (helps Windows/macOS see you)
-   local master = yes
-   preferred master = yes
-   os level = 65
-   multicast dns register = yes
-
-   # Apple Bonjour / Avahi support (optional but harmless)
-   fruit:mdns = yes
-   server multi channel support = yes
-
    # THIS IS THE IMPORTANT PART FOR DOLPHIN ===
    usershare path = /var/lib/samba/usershares
    usershare max shares = 100
