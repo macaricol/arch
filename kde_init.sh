@@ -100,17 +100,14 @@ kwriteconfig6 --file ~/.config/plasmashellrc --group PlasmaViews --group "Panel 
 
 # Install Breeze Chameleon Dark from GitHub
 echo "Installing Breeze Chameleon Dark icons..."
-
+cd "$HOME"
 git clone --depth 1 https://github.com/L4ki/Breeze-Chameleon-Icons.git /tmp/breeze-chameleon
-
 mkdir -p ~/.local/share/icons
 cp -r "/tmp/breeze-chameleon/Breeze Chameleon Dark" ~/.local/share/icons/
 rm -rf /tmp/breeze-chameleon
-
-# Apply the icon theme (works on both Plasma 5 and 6)
+# Apply the icon theme
 kwriteconfig6 --file kdeglobals --group Icons --key Theme "Breeze Chameleon Dark"
-
 
 systemctl --user restart plasma-plasmashell.service
 
-rm -f "$HOME/post.sh" "$HOME/kde_init.sh"
+rm -f "$HOME/post.sh" "$HOME/kde_init.sh" "$HOME/setup.sh" "$HOME/utils.sh"
