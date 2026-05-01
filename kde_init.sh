@@ -96,6 +96,29 @@ kwriteconfig6 --file plasmashellrc --group PlasmaViews --group "Panel 2" --key p
 # Set panel visibility (2 = auto-hide)
 kwriteconfig6 --file ~/.config/plasmashellrc --group PlasmaViews --group "Panel 94" --key panelVisibility 2
 
+#####BREEZE CHAMELEON TEST#####
+#!/bin/bash
+
+# Install Breeze Chameleon Dark from GitHub
+echo "Installing Breeze Chameleon Dark icons..."
+
+# Clone only the latest commit (fast & small)
+git clone --depth 1 https://github.com/L4ki/Breeze-Chameleon-Icons.git /tmp/breeze-chameleon
+
+# Install the dark variant
+mkdir -p ~/.local/share/icons
+cp -r "/tmp/breeze-chameleon/Breeze Chameleon Dark" ~/.local/share/icons/
+
+# Clean up
+rm -rf /tmp/breeze-chameleon
+
+# Apply the icon theme (works on both Plasma 5 and 6)
+kwriteconfig6 --file kdeglobals --group Icons --key Theme "Breeze Chameleon Dark"
+
+echo "Breeze Chameleon Dark installed and applied!"
+
+
+
 systemctl --user restart plasma-plasmashell.service
 
 rm -f "$HOME/post.sh" "$HOME/kde_init.sh"

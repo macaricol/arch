@@ -25,10 +25,11 @@ Contains additional user-level configurations that run automatically on first lo
 1. Boot from the Arch Linux live USB.
 2. (Optional but recommended) Connect to the internet.
 3. Run the script:
-   ```bash
-   bash main.sh
-   ```
-4. Follow the on-screen prompts to select your drive and confirm partitioning.
+
+   curl -O https://raw.githubusercontent.com/macaricol/arch/refs/heads/main/main.sh
+   chmod -x main.sh
+   ./main.sh
+
 5. After the script finishes, reboot the system.
 
 **Warning**: This script will **erase all data** on the selected drive.
@@ -36,9 +37,9 @@ Contains additional user-level configurations that run automatically on first lo
 ### 2. Using post.sh (Post-Installation)
 1. After rebooting, log in as the user created during installation.
 2. Run the post-installation script:
-   ```bash
-   bash post.sh
-   ```
+
+   ./post.sh
+   
 3. Wait for the script to complete. The system will configure KDE Plasma, SDDM theme, Samba, and other settings.
 
 ### 3. kde_init.sh
