@@ -99,9 +99,10 @@ kwriteconfig6 --file ~/.config/plasmashellrc --group PlasmaViews --group "Panel 
 #############Set Pinned Apps#################
 #############################################
 
-kwriteconfig6 --file plasma-org.kde.plasma.desktop-appletsrc \
---group Containments][2][Applets][5][Configuration][General] \
---key launchers "applications:systemsettings.desktop,preferred://filemanager,preferred://browser"
+kwriteconfig6 --file ~/.config/plasma-org.kde.plasma.desktop-appletsrc \
+  --group Containments --group 2 --group Applets --group 5 \
+  --group Configuration --group General \
+  --key launchers "applications:systemsettings.desktop,preferred://filemanager,preferred://browser"
 
 ##############################################################
 #############Icon theme Breeze Chameleon Dark#################
