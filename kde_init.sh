@@ -1,7 +1,6 @@
 #!/bin/bash
 
 ### plasma autostart script runs before plasma initializes certain config files so its not appropriate here...
-
 ### Run manually after KDE first GUI session starts, until I find a way to execute it post session start
 ### Reboot system or restart plasma to properly apply the widgets
 
@@ -11,8 +10,8 @@ echo "####################################################################"
 echo ""
 
 #screen edges functions
-kwriteconfig6 --file kwinrc --group Effect-overview --key BorderActivate 9
-kwriteconfig6 --file kwinrc --group Effect-windowview --key BorderActivate 7
+#kwriteconfig6 --file kwinrc --group Effect-overview --key BorderActivate 9
+#kwriteconfig6 --file kwinrc --group Effect-windowview --key BorderActivate 7
 kwriteconfig6 --file kwinrc --group ElectricBorders --key BottomLeft ShowDesktop
 kwriteconfig6 --file kwinrc --group ElectricBorders --key BottomRight ShowDesktop
 kwriteconfig6 --file kwinrc --group TabBox --key BorderAlternativeActivate 6
@@ -25,18 +24,18 @@ kwriteconfig6 --file dolphinrc --group IconsMode --key PreviewSize 96
 kwriteconfig6 --file kdeglobals --group PreviewSettings --key EnableRemoteFolderThumbnail false
 kwriteconfig6 --file kdeglobals --group PreviewSettings --key MaximumRemoteSize 10000000000
 
-#############################
+#################################
 ####### Apply Dark Theme ########
-#############################
+#################################
 plasma-apply-colorscheme BreezeDark
 plasma-apply-desktoptheme breeze-dark
 plasma-apply-lookandfeel -a org.kde.breezedark.desktop
 
 kwriteconfig6 --file kdeglobals --group General --key accentColorFromWallpaper true
 
-#############################
+##################################
 #### Add modern clock widget #####
-#############################
+##################################
 WIDGET_DIR="$HOME/.local/share/plasma/plasmoids/modernclock2"
 INSTALL_DIR="/home/ishmael/.local/share/kpackage/generic/com.github.prayag2.modernclock"
 PLASMOIDS_DIR="$HOME/.local/share/plasma/plasmoids/"
@@ -73,9 +72,9 @@ kwriteconfig6 --file plasma-org.kde.plasma.desktop-appletsrc --group Containment
 kwriteconfig6 --file plasma-org.kde.plasma.desktop-appletsrc --group Containments --group 1 --group Applets --group 100 --group Configuration --group ConfigDialog --key DialogHeight "540"
 kwriteconfig6 --file plasma-org.kde.plasma.desktop-appletsrc --group Containments --group 1 --group Applets --group 100 --group Configuration --group ConfigDialog --key DialogWidth "720"
 
-#############################
-#### taskbar vertical on the left #####
-#############################
+#######################################
+#### taskbar horizontal top right #####
+#######################################
 # [Containments][2]
 kwriteconfig6 --file plasma-org.kde.plasma.desktop-appletsrc --group Containments --group 2 --key formfactor 2
 kwriteconfig6 --file plasma-org.kde.plasma.desktop-appletsrc --group Containments --group 2 --key location 3
@@ -96,17 +95,25 @@ kwriteconfig6 --file plasmashellrc --group PlasmaViews --group "Panel 2" --key p
 # Set panel visibility (2 = auto-hide)
 kwriteconfig6 --file ~/.config/plasmashellrc --group PlasmaViews --group "Panel 94" --key panelVisibility 2
 
-#####BREEZE CHAMELEON TEST#####
+#############################################
+#############Set Pinned Apps#################
+#############################################
 
-# Install Breeze Chameleon Dark from GitHub
-echo "Installing Breeze Chameleon Dark icons..."
+kwriteconfig6 --file plasma-org.kde.plasma.desktop-appletsrc \
+--group Containments][2][Applets][5][Configuration][General] \
+--key launchers "applications:systemsettings.desktop,preferred://filemanager,preferred://browser"
+
+##############################################################
+#############Icon theme Breeze Chameleon Dark#################
+##############################################################
+
 cd "$HOME"
 git clone --depth 1 https://github.com/L4ki/Breeze-Chameleon-Icons.git /tmp/breeze-chameleon
 mkdir -p ~/.local/share/icons
 cp -r "/tmp/breeze-chameleon/Breeze Chameleon Dark" ~/.local/share/icons/
 rm -rf /tmp/breeze-chameleon
-# Apply the icon theme
 kwriteconfig6 --file kdeglobals --group Icons --key Theme "Breeze Chameleon Dark"
+
 
 systemctl --user restart plasma-plasmashell.service
 
