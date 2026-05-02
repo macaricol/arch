@@ -93,13 +93,13 @@ kwriteconfig6 --file plasmashellrc --group PlasmaViews --group "Panel 2" --key p
 kwriteconfig6 --file plasmashellrc --group PlasmaViews --group "Panel 2" --key panelVisibility 2
 
 # Set panel visibility (2 = auto-hide)
-kwriteconfig6 --file ~/.config/plasmashellrc --group PlasmaViews --group "Panel 94" --key panelVisibility 2
+kwriteconfig6 --file plasmashellrc --group PlasmaViews --group "Panel 94" --key panelVisibility 2
 
 #############################################
 #############Set Pinned Apps#################
 #############################################
 
-kwriteconfig6 --file ~/.config/plasma-org.kde.plasma.desktop-appletsrc \
+kwriteconfig6 --file plasma-org.kde.plasma.desktop-appletsrc \
   --group Containments --group 2 --group Applets --group 5 \
   --group Configuration --group General \
   --key launchers "applications:systemsettings.desktop,preferred://filemanager,preferred://browser"
