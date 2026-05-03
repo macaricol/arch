@@ -20,7 +20,7 @@ gpu_vendor=$(lspci | grep -E "VGA|3D" | grep -Ei "intel|amd|nvidia" | awk '{prin
 if [[ $gpu_vendor == *intel* ]]; then
     sudo pacman -S --noconfirm mesa vulkan-intel intel-media-driver
 elif [[ $gpu_vendor == *amd* ]]; then
-    sudo pacman -S --noconfirm mesa vulkan-radeon libva-mesa-driver mesa-vdpau radeontop
+    sudo pacman -S --noconfirm mesa vulkan-radeon radeontop
 elif [[ $gpu_vendor == *nvidia* ]]; then
     sudo pacman -S --noconfirm nvidia nvidia-utils nvidia-settings opencl-nvidia
 else
