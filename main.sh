@@ -17,9 +17,15 @@ POST_URL="$REPO_URL/post.sh"
 UTILS_URL="$REPO_URL/utils.sh"
 
 # ── Source utilities ─────────────────────────────────────────────────────
-# Fetch utils.sh next to this script (not into whatever the cwd happens to be)
-# so sourcing works the same whether this is run as ./main.sh or /path/main.sh.
-readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Fetch utils.sh next to this script so sourcing works the same whether this
+# is run as ./main.sh, /path/main.sh, or piped straight into bash (in which
+# case there's no real file and BASH_SOURCE[0] is unset — fall back to /tmp).
+if [[ -n ${BASH_SOURCE[0]:-} ]]; then
+  SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+else
+  SCRIPT_DIR="/tmp"
+fi
+readonly SCRIPT_DIR
 curl -fsSL -o "${SCRIPT_DIR}/utils.sh" "$UTILS_URL"
 source "${SCRIPT_DIR}/utils.sh" || { echo "Failed to load utils.sh" >&2; exit 1; }
 
@@ -145,6 +151,11 @@ chroot_phase() {
 
 # ── MAIN ─────────────────────────────────────────────────────────────
 main() {
+  # When this script arrives via `curl | bash`, fd 0 is the pipe carrying the
+  # script's own source, not the keyboard — every `read` below would silently
+  # read from that instead of you. Rebind stdin to the real terminal.
+  exec < /dev/tty
+
   preflight_checks
 
   clear; box "[1/5] Enter machine details" 70 Ω
