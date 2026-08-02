@@ -64,9 +64,9 @@ partition_and_mount() {
   # Partition layout: 512M EFI system partition, RAM-sized swap, rest for root.
   info "Wiping & partitioning $DRIVE..."
   run sgdisk -Z \
-    -n1:1M:512M           -t1:ef00 -c1:EFI \
-    -n2:513M:${swap_end}M -t2:8200 -c2:Swap \
-    -n3:${swap_end}M:0    -t3:8300 -c3:Root "$DRIVE"
+    -n1:1M:512M               -t1:ef00 -c1:EFI \
+    -n2:513M:${swap_end}M     -t2:8200 -c2:Swap \
+    -n3:$((swap_end + 1))M:0  -t3:8300 -c3:Root "$DRIVE"
 
   [[ -b $boot && -b $swap && -b $root ]] || die "Partitioning failed"
 
