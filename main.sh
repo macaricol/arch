@@ -11,7 +11,7 @@ shopt -s nocasematch extglob
 # ── CONFIG ─────────────────────────────────────────────────────────────
 TIMEZONE='Europe/Lisbon'
 KEYMAP='pt-latin9'
-REPO_URL="https://raw.githubusercontent.com/macaricol/arch/refs/heads/main"
+REPO_URL="https://raw.githubusercontent.com/macaricol/arch/refs/heads/clauding"
 MAIN_URL="$REPO_URL/main.sh"
 POST_URL="$REPO_URL/post.sh"
 UTILS_URL="$REPO_URL/utils.sh"

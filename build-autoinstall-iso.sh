@@ -20,7 +20,7 @@
 # Usage: ./build-autoinstall-iso.sh <input-arch.iso> [output.iso]
 set -euo pipefail
 
-REPO_URL="https://raw.githubusercontent.com/macaricol/arch/refs/heads/main"
+REPO_URL="https://raw.githubusercontent.com/macaricol/arch/refs/heads/clauding"
 MAIN_URL="$REPO_URL/main.sh"
 CMDLINE_FLAG="archauto"
 

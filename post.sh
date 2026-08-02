@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # ── Source utilities ─────────────────────────────────────────────────────
-REPO_URL="https://raw.githubusercontent.com/macaricol/arch/refs/heads/main"
+REPO_URL="https://raw.githubusercontent.com/macaricol/arch/refs/heads/clauding"
 UTILS_URL="$REPO_URL/utils.sh"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 curl -fsSL -o "${SCRIPT_DIR}/utils.sh" "$UTILS_URL"
