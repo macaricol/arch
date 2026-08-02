@@ -23,16 +23,25 @@ Contains additional user-level configurations that run automatically on first lo
 
 ### 1. Using main.sh (Initial Installation)
 1. Boot from the Arch Linux live USB.
-2. (Optional but recommended) Connect to the internet.
-3. Run the script:
+2. Connect to the internet.
+3. Run:
 
-   curl -O https://raw.githubusercontent.com/macaricol/arch/refs/heads/main/main.sh
-   chmod -x main.sh
-   ./main.sh
+   curl -fsSL https://raw.githubusercontent.com/macaricol/arch/refs/heads/main/main.sh | bash
 
-5. After the script finishes, reboot the system.
+4. Answer the prompts and confirm the drive — the script reboots automatically when done.
+
+The script switches the live session to the pt-latin9 keymap itself, so there's no separate `loadkeys` step.
 
 **Warning**: This script will **erase all data** on the selected drive.
+
+#### Optional: no-typing USB boot
+
+`build-autoinstall-iso.sh` patches an official Arch ISO with a second boot menu entry, "Automated Install", that runs the `curl | bash` command above automatically — no typing needed, just pick that entry at boot. Normal boot entries are untouched. Requires `xorriso` and `squashfs-tools`:
+
+    sudo pacman -S --needed xorriso squashfs-tools
+    sudo ./build-autoinstall-iso.sh archlinux-x86_64.iso archlinux-autoinstall.iso
+
+Test the resulting ISO in a VM before writing it to a real USB drive.
 
 ### 2. Using post.sh (Post-Installation)
 1. After rebooting, log in as the user created during installation.

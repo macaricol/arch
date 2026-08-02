@@ -1,9 +1,10 @@
 #!/bin/bash
 
 # ── Source utilities ─────────────────────────────────────────────────────
-UTILS_URL="https://raw.githubusercontent.com/macaricol/arch/refs/heads/main/utils.sh"
-curl -fsSL -O "$UTILS_URL"
+REPO_URL="https://raw.githubusercontent.com/macaricol/arch/refs/heads/main"
+UTILS_URL="$REPO_URL/utils.sh"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+curl -fsSL -o "${SCRIPT_DIR}/utils.sh" "$UTILS_URL"
 source "${SCRIPT_DIR}/utils.sh" || { echo "Failed to load utils.sh" >&2; exit 1; }
 
 # ── Hardware Setup ───────────────────────────────────────────────────────
@@ -118,7 +119,7 @@ paru -S --noconfirm zen-browser-bin qimgv-git
 
 # ── Final Steps ──────────────────────────────────────────────────────────
 clear; box "Downloading KDE autostart script" 70 Ω
-curl -s -o "$HOME/kde_init.sh" "https://raw.githubusercontent.com/macaricol/arch/refs/heads/main/kde_init.sh"
+curl -s -o "$HOME/kde_init.sh" "$REPO_URL/kde_init.sh"
 chmod +x "$HOME/kde_init.sh"
 
 clear; box "Enabling SDDM (final step)" 70 Ω
