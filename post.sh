@@ -1,4 +1,9 @@
-#!/bin/bash
+#!/usr/bin/env bash
+# Post-install configuration: hardware drivers, KDE Plasma, theming, Samba,
+# and gaming/AUR tools. Runs as the regular user (created by main.sh) after
+# first login, using sudo for anything privileged.
+set -euo pipefail
+IFS=$'\n\t'
 
 # ── Source utilities ─────────────────────────────────────────────────────
 REPO_URL="https://raw.githubusercontent.com/macaricol/arch/refs/heads/clauding"
@@ -7,50 +12,63 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 curl -fsSL -o "${SCRIPT_DIR}/utils.sh" "$UTILS_URL"
 source "${SCRIPT_DIR}/utils.sh" || { echo "Failed to load utils.sh" >&2; exit 1; }
 
+# ── PRE-FLIGHT ────────────────────────────────────────────────────────
+preflight_checks() {
+  info "Running pre-flight checks..."
+  (( EUID != 0 )) || die "Run this as your regular user (it uses sudo itself), not as root"
+  ping -c1 -W3 archlinux.org &>/dev/null || die "No network connectivity"
+}
+preflight_checks
+
+# Prompt for the sudo password once, up front, instead of mid-way through a
+# spinner (run() backgrounds commands, which would otherwise garble the
+# first password prompt) — everything after this reuses the cached ticket.
+info "Requesting sudo access..."
+sudo -v
+
 # ── Hardware Setup ───────────────────────────────────────────────────────
-clear; box "Installing CPU microcode" 70 Ω
-cpu_vendor=$(lscpu | grep "Vendor ID" | awk '{print $3}')
+clear; box "[1/13] Installing CPU microcode" 70 Ω
+# || true: fall through to the catch-all case on unexpected/missing output
+# instead of aborting the whole script under set -o pipefail.
+cpu_vendor=$(lscpu | grep "Vendor ID" | awk '{print $3}') || true
 case "$cpu_vendor" in
-    GenuineIntel) sudo pacman -S --noconfirm intel-ucode ;;
-    AuthenticAMD) sudo pacman -S --noconfirm amd-ucode ;;
+    GenuineIntel) run sudo pacman -S --noconfirm intel-ucode ;;
+    AuthenticAMD) run sudo pacman -S --noconfirm amd-ucode ;;
     *) echo "Unknown CPU vendor: $cpu_vendor. Skipping microcode." ;;
 esac
 
-clear; box "Installing GPU drivers" 70 Ω
-gpu_vendor=$(lspci | grep -E "VGA|3D" | grep -Ei "intel|amd|nvidia" | awk '{print tolower($0)}')
+clear; box "[2/13] Installing GPU drivers" 70 Ω
+gpu_vendor=$(lspci | grep -E "VGA|3D" | grep -Ei "intel|amd|nvidia" | awk '{print tolower($0)}') || true
 if [[ $gpu_vendor == *intel* ]]; then
-    sudo pacman -S --noconfirm mesa vulkan-intel intel-media-driver
+    run sudo pacman -S --noconfirm mesa vulkan-intel intel-media-driver
 elif [[ $gpu_vendor == *amd* ]]; then
-    sudo pacman -S --noconfirm mesa vulkan-radeon radeontop
+    run sudo pacman -S --noconfirm mesa vulkan-radeon radeontop
 elif [[ $gpu_vendor == *nvidia* ]]; then
-    sudo pacman -S --noconfirm nvidia nvidia-utils nvidia-settings opencl-nvidia
+    run sudo pacman -S --noconfirm nvidia nvidia-utils nvidia-settings opencl-nvidia
 else
     echo "No supported GPU detected. Skipping GPU drivers."
 fi
 
-clear; box "Enabling Bluetooth" 70 Ω
-sudo systemctl enable --now bluetooth.service
-
 # ── KDE Plasma ───────────────────────────────────────────────────────────
-clear; box "Installing KDE Plasma essentials" 70 Ω
-sudo pacman -S --noconfirm plasma-desktop sddm sddm-kcm \
+clear; box "[3/13] Installing KDE Plasma essentials" 70 Ω
+run sudo pacman -S --noconfirm plasma-desktop sddm sddm-kcm \
     bluedevil kdeconnect kdenetwork-filesharing kscreen konsole featherpad \
     dolphin ark kdegraphics-thumbnailers ffmpegthumbs plasma-pa plasma-nm \
-    plasma-systemmonitor pipewire-jack kwalletmanager
+    plasma-systemmonitor pipewire-jack kwalletmanager ttf-liberation noto-fonts-cjk
 
 # ── Extra Applications ───────────────────────────────────────────────────
-clear; box "Installing extra applications" 70 Ω
-sudo pacman -S --noconfirm fastfetch mpv krdc krdp \
-    git vscode kio-admin fakeroot
+clear; box "[4/13] Installing extra applications" 70 Ω
+run sudo pacman -S --noconfirm fastfetch mpv krdc krdp \
+    git code kio-admin fakeroot
 
 # ── Quality of Life ──────────────────────────────────────────────────────
-clear; box "Setting up fast boot (GRUB)" 70 Ω
+clear; box "[5/13] Setting up fast boot (GRUB)" 70 Ω
 sudo sed -i 's/GRUB_TIMEOUT=.*/GRUB_TIMEOUT=0/' /etc/default/grub
 sudo sed -i 's/GRUB_TIMEOUT_STYLE=.*/GRUB_TIMEOUT_STYLE=hidden/' /etc/default/grub
-sudo grub-mkconfig -o /boot/grub/grub.cfg
+run sudo grub-mkconfig -o /boot/grub/grub.cfg
 sudo sed -i '/echo/s/^/#/' /boot/grub/grub.cfg
 
-clear; box "Setting mpv wheel controls" 70 Ω
+clear; box "[6/13] Setting mpv wheel controls" 70 Ω
 sudo mkdir -p /etc/mpv
 sudo tee /etc/mpv/input.conf > /dev/null << 'EOF'
 WHEEL_UP      seek 10
@@ -60,10 +78,13 @@ WHEEL_RIGHT   add volume 2
 EOF
 
 # ── SDDM Theme & Desktop Config ──────────────────────────────────────────
-clear; box "Installing SDDM Astronaut theme" 70 Ω
-sudo git clone -b master --depth 1 https://github.com/macaricol/sddm-astronaut-theme.git /usr/share/sddm/themes/sddm-astronaut-theme
+clear; box "[7/13] Installing SDDM Astronaut theme" 70 Ω
+# Clear out a previous partial attempt first — git clone refuses to target a
+# non-empty directory.
+sudo rm -rf /usr/share/sddm/themes/sddm-astronaut-theme
+run sudo git clone -b master --depth 1 https://github.com/macaricol/sddm-astronaut-theme.git /usr/share/sddm/themes/sddm-astronaut-theme
 sudo cp -r /usr/share/sddm/themes/sddm-astronaut-theme/Fonts/* /usr/share/fonts/
-sudo fc-cache -fv
+run sudo fc-cache -fv
 
 sudo mkdir -p /etc/sddm.conf.d
 sudo kwriteconfig6 --file /etc/sddm.conf.d/kde_settings.conf --group Theme --key Current sddm-astronaut-theme
@@ -72,7 +93,7 @@ sudo kwriteconfig6 --file /etc/sddm.conf.d/kde_settings.conf --group General --k
 sudo kwriteconfig6 --file /etc/sddm.conf.d/kde_settings.conf --group Users --key MinimumUid 1000
 sudo kwriteconfig6 --file /etc/sddm.conf.d/kde_settings.conf --group Users --key MaximumUid 60513
 
-clear; box "Setting wallpaper, lock screen & keyboard" 70 Ω
+clear; box "[8/13] Setting wallpaper, lock screen & keyboard" 70 Ω
 WALLPAPER="file:///usr/share/sddm/themes/sddm-astronaut-theme/Wallpapers/cyberpunk2077.jpg"
 
 kwriteconfig6 --file kscreenlockerrc --group Greeter --group Wallpaper \
@@ -85,9 +106,9 @@ kwriteconfig6 --file kxkbrc --group Layout --key LayoutList "pt"
 kwriteconfig6 --file kxkbrc --group Layout --key Use "true"
 
 # ── Samba ────────────────────────────────────────────────────────────────
-clear; box "Setting up Samba file sharing" 70 Ω
+clear; box "[9/13] Setting up Samba file sharing" 70 Ω
 sudo mkdir -p /var/lib/samba/usershares
-sudo groupadd -r sambashare
+sudo groupadd -r sambashare 2>/dev/null || true  # already exists on a re-run
 sudo chown root:sambashare /var/lib/samba/usershares
 sudo chmod 1770 /var/lib/samba/usershares
 sudo gpasswd sambashare -a "$USER"
@@ -107,20 +128,54 @@ sudo tee /etc/samba/smb.conf > /dev/null << 'EOF'
    usershare owner only = yes
 EOF
 
-sudo systemctl enable --now smb nmb
+run sudo systemctl enable --now smb nmb
 
 # ── Multilib + Steam + AUR Tools ─────────────────────────────────────────
-clear; box "Enabling multilib + installing Steam, Paru, Zen & qimgv" 70 Ω
+clear; box "[10/13] Enabling multilib + installing Steam, Paru, Zen & qimgv" 70 Ω
 sudo sed -i '/\[multilib\]/,/Include/ s/^#//' /etc/pacman.conf
-sudo pacman -Syyu --noconfirm steam base-devel
+run sudo pacman -Syyu --noconfirm steam base-devel
 
-git clone https://aur.archlinux.org/paru.git && (cd paru && makepkg -si --noconfirm) && rm -rf paru
-paru -S --noconfirm zen-browser-bin qimgv-git
+# makepkg refuses to be wrapped in a backgrounded/redirected shell, so this
+# stays as separate commands rather than one `run`-wrapped compound.
+rm -rf paru  # leftover from a previous partial attempt, if any
+run git clone https://aur.archlinux.org/paru.git
+(cd paru && run makepkg -si --noconfirm)
+rm -rf paru
+run paru -S --noconfirm zen-browser-bin qimgv-git
 
 # ── Final Steps ──────────────────────────────────────────────────────────
-clear; box "Downloading KDE autostart script" 70 Ω
+clear; box "[11/13] Downloading KDE autostart script" 70 Ω
 curl -s -o "$HOME/kde_init.sh" "$REPO_URL/kde_init.sh"
 chmod +x "$HOME/kde_init.sh"
 
-clear; box "Enabling SDDM (final step)" 70 Ω
-sudo systemctl enable --now sddm
+# Phase 2 = runs after the desktop shell is up, not during Plasma's own
+# startup — needed because kde_init.sh writes config files Plasma's own init
+# would otherwise clobber if run too early. kde_init.sh removes this file
+# itself once it's run, so it only ever fires once.
+mkdir -p "$HOME/.config/autostart"
+cat > "$HOME/.config/autostart/kde_init.desktop" <<EOF
+[Desktop Entry]
+Type=Application
+Exec=$HOME/kde_init.sh
+Hidden=false
+NoDisplay=false
+X-KDE-autostart-phase=2
+Name=KDE Init
+Comment=Applies first-login Plasma configuration tweaks
+EOF
+
+clear; box "[12/13] Enabling Bluetooth" 70 Ω
+run sudo systemctl enable --now bluetooth.service
+
+clear; box "[13/13] Enabling SDDM (final step)" 70 Ω
+run sudo systemctl enable --now sddm
+
+clear; box "DONE! Reboot to see your new setup" 70 Ω
+ask "Reboot now? [Y/n]: "; read -r do_reboot
+if [[ $do_reboot =~ ^[Nn] ]]; then
+  info "Skipping reboot — log out or reboot manually to apply everything."
+else
+  info "Rebooting..."
+  sleep 2
+  sudo reboot
+fi

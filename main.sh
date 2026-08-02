@@ -52,10 +52,13 @@ partition_and_mount() {
   local boot="${DRIVE}${type}1" swap="${DRIVE}${type}2" root="${DRIVE}${type}3"
 
   # Undo any half-finished previous run so re-running after a failure doesn't
-  # choke on "already mounted" / "device busy".
+  # choke on "already mounted" / "device busy". partprobe forces the kernel
+  # to resync its partition table view, which can otherwise go stale after a
+  # failed sgdisk write and cause the next attempt to fail too.
   info "Cleaning up any previous attempt..."
   swapoff "$swap" 2>/dev/null || true
   umount -R /mnt 2>/dev/null || true
+  partprobe "$DRIVE" 2>/dev/null || true
 
   # Size the swap partition to match installed RAM (enables hibernation).
   local ram_mib=$(( $(awk '/MemTotal/{print $2}' /proc/meminfo) / 1024 ))
@@ -67,6 +70,7 @@ partition_and_mount() {
     -n1:1M:512M               -t1:ef00 -c1:EFI \
     -n2:513M:${swap_end}M     -t2:8200 -c2:Swap \
     -n3:$((swap_end + 1))M:0  -t3:8300 -c3:Root "$DRIVE"
+  partprobe "$DRIVE" 2>/dev/null || true
 
   [[ -b $boot && -b $swap && -b $root ]] || die "Partitioning failed"
 

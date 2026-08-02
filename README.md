@@ -70,7 +70,13 @@ This script is automatically copied to your home directory and set to run on fir
 | `networkmanager`     | Network management daemon (Wi-Fi, Ethernet, VPN) |
 | `sudo`               | Allows normal users to run commands as root |
 
-### Minimal KDE Plasma Packages (post.sh)
+### Packages Installed by post.sh
+
+**Hardware Setup** (conditional on detected hardware)
+- `intel-ucode` / `amd-ucode` — CPU microcode updates, installed based on the detected processor vendor
+- Intel GPU: `mesa`, `vulkan-intel`, `intel-media-driver` — graphics drivers, Vulkan support, and hardware video decode/encode
+- AMD GPU: `mesa`, `vulkan-radeon`, `radeontop` — graphics drivers, Vulkan support, and a GPU usage monitor
+- NVIDIA GPU: `nvidia`, `nvidia-utils`, `nvidia-settings`, `opencl-nvidia` — proprietary driver, utilities, config GUI, and OpenCL support
 
 **Core Plasma Desktop**
 - `plasma-desktop` — Core Plasma desktop shell, panels, widgets, and workspace
@@ -87,10 +93,9 @@ This script is automatically copied to your home directory and set to run on fir
 
 **Applications**
 - `konsole` — Terminal emulator
-- `kate` — Advanced text editor
+- `featherpad` — Lightweight text editor
 - `dolphin` — Feature-rich file manager
 - `ark` — Archive manager (zip, 7z, rar, etc.)
-- `gwenview` — Image viewer
 
 **Multimedia & Thumbnails**
 - `kdegraphics-thumbnailers` — Thumbnail generation for images and PDFs
@@ -102,6 +107,27 @@ This script is automatically copied to your home directory and set to run on fir
 - `plasma-nm` — Network management (system tray)
 - `plasma-systemmonitor` — System resource monitor
 - `kwalletmanager` — Password and credential manager (KWallet)
+
+**Fonts**
+- `ttf-liberation` — Metric-compatible replacements for Arial, Times New Roman, and Courier New
+- `noto-fonts-cjk` — Chinese/Japanese/Korean character coverage
+
+**Extra Applications**
+- `fastfetch` — System information display tool
+- `mpv` — Lightweight, scriptable video player
+- `krdc` — Remote desktop client (VNC/RDP)
+- `krdp` — Remote desktop server (RDP)
+- `git` — Version control
+- `vscode` — Code editor
+- `kio-admin` — Lets Dolphin edit root-owned files with a polkit prompt instead of a separate root file manager
+- `fakeroot` — Build dependency required for compiling AUR packages
+
+**Gaming & AUR Tools**
+- `base-devel` — Build tool group required to compile AUR packages
+- `steam` — Gaming platform (requires enabling the multilib repo, which the script does automatically)
+- `paru` — AUR helper, built from source since it's not in the official repos
+- `zen-browser-bin` (AUR) — Firefox-based privacy-focused browser
+- `qimgv-git` (AUR) — Lightweight, fast image viewer
 
 ## Warnings
 

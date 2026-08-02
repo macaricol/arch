@@ -118,4 +118,5 @@ kwriteconfig6 --file kdeglobals --group Icons --key Theme "Breeze Chameleon Dark
 
 systemctl --user restart plasma-plasmashell.service
 
-rm -f "$HOME/post.sh" "$HOME/kde_init.sh" "$HOME/setup.sh" "$HOME/utils.sh"
+rm -f "$HOME/post.sh" "$HOME/kde_init.sh" "$HOME/setup.sh" "$HOME/utils.sh" \
+      "$HOME/.config/autostart/kde_init.desktop"
