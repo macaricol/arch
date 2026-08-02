@@ -122,26 +122,32 @@ chroot_phase() {
   { IFS= read -r ROOT_PASSWORD; IFS= read -r USER_PASSWORD; } < /creds
   rm -f /creds
 
+  info "Setting locale & timezone..."
   ln -sf "/usr/share/zoneinfo/$TIMEZONE" /etc/localtime
   hwclock --systohc --utc
 
   # Enable just the locales we need, then set PT as the display language with
   # US English for terminal/log messages.
   sed -i 's/#\(en_US\|pt_PT\)\.UTF-8 UTF-8/\1.UTF-8 UTF-8/' /etc/locale.gen
-  locale-gen
+  run locale-gen
   echo -e 'LANG=pt_PT.UTF-8\nLC_MESSAGES=en_US.UTF-8' > /etc/locale.conf
   echo "KEYMAP=$KEYMAP" > /etc/vconsole.conf
 
+  info "Creating user accounts..."
   echo "$HOSTNAME" > /etc/hostname
-  echo -e "$ROOT_PASSWORD\n$ROOT_PASSWORD" | passwd root
+  # Passed via the environment, not string interpolation, so passwords with
+  # shell metacharacters ($, ", `, etc.) can't break the inner command.
+  ROOT_PASSWORD="$ROOT_PASSWORD" run bash -c 'echo -e "$ROOT_PASSWORD\n$ROOT_PASSWORD" | passwd root'
 
   useradd -mG wheel -s /bin/bash "$USER_NAME"
-  echo -e "$USER_PASSWORD\n$USER_PASSWORD" | passwd "$USER_NAME"
+  USER_NAME="$USER_NAME" USER_PASSWORD="$USER_PASSWORD" \
+    run bash -c 'echo -e "$USER_PASSWORD\n$USER_PASSWORD" | passwd "$USER_NAME"'
   sed -i 's/# %wheel ALL=(ALL:ALL) ALL/%wheel ALL=(ALL:ALL) ALL/' /etc/sudoers
 
-  grub-install --target=x86_64-efi --efi-directory=/boot --bootloader-id=GRUB
-  grub-mkconfig -o /boot/grub/grub.cfg
-  systemctl enable NetworkManager
+  info "Installing bootloader..."
+  run grub-install --target=x86_64-efi --efi-directory=/boot --bootloader-id=GRUB
+  run grub-mkconfig -o /boot/grub/grub.cfg
+  run systemctl enable NetworkManager
 
   # Stage post.sh in the new user's home so it's ready to run after first login.
   info "Downloading post-install script..."
@@ -163,6 +169,7 @@ main() {
   clear
   preflight_checks
 
+  clear
   box "[1/5] Enter machine details" 70 Ω
   input "Hostname: " HOSTNAME no valid_hostname
   password "Root password (min 6 chars): " ROOT_PASSWORD
@@ -173,6 +180,7 @@ main() {
   select_drive
   step_done
 
+  clear
   box "[3/5] Review & confirm" 70 Ω
   printf ' Hostname:  %s\n Username:  %s\n Drive:     %s\n Timezone:  %s\n Keymap:    %s\n\n' \
     "$HOSTNAME" "$USER_NAME" "$DRIVE" "$TIMEZONE" "$KEYMAP"

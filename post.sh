@@ -152,13 +152,15 @@ box "[10/13] Enabling multilib + installing Steam, Paru, Zen & qimgv" 70 Ω
 sudo sed -i '/\[multilib\]/,/Include/ s/^#//' /etc/pacman.conf
 run sudo pacman -Syyu --noconfirm steam base-devel
 
-# makepkg refuses to be wrapped in a backgrounded/redirected shell, so this
-# stays as separate commands rather than one `run`-wrapped compound.
+# makepkg/paru run unwrapped (no `run`) because both can shell out to their
+# own internal `sudo` for build dependencies — a nested sudo prompt inside
+# run()'s backgrounded, redirected subshell can't reliably reach the
+# terminal and times out. Full build output stays visible here instead.
 rm -rf paru  # leftover from a previous partial attempt, if any
 run git clone https://aur.archlinux.org/paru.git
-(cd paru && run makepkg -si --noconfirm)
+(cd paru && makepkg -si --noconfirm)
 rm -rf paru
-run paru -S --noconfirm zen-browser-bin qimgv-git
+paru -S --noconfirm zen-browser-bin qimgv-git
 step_done
 
 # ── Final Steps ──────────────────────────────────────────────────────────
