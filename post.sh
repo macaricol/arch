@@ -50,16 +50,14 @@ else
 fi
 
 # ── KDE Plasma ───────────────────────────────────────────────────────────
+# Package list lives in KDE_PACKAGES (utils.sh) — edit it there.
 clear; box "[3/13] Installing KDE Plasma essentials" 70 Ω
-run sudo pacman -S --noconfirm plasma-desktop sddm sddm-kcm \
-    bluedevil kdeconnect kdenetwork-filesharing kscreen konsole featherpad \
-    dolphin ark kdegraphics-thumbnailers ffmpegthumbs plasma-pa plasma-nm \
-    plasma-systemmonitor pipewire-jack kwalletmanager ttf-liberation noto-fonts-cjk
+run sudo pacman -S --noconfirm "${KDE_PACKAGES[@]}"
 
 # ── Extra Applications ───────────────────────────────────────────────────
+# Package list lives in EXTRA_PACKAGES (utils.sh) — edit it there.
 clear; box "[4/13] Installing extra applications" 70 Ω
-run sudo pacman -S --noconfirm fastfetch mpv krdc krdp \
-    git code kio-admin fakeroot
+run sudo pacman -S --noconfirm "${EXTRA_PACKAGES[@]}"
 
 # ── Quality of Life ──────────────────────────────────────────────────────
 clear; box "[5/13] Setting up fast boot (GRUB)" 70 Ω

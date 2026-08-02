@@ -4,6 +4,21 @@
 # Default configuration (can be overridden before sourcing, e.g. VERBOSE=1 ./main.sh)
 VERBOSE=${VERBOSE:-0}
 
+# ── PACKAGE LISTS (post.sh) ─────────────────────────────────────────────
+# Add/remove packages here — post.sh just installs whatever's in the array,
+# so it never needs touching for a package-list change.
+KDE_PACKAGES=(
+  plasma-desktop sddm sddm-kcm
+  bluedevil kdeconnect kdenetwork-filesharing kscreen konsole featherpad
+  dolphin ark kdegraphics-thumbnailers ffmpegthumbs plasma-pa plasma-nm
+  plasma-systemmonitor pipewire-jack kwalletmanager
+)
+
+EXTRA_PACKAGES=(
+  fastfetch mpv krdc krdp git code kio-admin
+  fakeroot ttf-liberation noto-fonts-cjk
+)
+
 # Run a command; with VERBOSE=1 show its output directly, otherwise run it in
 # the background and show a spinner until it exits. Output is only swallowed
 # on success — if the command fails, dump what it printed so the failure is
@@ -80,6 +95,42 @@ password() {
 }
 
 # ── DRIVE SELECTION (TUI) ─────────────────────────────────────────────
+# Helpers for select_drive() below. Bash has no real nested/private
+# functions, so these are defined once at the top level instead of being
+# redefined on every select_drive() call — they rely on select_drive()'s
+# locals (options/selected/total) being visible via bash's dynamic scoping,
+# so they're only meaningful called from there.
+_drive_menu_draw() {
+  clear
+  box "[2/5] Select installation drive"
+  local i
+  for ((i = 0; i < ${#options[@]}; i++)); do
+    if (( i == selected )); then
+      printf ' \e[7m>\e[0m %s\n' "${options[i]}"
+    else
+      printf '   %s\n' "${options[i]}"
+    fi
+  done
+  box "↑↓ navigate – Enter select – ESC cancel"
+}
+
+# Reads one keypress and updates $selected. Arrow keys arrive as a 3-byte
+# escape sequence (ESC [ A/B); a lone ESC (no follow-up bytes within 0.1s)
+# means the user hit Escape to cancel. Returns 0 (stop the menu loop) only
+# on Enter, 1 otherwise (keep looping).
+_drive_menu_read_key() {
+  local key seq
+  read -rsn1 key
+  [[ $key == $'\x1b' ]] || { [[ -z $key ]]; return; }  # Enter reads as ''
+
+  read -rsn2 -t 0.1 seq || { clear; info "Operation cancelled."; exit 0; }
+  case $seq in
+    '[A') selected=$(( (selected - 1 + total) % total )) ;;  # up, wraps
+    '[B') selected=$(( (selected + 1) % total )) ;;          # down, wraps
+  esac
+  return 1
+}
+
 # Arrow-key menu over every block device on the system, sets $DRIVE on exit.
 select_drive() {
   # /dev/sdummy is a harmless placeholder at the top of the list, so the
@@ -87,44 +138,15 @@ select_drive() {
   mapfile -t options < <(printf '/dev/sdummy\n'; lsblk -dplno PATH,TYPE | awk '$2=="disk"{print $1}')
   (( ${#options[@]} )) || die "No block devices found"
   local selected=0 total=${#options[@]}
-  draw_menu() {
-    clear
-    box "[2/5] Select installation drive"
-    for ((i=0; i<${#options[@]}; i++)); do
-      if (( i == selected )); then
-        printf ' \e[7m>\e[0m %s\n' "${options[i]}"
-      else
-        printf '   %s\n' "${options[i]}"
-      fi
-    done
-    box "↑↓ navigate – Enter select – ESC cancel"
-  }  
-  # Reads one keypress. Arrow keys arrive as a 3-byte escape sequence
-  # (ESC [ A/B); a lone ESC (no follow-up bytes within 0.1s) means the user
-  # hit Escape to cancel. Returns 0 (breaks the menu loop) only on Enter.
-  read_key() {
-    local key seq
-    read -rsn1 key
-    if [[ $key == $'\x1b' ]]; then
-      if read -rsn2 -t 0.1 seq; then
-        [[ $seq == '[A' ]] && selected=$((selected - 1))
-        [[ $seq == '[B' ]] && selected=$((selected + 1))
-        (( selected < 0 )) && selected=$((total-1))   # wrap top -> bottom
-        (( selected >= total )) && selected=0          # wrap bottom -> top
-      else
-        clear; info "Operation cancelled."; exit 0
-      fi
-      return 1
-    fi
-    [[ -z $key ]] && return 0   # Enter reads as an empty string
-    return 1
-  }
+
   while :; do
-    draw_menu
-    read_key && break
+    _drive_menu_draw
+    _drive_menu_read_key && break
   done
+
   DRIVE=${options[selected]}
   [[ -b $DRIVE ]] || die "Invalid drive."
+
   # Quick sanity check right after picking, on top of the full "type YES"
   # confirmation the caller shows later before anything is actually wiped.
   info "Use $DRIVE? ALL DATA WILL BE ERASED!"
