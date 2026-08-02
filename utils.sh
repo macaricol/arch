@@ -5,18 +5,28 @@
 VERBOSE=${VERBOSE:-0}
 
 # Run a command; with VERBOSE=1 show its output directly, otherwise run it in
-# the background and show a spinner until it exits, then return its real exit
-# code (so `set -e` / callers still see failures correctly).
+# the background and show a spinner until it exits. Output is only swallowed
+# on success — if the command fails, dump what it printed so the failure is
+# still diagnosable, then return its real exit code (so `set -e` / callers
+# still see failures correctly).
 run() {
   if ((VERBOSE)); then "$@"; return; fi
-  "$@" &>/dev/null &
+  local out; out=$(mktemp)
+  "$@" &>"$out" &
   local pid=$! spin='|/-\' i=0
   while kill -0 "$pid" 2>/dev/null; do
     printf '\r\e[96m[%s]\e[0m' "${spin:i++%4:1}"
     sleep 0.1
   done
   printf '\r\e[K'  # clear the spinner line
-  wait "$pid"
+  if wait "$pid"; then
+    rm -f "$out"
+  else
+    local status=$?
+    cat "$out" >&2
+    rm -f "$out"
+    return "$status"
+  fi
 }
 die() { printf '\e[91;1m[ Ω ] %b\e[0m\n' "$*" >&2; exit 1; }
 info() { printf '\e[96;1m[ Ω ]\e[0m \e[97m%s\e[0m\n\n' "$*"; }
