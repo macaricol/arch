@@ -160,28 +160,34 @@ main() {
   # read from that instead of you. Rebind stdin to the real terminal.
   exec < /dev/tty
 
+  clear
   preflight_checks
 
-  clear; box "[1/5] Enter machine details" 70 Ω
+  box "[1/5] Enter machine details" 70 Ω
   input "Hostname: " HOSTNAME no valid_hostname
   password "Root password (min 6 chars): " ROOT_PASSWORD
   input "Username: " USER_NAME no valid_username
   password "User password (min 6 chars): " USER_PASSWORD
+  step_done
 
   select_drive
+  step_done
 
-  clear; box "[3/5] Review & confirm" 70 Ω
+  box "[3/5] Review & confirm" 70 Ω
   printf ' Hostname:  %s\n Username:  %s\n Drive:     %s\n Timezone:  %s\n Keymap:    %s\n\n' \
     "$HOSTNAME" "$USER_NAME" "$DRIVE" "$TIMEZONE" "$KEYMAP"
   info "This will ERASE ALL DATA on $DRIVE. This cannot be undone."
   ask "Type YES to continue: "; read -r ack
   [[ $ack == YES ]] || { info "Aborted."; exit 0; }
+  step_done
 
-  clear; box "[4/5] Partitioning & Formatting" 70 Ω
+  box "[4/5] Partitioning & Formatting" 70 Ω
   partition_and_mount
+  step_done
 
-  clear; box "[5/5] Installing Arch Linux" 70 Ω
+  box "[5/5] Installing Arch Linux" 70 Ω
   install_base
+  step_done
 
   # Fetch this script into the new root (rather than `cp "$0"`, which breaks
   # when main.sh is piped straight into bash and $0 isn't a real file) so
@@ -195,7 +201,7 @@ main() {
     HOSTNAME="$HOSTNAME" USER_NAME="$USER_NAME" \
     VERBOSE="$VERBOSE" /bin/bash /setup.sh chroot
 
-  clear; box "DONE! Rebooting in 5s..." 70 Ω
+  box "DONE! Rebooting in 5s..." 70 Ω
   sleep 5 && reboot
 }
 

@@ -45,6 +45,7 @@ run() {
 }
 die() { printf '\e[91;1m[ Ω ] %b\e[0m\n' "$*" >&2; exit 1; }
 info() { printf '\e[96;1m[ Ω ]\e[0m \e[97m%s\e[0m\n\n' "$*"; }
+step_done() { printf '\e[92;1m[ ✓ ] DONE\e[0m\n\n'; }
 
 # Draws a centered title inside a horizontal rule, e.g.:
 # ── title ──
