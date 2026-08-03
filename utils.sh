@@ -99,11 +99,11 @@ password() {
 # Helpers for select_drive() below. Bash has no real nested/private
 # functions, so these are defined once at the top level instead of being
 # redefined on every select_drive() call — they rely on select_drive()'s
-# locals (options/selected/total) being visible via bash's dynamic scoping,
-# so they're only meaningful called from there.
+# locals (options/selected/total/title) being visible via bash's dynamic
+# scoping, so they're only meaningful called from there.
 _drive_menu_draw() {
   clear
-  box "[2/6] Select installation drive"
+  box "$title"
   local i
   for ((i = 0; i < ${#options[@]}; i++)); do
     if (( i == selected )); then
@@ -133,7 +133,9 @@ _drive_menu_read_key() {
 }
 
 # Arrow-key menu over every block device on the system, sets $DRIVE on exit.
+# $1: title shown above the list (caller owns step numbering, not us).
 select_drive() {
+  local title=$1
   # /dev/sdummy is a harmless placeholder at the top of the list, so the
   # cursor never starts on a real drive.
   mapfile -t options < <(printf '/dev/sdummy\n'; lsblk -dplno PATH,TYPE | awk '$2=="disk"{print $1}')

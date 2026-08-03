@@ -177,7 +177,7 @@ main() {
   password "User password (min 6 chars): " USER_PASSWORD
   step_done
 
-  select_drive
+  select_drive "[2/6] Select installation drive"
   step_done
 
   clear
