@@ -169,20 +169,22 @@ curl -s -o "$HOME/kde_init.sh" "$REPO_URL/kde_init.sh"
 chmod +x "$HOME/kde_init.sh"
 
 # Phase 2 = runs after the desktop shell is up, not during Plasma's own
-# startup — needed because kde_init.sh writes config files Plasma's own init
-# would otherwise clobber if run too early. kde_init.sh removes this file
-# itself once it's run, so it only ever fires once.
-#mkdir -p "$HOME/.config/autostart"
-#cat > "$HOME/.config/autostart/kde_init.desktop" <<EOF
-#[Desktop Entry]
-#Type=Application
-#Exec=$HOME/kde_init.sh
-#Hidden=false
-#NoDisplay=false
-#X-KDE-autostart-phase=2
-#Name=KDE Init
-#Comment=Applies first-login Plasma configuration tweaks
-#EOF
+# startup. Phase alone wasn't enough though — some files kde_init.sh depends
+# on still weren't written yet when it fired. Phase only controls ordering,
+# not timing, so the Exec line also sleeps 10s as a real delay before
+# running it. kde_init.sh removes this file itself once it's run, so it
+# only ever fires once.
+mkdir -p "$HOME/.config/autostart"
+cat > "$HOME/.config/autostart/kde_init.desktop" <<EOF
+[Desktop Entry]
+Type=Application
+Exec=/bin/sh -c "sleep 10 && $HOME/kde_init.sh"
+Hidden=false
+NoDisplay=false
+X-KDE-autostart-phase=2
+Name=KDE Init
+Comment=Applies first-login Plasma configuration tweaks
+EOF
 step_done
 
 box "[12/13] Enabling Bluetooth" 70 Ω

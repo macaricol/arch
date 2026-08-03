@@ -144,6 +144,28 @@ chroot_phase() {
     run bash -c 'echo -e "$USER_PASSWORD\n$USER_PASSWORD" | passwd "$USER_NAME"'
   sed -i 's/# %wheel ALL=(ALL:ALL) ALL/%wheel ALL=(ALL:ALL) ALL/' /etc/sudoers
 
+  info "Configuring first-login automation..."
+  # Auto-login on tty1 for exactly one boot, so the user lands in a shell
+  # instead of a text login prompt after reboot. The .bash_profile hook
+  # below disables this again as the very first thing it does — before
+  # running post.sh, not after — so it's still removed even if post.sh
+  # reboots or fails partway through, keeping the exposure window to
+  # "until this one login happens" rather than indefinite.
+  mkdir -p /etc/systemd/system/getty@tty1.service.d
+  cat > /etc/systemd/system/getty@tty1.service.d/autologin.conf <<EOF
+[Service]
+ExecStart=
+ExecStart=-/usr/bin/agetty --autologin $USER_NAME --noclear %I \$TERM
+EOF
+
+  cat > "/home/$USER_NAME/.bash_profile" <<'PROFILE'
+sudo rm -f /etc/systemd/system/getty@tty1.service.d/autologin.conf
+sudo rmdir /etc/systemd/system/getty@tty1.service.d 2>/dev/null
+rm -f "$HOME/.bash_profile"
+[[ -f "$HOME/post.sh" ]] && bash "$HOME/post.sh"
+PROFILE
+  chown "$USER_NAME:$USER_NAME" "/home/$USER_NAME/.bash_profile"
+
   info "Installing bootloader..."
   run grub-install --target=x86_64-efi --efi-directory=/boot --bootloader-id=GRUB
   run grub-mkconfig -o /boot/grub/grub.cfg
