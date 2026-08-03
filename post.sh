@@ -34,17 +34,14 @@ sudo -v
 ( while kill -0 $$ 2>/dev/null; do sudo -n true; sleep 60; done ) &>/dev/null &
 SUDO_KEEPALIVE_PID=$!
 
-# sudo's credential cache is keyed per-tty by default. makepkg (paru's build
-# step and its own dependency installs) runs its internal `sudo pacman`
-# calls from a different process group/tty than this script, so it doesn't
-# see the ticket above and re-prompts — twice, since makepkg calls sudo both
-# for missing build deps and for the final package install. Sharing the
-# ticket across this user's sessions (instead of partitioning it per-tty)
-# fixes that without skipping authentication — you still typed your password
-# once, above; this just makes that credential visible to those subprocesses
-# too. Scoped to this user only, and removed as soon as the script exits.
+# makepkg's internal `sudo pacman` calls (dependency install, then the final
+# `pacman -U` after building) don't pick up the cached ticket above no
+# matter how it's shared — tried making it tty-independent and that didn't
+# help either. Sidestepping that mystery entirely: let this user run pacman
+# via sudo without a password, scoped to just that one binary, and only for
+# the life of this script (removed in the EXIT trap below).
 SUDOERS_DROPIN=/etc/sudoers.d/99-post-install-temp
-echo "Defaults:$USER timestamp_type=global" | sudo tee "$SUDOERS_DROPIN" > /dev/null
+echo "$USER ALL=(ALL) NOPASSWD: /usr/bin/pacman" | sudo tee "$SUDOERS_DROPIN" > /dev/null
 sudo chmod 440 "$SUDOERS_DROPIN"
 
 trap 'kill "$SUDO_KEEPALIVE_PID" 2>/dev/null; sudo rm -f "$SUDOERS_DROPIN"' EXIT
