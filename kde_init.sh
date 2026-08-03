@@ -53,27 +53,6 @@ cp -r "$INSTALL_DIR" "$PLASMOIDS_DIR"
 rm -rf "$WIDGET_DIR"
 rm -rf "$INSTALL_DIR"
 
-##################################
-##### Add Apdatifier widget ######
-##################################
-WIDGET_DIR="$HOME/.local/share/plasma/plasmoids/apdatifier-src"
-INSTALL_DIR="$HOME/.local/share/kpackage/generic/com.github.exequtic.apdatifier"
-PLASMOIDS_DIR="$HOME/.local/share/plasma/plasmoids/"
-
-# Clone the repository
-git clone https://github.com/exequtic/apdatifier "$WIDGET_DIR"
-cd "$WIDGET_DIR"
-
-kpackagetool6 -i package
-
-# Copy the installed directory to the plasmoids folder
-cp -r "$INSTALL_DIR" "$PLASMOIDS_DIR"
-
-# Remove the original WIDGET_DIR
-cd "$HOME"
-rm -rf "$WIDGET_DIR"
-rm -rf "$INSTALL_DIR"
-
 # [Containments][1]
 kwriteconfig6 --file plasma-org.kde.plasma.desktop-appletsrc --group Containments --group 1 --key ItemGeometries-1707x960 "Applet-100:320,304,400,160,0"
 kwriteconfig6 --file plasma-org.kde.plasma.desktop-appletsrc --group Containments --group 1 --key ItemGeometriesHorizontal "Applet-100:320,304,400,160,0"
