@@ -33,7 +33,21 @@ sudo -v
 # without ever prompting; the loop dies on its own once this script exits.
 ( while kill -0 $$ 2>/dev/null; do sudo -n true; sleep 60; done ) &>/dev/null &
 SUDO_KEEPALIVE_PID=$!
-trap 'kill "$SUDO_KEEPALIVE_PID" 2>/dev/null' EXIT
+
+# sudo's credential cache is keyed per-tty by default. makepkg (paru's build
+# step and its own dependency installs) runs its internal `sudo pacman`
+# calls from a different process group/tty than this script, so it doesn't
+# see the ticket above and re-prompts — twice, since makepkg calls sudo both
+# for missing build deps and for the final package install. Sharing the
+# ticket across this user's sessions (instead of partitioning it per-tty)
+# fixes that without skipping authentication — you still typed your password
+# once, above; this just makes that credential visible to those subprocesses
+# too. Scoped to this user only, and removed as soon as the script exits.
+SUDOERS_DROPIN=/etc/sudoers.d/99-post-install-temp
+echo "Defaults:$USER timestamp_type=global" | sudo tee "$SUDOERS_DROPIN" > /dev/null
+sudo chmod 440 "$SUDOERS_DROPIN"
+
+trap 'kill "$SUDO_KEEPALIVE_PID" 2>/dev/null; sudo rm -f "$SUDOERS_DROPIN"' EXIT
 
 # ── Hardware Setup ───────────────────────────────────────────────────────
 clear
