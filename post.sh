@@ -160,10 +160,11 @@ step_done
 
 # ── Multilib + Steam + AUR Tools ─────────────────────────────────────────
 box "[10/13] Enabling multilib + installing Steam, Paru, Zen & qimgv" 70 Ω
+info "Hang tight, this one takes a while to complete..."
+
 sudo sed -i '/\[multilib\]/,/Include/ s/^#//' /etc/pacman.conf
 run sudo pacman -Syyu --noconfirm steam base-devel
 
-info "Hang tight, this one takes a while to complete..."
 rm -rf paru  # leftover from a previous partial attempt, if any
 run git clone https://aur.archlinux.org/paru.git
 (cd paru && run makepkg -si --noconfirm)
