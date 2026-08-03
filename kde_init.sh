@@ -56,20 +56,23 @@ rm -rf "$INSTALL_DIR"
 ##################################
 ##### Add Apdatifier widget ######
 ##################################
-# Install command per https://github.com/exequtic/apdatifier — sparse
-# checkout of just the "package" dir, then install as a Plasma applet
-# directly (no manual copy into the plasmoids folder needed, unlike above).
-APDATIFIER_DIR="$HOME/.local/share/apdatifier-src"
+WIDGET_DIR="$HOME/.local/share/plasma/plasmoids/apdatifier-src"
+INSTALL_DIR="$HOME/.local/share/kpackage/generic/com.github.exequtic.apdatifier"
+PLASMOIDS_DIR="$HOME/.local/share/plasma/plasmoids/"
 
-git clone -n --depth=10 --filter=tree:0 -b main https://github.com/exequtic/apdatifier "$APDATIFIER_DIR"
-cd "$APDATIFIER_DIR"
-git sparse-checkout set --no-cone package
-git checkout
+# Clone the repository
+git clone https://github.com/exequtic/apdatifier "$WIDGET_DIR"
+cd "$WIDGET_DIR"
 
-kpackagetool6 -t Plasma/Applet -u ./package
+kpackagetool6 -i package
 
+# Copy the installed directory to the plasmoids folder
+cp -r "$INSTALL_DIR" "$PLASMOIDS_DIR"
+
+# Remove the original WIDGET_DIR
 cd "$HOME"
-rm -rf "$APDATIFIER_DIR"
+rm -rf "$WIDGET_DIR"
+rm -rf "$INSTALL_DIR"
 
 # [Containments][1]
 kwriteconfig6 --file plasma-org.kde.plasma.desktop-appletsrc --group Containments --group 1 --key ItemGeometries-1707x960 "Applet-100:320,304,400,160,0"

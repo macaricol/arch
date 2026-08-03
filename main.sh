@@ -170,7 +170,7 @@ main() {
   preflight_checks
 
   clear
-  box "[1/5] Enter machine details" 70 Ω
+  box "[1/6] Enter machine details" 70 Ω
   input "Hostname: " HOSTNAME no valid_hostname
   password "Root password (min 6 chars): " ROOT_PASSWORD
   input "Username: " USER_NAME no valid_username
@@ -181,7 +181,7 @@ main() {
   step_done
 
   clear
-  box "[3/5] Review & confirm" 70 Ω
+  box "[3/6] Review & confirm" 70 Ω
   printf ' Hostname:  %s\n Username:  %s\n Drive:     %s\n Timezone:  %s\n Keymap:    %s\n\n' \
     "$HOSTNAME" "$USER_NAME" "$DRIVE" "$TIMEZONE" "$KEYMAP"
   info "This will ERASE ALL DATA on $DRIVE. This cannot be undone."
@@ -189,11 +189,11 @@ main() {
   [[ $ack == YES ]] || { info "Aborted."; exit 0; }
   step_done
 
-  box "[4/5] Partitioning & Formatting" 70 Ω
+  box "[4/6] Partitioning & Formatting" 70 Ω
   partition_and_mount
   step_done
 
-  box "[5/5] Installing Arch Linux" 70 Ω
+  box "[5/6] Installing Arch Linux" 70 Ω
   install_base
   step_done
 
@@ -201,6 +201,7 @@ main() {
   # when main.sh is piped straight into bash and $0 isn't a real file) so
   # arch-chroot can re-invoke it there with "chroot" as $1, landing in
   # chroot_phase() above.
+  box "[6/6] Finalizing installation" 70 Ω
   info "Entering chroot..."
   curl -fsSL -o /mnt/setup.sh "$MAIN_URL"
   install -m 600 /dev/null /mnt/creds
@@ -208,6 +209,7 @@ main() {
   arch-chroot /mnt env \
     HOSTNAME="$HOSTNAME" USER_NAME="$USER_NAME" \
     VERBOSE="$VERBOSE" /bin/bash /setup.sh chroot
+  step_done
 
   box "DONE! Rebooting in 5s..." 70 Ω
   sleep 5 && reboot

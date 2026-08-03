@@ -103,7 +103,7 @@ password() {
 # so they're only meaningful called from there.
 _drive_menu_draw() {
   clear
-  box "[2/5] Select installation drive"
+  box "[2/6] Select installation drive"
   local i
   for ((i = 0; i < ${#options[@]}; i++)); do
     if (( i == selected )); then
