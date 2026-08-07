@@ -37,7 +37,7 @@ kwriteconfig6 --file kdeglobals --group General --key accentColorFromWallpaper t
 #### Add modern clock widget #####
 ##################################
 WIDGET_DIR="$HOME/.local/share/plasma/plasmoids/modernclock2"
-INSTALL_DIR="/home/ishmael/.local/share/kpackage/generic/com.github.prayag2.modernclock"
+INSTALL_DIR="$HOME/.local/share/kpackage/generic/com.github.prayag2.modernclock"
 PLASMOIDS_DIR="$HOME/.local/share/plasma/plasmoids/"
 
 # Clone the repository
@@ -50,6 +50,28 @@ kpackagetool6 -i package
 cp -r "$INSTALL_DIR" "$PLASMOIDS_DIR"
 
 # Remove the original WIDGET_DIR
+cd "$HOME"
+rm -rf "$WIDGET_DIR"
+rm -rf "$INSTALL_DIR"
+
+##################################
+##### Add Apdatifier widget ######
+##################################
+WIDGET_DIR="$HOME/.local/share/plasma/plasmoids/apdatifier-src"
+INSTALL_DIR="$HOME/.local/share/kpackage/generic/com.github.exequtic.apdatifier"
+PLASMOIDS_DIR="$HOME/.local/share/plasma/plasmoids/"
+
+# Clone the repository
+git clone https://github.com/exequtic/apdatifier "$WIDGET_DIR"
+cd "$WIDGET_DIR"
+
+kpackagetool6 -i package
+
+# Copy the installed directory to the plasmoids folder
+cp -r "$INSTALL_DIR" "$PLASMOIDS_DIR"
+
+# Remove the original WIDGET_DIR
+cd "$HOME"
 rm -rf "$WIDGET_DIR"
 rm -rf "$INSTALL_DIR"
 
