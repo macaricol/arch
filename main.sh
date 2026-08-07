@@ -82,14 +82,14 @@ partition_and_mount() {
   # Create @ (root) and @home as top-level Btrfs subvolumes, then remount
   # under their final paths with zstd compression.
   info "Mounting Btrfs subvolumes..."
-  run mount "$root" /mnt
+  run mount -t btrfs "$root" /mnt
   run btrfs su cr /mnt/@ /mnt/@home
   run umount /mnt
 
-  run mount -o noatime,compress=zstd:1,subvol=@ "$root" /mnt
+  run mount -t btrfs -o noatime,compress=zstd:1,subvol=@ "$root" /mnt
   mkdir -p /mnt/{boot,home}
-  run mount -o noatime,compress=zstd:1,subvol=@home "$root" /mnt/home
-  run mount "$boot" /mnt/boot
+  run mount -t btrfs -o noatime,compress=zstd:1,subvol=@home "$root" /mnt/home
+  run mount -t vfat "$boot" /mnt/boot
   run swapon "$swap"
 }
 

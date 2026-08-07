@@ -91,6 +91,19 @@ run unsquashfs -d "$work/airootfs" "$work/airootfs.sfs"
 cat > "$work/airootfs/root/.automated_script.sh" <<EOF
 #!/bin/bash
 grep -qw $CMDLINE_FLAG /proc/cmdline || exit 0
+
+echo "Waiting for network..."
+for i in \$(seq 1 30); do
+  ping -c1 -W1 archlinux.org &>/dev/null && break
+  sleep 1
+done
+if ! ping -c1 -W1 archlinux.org &>/dev/null; then
+  echo "No network after 30s."
+  echo "Connect manually (iwctl for Wi-Fi, mmcli for WWAN), then run:"
+  echo "  curl -fsSL $MAIN_URL | bash"
+  exit 1
+fi
+
 curl -fsSL $MAIN_URL | bash
 EOF
 chmod +x "$work/airootfs/root/.automated_script.sh"
