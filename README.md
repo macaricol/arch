@@ -74,9 +74,12 @@ This script is automatically copied to your home directory and set to run on fir
 
 **Hardware Setup** (conditional on detected hardware)
 - `intel-ucode` / `amd-ucode` — CPU microcode updates, installed based on the detected processor vendor
-- Intel GPU: `mesa`, `vulkan-intel`, `intel-media-driver` — graphics drivers, Vulkan support, and hardware video decode/encode
-- AMD GPU: `mesa`, `vulkan-radeon`, `radeontop` — graphics drivers, Vulkan support, and a GPU usage monitor
-- NVIDIA GPU: `nvidia`, `nvidia-utils`, `nvidia-settings`, `opencl-nvidia` — proprietary driver, utilities, config GUI, and OpenCL support
+- Intel GPU: `mesa`, `lib32-mesa`, `vulkan-intel`, `lib32-vulkan-intel`, `intel-media-driver` — graphics drivers (64+32-bit), Vulkan support, and hardware video decode/encode
+- AMD GPU: `mesa`, `lib32-mesa`, `vulkan-radeon`, `lib32-vulkan-radeon`, `radeontop` — graphics drivers (64+32-bit), Vulkan support, and a GPU usage monitor
+- NVIDIA GPU: `nvidia`, `nvidia-utils`, `lib32-nvidia-utils`, `nvidia-settings`, `opencl-nvidia` — proprietary driver (64+32-bit), config GUI, and OpenCL support
+- Otherwise (VMs, unrecognised hardware): `mesa`, `lib32-mesa`, `vulkan-swrast`, `lib32-vulkan-swrast` — generic drivers with software Vulkan
+
+Hybrid setups get every matching vendor. The 32-bit packages are what Steam needs; installing the right ones up front stops `pacman --noconfirm` from picking `lib32-nvidia-utils` (and with it the whole NVIDIA userspace) on AMD/Intel machines.
 
 **Core Plasma Desktop**
 - `plasma-desktop` — Core Plasma desktop shell, panels, widgets, and workspace
@@ -120,12 +123,11 @@ This script is automatically copied to your home directory and set to run on fir
 - `git` — Version control
 - `vscode` — Code editor
 - `kio-admin` — Lets Dolphin edit root-owned files with a polkit prompt instead of a separate root file manager
-- `fakeroot` — Build dependency required for compiling AUR packages
 
 **Gaming & AUR Tools**
 - `base-devel` — Build tool group required to compile AUR packages
 - `steam` — Gaming platform (requires enabling the multilib repo, which the script does automatically)
-- `paru` — AUR helper, built from source since it's not in the official repos
+- `paru-bin` (AUR) — AUR helper, prebuilt binary so it installs in seconds
 - `zen-browser-bin` (AUR) — Firefox-based privacy-focused browser
 - `qimgv-git` (AUR) — Lightweight, fast image viewer
 

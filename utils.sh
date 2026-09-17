@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 # utils.sh - Helper functions for Arch installer
 
+# input() trims whitespace with +([[:space:]]), an extended glob, so enable it
+# here rather than in the callers — sourcing this file is then enough.
+shopt -s extglob
+
 # Default configuration (can be overridden before sourcing, e.g. VERBOSE=1 ./main.sh)
 VERBOSE=${VERBOSE:-0}
 
@@ -16,7 +20,7 @@ KDE_PACKAGES=(
 
 EXTRA_PACKAGES=(
   fastfetch mpv krdc krdp git code kio-admin
-  fakeroot ttf-liberation noto-fonts-cjk
+  ttf-liberation noto-fonts-cjk
 )
 
 # Run a command; with VERBOSE=1 show its output directly, otherwise run it in
@@ -44,8 +48,14 @@ run() {
   fi
 }
 die() { printf '\e[91;1m[ Ω ] %b\e[0m\n' "$*" >&2; exit 1; }
+require_network() { ping -c1 -W3 archlinux.org &>/dev/null || die "No network connectivity"; }
 info() { printf '\e[96;1m[ Ω ]\e[0m \e[97m%s\e[0m\n\n' "$*"; }
 step_done() { printf '\e[92;1m[ ✓ ] DONE\e[0m\n\n'; }
+
+# Numbered section header: set STEP_TOTAL once, then call step "title" — the
+# counter does the numbering, so inserting a step never means renumbering.
+STEP=0
+step() { box "[$((++STEP))/$STEP_TOTAL] $1"; }
 
 # Draws a centered title inside a horizontal rule, e.g.:
 # ── title ──

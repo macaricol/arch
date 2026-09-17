@@ -6,7 +6,6 @@
 # "chroot", runs `chroot_phase`) — see the dispatch at the bottom of the file.
 set -euo pipefail       # abort on error / unset var / failed pipeline stage
 IFS=$'\n\t'             # word-split only on newline+tab, not spaces (safer with paths)
-shopt -s nocasematch extglob
 
 # ── CONFIG ─────────────────────────────────────────────────────────────
 TIMEZONE='Europe/Lisbon'
@@ -26,7 +25,9 @@ else
   SCRIPT_DIR="/tmp"
 fi
 readonly SCRIPT_DIR
-curl -fsSL -o "${SCRIPT_DIR}/utils.sh" "$UTILS_URL"
+# main() stages a copy alongside the chroot script, so the second (in-chroot)
+# run finds it already there instead of fetching it over the network again.
+[[ -f "${SCRIPT_DIR}/utils.sh" ]] || curl -fsSL -o "${SCRIPT_DIR}/utils.sh" "$UTILS_URL"
 source "${SCRIPT_DIR}/utils.sh" || { echo "Failed to load utils.sh" >&2; exit 1; }
 
 # ── PRE-FLIGHT ────────────────────────────────────────────────────────
@@ -40,7 +41,7 @@ preflight_checks() {
   info "Running pre-flight checks..."
   [[ $EUID -eq 0 ]] || die "Must be run as root"
   [[ -d /sys/firmware/efi ]] || die "Not booted in UEFI mode"
-  ping -c1 -W3 archlinux.org &>/dev/null || die "No network connectivity"
+  require_network
 }
 
 # ── PARTITION & FORMAT ───────────────────────────────────────────────
@@ -71,6 +72,10 @@ partition_and_mount() {
     -n2:513M:${swap_end}M     -t2:8200 -c2:Swap \
     -n3:$((swap_end + 1))M:0  -t3:8300 -c3:Root "$DRIVE"
   partprobe "$DRIVE" 2>/dev/null || true
+  # partprobe only makes the kernel re-read the table; udev still has to create
+  # the device nodes. Without this wait the check below can run first and
+  # report a bogus "Partitioning failed".
+  udevadm settle
 
   [[ -b $boot && -b $swap && -b $root ]] || die "Partitioning failed"
 
@@ -101,7 +106,6 @@ install_base() {
   run reflector --country 'PT,ES' --latest 8 --protocol https --sort rate --number 6 --save /etc/pacman.d/mirrorlist --verbose || true
   [[ -s /etc/pacman.d/mirrorlist ]] || die "Mirrorlist is empty — reflector failed"
 
-  run pacman -Sy --noconfirm
   # Cosmetic pacman progress bar; grep guard keeps this idempotent on re-runs.
   grep -q '^ILoveCandy' /etc/pacman.conf || sed -i '/\[options\]/a ILoveCandy' /etc/pacman.conf
 
@@ -134,7 +138,7 @@ chroot_phase() {
   echo "KEYMAP=$KEYMAP" > /etc/vconsole.conf
 
   info "Creating user accounts..."
-  echo "$HOSTNAME" > /etc/hostname
+  echo "$HOST_NAME" > /etc/hostname
   # Passed via the environment, not string interpolation, so passwords with
   # shell metacharacters ($, ", `, etc.) can't break the inner command.
   ROOT_PASSWORD="$ROOT_PASSWORD" run bash -c 'echo -e "$ROOT_PASSWORD\n$ROOT_PASSWORD" | passwd root'
@@ -142,7 +146,12 @@ chroot_phase() {
   useradd -mG wheel -s /bin/bash "$USER_NAME"
   USER_NAME="$USER_NAME" USER_PASSWORD="$USER_PASSWORD" \
     run bash -c 'echo -e "$USER_PASSWORD\n$USER_PASSWORD" | passwd "$USER_NAME"'
-  sed -i 's/# %wheel ALL=(ALL:ALL) ALL/%wheel ALL=(ALL:ALL) ALL/' /etc/sudoers
+  # A drop-in rather than an in-place sed on /etc/sudoers: if that pattern ever
+  # stopped matching, wheel would silently get no sudo, and that only surfaces
+  # at first login when .bash_profile and post.sh both need to elevate.
+  echo '%wheel ALL=(ALL:ALL) ALL' > /etc/sudoers.d/10-wheel
+  chmod 440 /etc/sudoers.d/10-wheel
+  visudo -c -f /etc/sudoers.d/10-wheel >/dev/null || die "Generated sudoers drop-in is invalid"
 
   info "Configuring first-login automation..."
   # Auto-login on tty1 for exactly one boot, so the user lands in a shell
@@ -161,10 +170,33 @@ EOF
   cat > "/home/$USER_NAME/.bash_profile" <<'PROFILE'
 sudo rm -f /etc/systemd/system/getty@tty1.service.d/autologin.conf
 sudo rmdir /etc/systemd/system/getty@tty1.service.d 2>/dev/null
+# Unlink before copying: the running shell is still reading this file through
+# an open fd, and overwriting it in place would corrupt the rest of the read.
 rm -f "$HOME/.bash_profile"
+cp /etc/skel/.bash_profile "$HOME/.bash_profile"
 [[ -f "$HOME/post.sh" ]] && bash "$HOME/post.sh"
 PROFILE
   chown "$USER_NAME:$USER_NAME" "/home/$USER_NAME/.bash_profile"
+
+  info "Configuring hibernation..."
+  # A RAM-sized swap partition on its own doesn't enable hibernation: the
+  # kernel has to be told which device holds the image, and the initramfs has
+  # to restore it before root is mounted read-write.
+  local swap_uuid=''
+  swap_uuid=$(blkid -o value -s UUID -t LABEL=SWAP | head -1) || true
+  if [[ -n $swap_uuid ]]; then
+    # The systemd hook handles resume itself; the udev-based default (what
+    # pacstrap installs) needs the resume hook, ordered before filesystems.
+    if ! grep -q '^HOOKS=.*systemd' /etc/mkinitcpio.conf; then
+      grep -q '^HOOKS=.*resume' /etc/mkinitcpio.conf || \
+        sed -i 's/^\(HOOKS=(.*\)filesystems/\1resume filesystems/' /etc/mkinitcpio.conf
+    fi
+    grep -q 'resume=UUID=' /etc/default/grub || \
+      sed -i "s|^\(GRUB_CMDLINE_LINUX_DEFAULT=\".*\)\"|\1 resume=UUID=$swap_uuid\"|" /etc/default/grub
+    run mkinitcpio -P
+  else
+    echo "Warning: swap partition not found — skipping hibernation setup" >&2
+  fi
 
   info "Installing bootloader..."
   run grub-install --target=x86_64-efi --efi-directory=/boot --bootloader-id=GRUB
@@ -187,35 +219,36 @@ main() {
   # script's own source, not the keyboard — every `read` below would silently
   # read from that instead of you. Rebind stdin to the real terminal.
   exec < /dev/tty
+  STEP_TOTAL=6
 
   clear
   preflight_checks
 
   clear
-  box "[1/6] Enter machine details" 70 Ω
-  input "Hostname: " HOSTNAME no valid_hostname
+  step "Enter machine details"
+  input "Hostname: " HOST_NAME no valid_hostname
   password "Root password (min 6 chars): " ROOT_PASSWORD
   input "Username: " USER_NAME no valid_username
   password "User password (min 6 chars): " USER_PASSWORD
   step_done
 
-  select_drive "[2/6] Select installation drive"
+  select_drive "[$((++STEP))/$STEP_TOTAL] Select installation drive"
   step_done
 
   clear
-  box "[3/6] Review & confirm" 70 Ω
+  step "Review & confirm"
   printf ' Hostname:  %s\n Username:  %s\n Drive:     %s\n Timezone:  %s\n Keymap:    %s\n\n' \
-    "$HOSTNAME" "$USER_NAME" "$DRIVE" "$TIMEZONE" "$KEYMAP"
+    "$HOST_NAME" "$USER_NAME" "$DRIVE" "$TIMEZONE" "$KEYMAP"
   info "This will ERASE ALL DATA on $DRIVE. This cannot be undone."
   ask "Type YES to continue: "; read -r ack
   [[ $ack == YES ]] || { info "Aborted."; exit 0; }
   step_done
 
-  box "[4/6] Partitioning & Formatting" 70 Ω
+  step "Partitioning & Formatting"
   partition_and_mount
   step_done
 
-  box "[5/6] Installing Arch Linux" 70 Ω
+  step "Installing Arch Linux"
   install_base
   step_done
 
@@ -223,13 +256,17 @@ main() {
   # when main.sh is piped straight into bash and $0 isn't a real file) so
   # arch-chroot can re-invoke it there with "chroot" as $1, landing in
   # chroot_phase() above.
-  box "[6/6] Finalizing installation" 70 Ω
+  step "Finalizing installation"
   info "Entering chroot..."
   curl -fsSL -o /mnt/setup.sh "$MAIN_URL"
+  cp "${SCRIPT_DIR}/utils.sh" /mnt/utils.sh
+  # chroot_phase deletes this as its first act, but if arch-chroot never gets
+  # that far the plaintext passwords would be left behind on the new install.
+  trap 'rm -f /mnt/creds' EXIT
   install -m 600 /dev/null /mnt/creds
   printf '%s\n%s\n' "$ROOT_PASSWORD" "$USER_PASSWORD" > /mnt/creds
   arch-chroot /mnt env \
-    HOSTNAME="$HOSTNAME" USER_NAME="$USER_NAME" \
+    HOST_NAME="$HOST_NAME" USER_NAME="$USER_NAME" \
     VERBOSE="$VERBOSE" /bin/bash /setup.sh chroot
   step_done
 
@@ -239,4 +276,11 @@ main() {
 
 # Entry point: with no args (live ISO) run the installer; re-invoked with
 # "chroot" (from inside main(), above) it only runs the chroot phase.
-[[ ${1:-} == chroot ]] && chroot_phase || main
+# An `a && b || c` dispatch would be wrong twice over: calling chroot_phase
+# inside an && list disables `set -e` for its whole body, and a non-zero return
+# from it would then fall through to running main() inside the chroot.
+if [[ ${1:-} == chroot ]]; then
+  chroot_phase
+else
+  main
+fi

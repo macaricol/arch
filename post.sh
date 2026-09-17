@@ -16,7 +16,7 @@ source "${SCRIPT_DIR}/utils.sh" || { echo "Failed to load utils.sh" >&2; exit 1;
 preflight_checks() {
   info "Running pre-flight checks..."
   (( EUID != 0 )) || die "Run this as your regular user (it uses sudo itself), not as root"
-  ping -c1 -W3 archlinux.org &>/dev/null || die "No network connectivity"
+  require_network
 }
 preflight_checks
 
@@ -34,65 +34,83 @@ sudo -v
 ( while kill -0 $$ 2>/dev/null; do sudo -n true; sleep 60; done ) &>/dev/null &
 SUDO_KEEPALIVE_PID=$!
 
-# makepkg's internal `sudo pacman` calls (dependency install, then the final
-# `pacman -U` after building) don't pick up the cached ticket above no
-# matter how it's shared — tried making it tty-independent and that didn't
-# help either. Sidestepping that mystery entirely: let this user run pacman
-# via sudo without a password, scoped to just that one binary, and only for
-# the life of this script (removed in the EXIT trap below).
+# The AUR step grants this user passwordless `sudo pacman` just for its builds
+# and removes it again itself; the trap is only a backstop in case that step
+# dies partway through.
 SUDOERS_DROPIN=/etc/sudoers.d/99-post-install-temp
-echo "$USER ALL=(ALL) NOPASSWD: /usr/bin/pacman" | sudo tee "$SUDOERS_DROPIN" > /dev/null
-sudo chmod 440 "$SUDOERS_DROPIN"
+STEP_TOTAL=14
 
 trap 'kill "$SUDO_KEEPALIVE_PID" 2>/dev/null; sudo rm -f "$SUDOERS_DROPIN"' EXIT
 
-# ── Hardware Setup ───────────────────────────────────────────────────────
+# ── Repositories ─────────────────────────────────────────────────────────
 clear
-box "[1/13] Installing CPU microcode" 70 Ω
+step "Enabling multilib & updating the system"
+# Must precede the GPU step, which installs 32-bit drivers from multilib.
+sudo sed -i '/\[multilib\]/,/Include/ s/^#//' /etc/pacman.conf
+run sudo pacman -Syu --noconfirm
+step_done
+
+# ── Hardware Setup ───────────────────────────────────────────────────────
+step "Installing CPU microcode"
 # || true: fall through to the catch-all case on unexpected/missing output
 # instead of aborting the whole script under set -o pipefail.
 cpu_vendor=$(lscpu | grep "Vendor ID" | awk '{print $3}') || true
 case "$cpu_vendor" in
-    GenuineIntel) run sudo pacman -S --noconfirm intel-ucode ;;
-    AuthenticAMD) run sudo pacman -S --noconfirm amd-ucode ;;
+    GenuineIntel) run sudo pacman -S --needed --noconfirm intel-ucode ;;
+    AuthenticAMD) run sudo pacman -S --needed --noconfirm amd-ucode ;;
     *) echo "Unknown CPU vendor: $cpu_vendor. Skipping microcode." ;;
 esac
 step_done
 
-box "[2/13] Installing GPU drivers" 70 Ω
-gpu_vendor=$(lspci | grep -E "VGA|3D" | grep -Ei "intel|amd|nvidia" | awk '{print tolower($0)}') || true
-if [[ $gpu_vendor == *intel* ]]; then
-    run sudo pacman -S --noconfirm mesa vulkan-intel intel-media-driver
-elif [[ $gpu_vendor == *amd* ]]; then
-    run sudo pacman -S --noconfirm mesa vulkan-radeon radeontop
-elif [[ $gpu_vendor == *nvidia* ]]; then
-    run sudo pacman -S --noconfirm nvidia nvidia-utils nvidia-settings opencl-nvidia
-else
-    echo "No supported GPU detected. Skipping GPU drivers."
+step "Installing GPU drivers"
+# One independent check per vendor (not if/elif) so hybrid laptops get both.
+# The lib32 packages are not optional: steam depends on the virtual
+# lib32-vulkan-driver / lib32-libgl, and with --noconfirm pacman takes the
+# first provider it finds — lib32-nvidia-utils, which drags the whole NVIDIA
+# userspace onto AMD/Intel machines — unless the right one is already there.
+gpus=$(lspci | grep -E "VGA|3D" | awk '{print tolower($0)}') || true
+gpu_found=0
+if [[ $gpus == *intel* ]]; then
+    run sudo pacman -S --needed --noconfirm mesa lib32-mesa vulkan-intel lib32-vulkan-intel intel-media-driver
+    gpu_found=1
+fi
+if [[ $gpus == *amd* ]]; then
+    run sudo pacman -S --needed --noconfirm mesa lib32-mesa vulkan-radeon lib32-vulkan-radeon radeontop
+    gpu_found=1
+fi
+if [[ $gpus == *nvidia* ]]; then
+    run sudo pacman -S --needed --noconfirm nvidia nvidia-utils lib32-nvidia-utils nvidia-settings opencl-nvidia
+    gpu_found=1
+fi
+if (( ! gpu_found )); then
+    # VMs and unrecognised hardware: generic mesa plus software Vulkan, which
+    # still satisfies steam's provider deps so it can't pick the NVIDIA one.
+    echo "No Intel/AMD/NVIDIA GPU detected — installing generic mesa + software Vulkan."
+    run sudo pacman -S --needed --noconfirm mesa lib32-mesa vulkan-swrast lib32-vulkan-swrast
 fi
 step_done
 
 # ── KDE Plasma ───────────────────────────────────────────────────────────
 # Package list lives in KDE_PACKAGES (utils.sh) — edit it there.
-box "[3/13] Installing KDE Plasma essentials" 70 Ω
-run sudo pacman -S --noconfirm "${KDE_PACKAGES[@]}"
+step "Installing KDE Plasma essentials"
+run sudo pacman -S --needed --noconfirm "${KDE_PACKAGES[@]}"
 step_done
 
 # ── Extra Applications ───────────────────────────────────────────────────
 # Package list lives in EXTRA_PACKAGES (utils.sh) — edit it there.
-box "[4/13] Installing extra applications" 70 Ω
-run sudo pacman -S --noconfirm "${EXTRA_PACKAGES[@]}"
+step "Installing extra applications"
+run sudo pacman -S --needed --noconfirm "${EXTRA_PACKAGES[@]}"
 step_done
 
 # ── Quality of Life ──────────────────────────────────────────────────────
-box "[5/13] Setting up fast boot (GRUB)" 70 Ω
+step "Setting up fast boot (GRUB)"
 sudo sed -i 's/GRUB_TIMEOUT=.*/GRUB_TIMEOUT=0/' /etc/default/grub
 sudo sed -i 's/GRUB_TIMEOUT_STYLE=.*/GRUB_TIMEOUT_STYLE=hidden/' /etc/default/grub
 run sudo grub-mkconfig -o /boot/grub/grub.cfg
 sudo sed -i '/echo/s/^/#/' /boot/grub/grub.cfg
 step_done
 
-box "[6/13] Setting mpv wheel controls" 70 Ω
+step "Setting mpv wheel controls"
 sudo mkdir -p /etc/mpv
 sudo tee /etc/mpv/input.conf > /dev/null << 'EOF'
 WHEEL_UP      seek 10
@@ -103,7 +121,7 @@ EOF
 step_done
 
 # ── SDDM Theme & Desktop Config ──────────────────────────────────────────
-box "[7/13] Installing SDDM Astronaut theme" 70 Ω
+step "Installing SDDM Astronaut theme"
 # Clear out a previous partial attempt first — git clone refuses to target a
 # non-empty directory.
 sudo rm -rf /usr/share/sddm/themes/sddm-astronaut-theme
@@ -119,7 +137,7 @@ sudo kwriteconfig6 --file /etc/sddm.conf.d/kde_settings.conf --group Users --key
 sudo kwriteconfig6 --file /etc/sddm.conf.d/kde_settings.conf --group Users --key MaximumUid 60513
 step_done
 
-box "[8/13] Setting wallpaper, lock screen & keyboard" 70 Ω
+step "Setting wallpaper, lock screen & keyboard"
 WALLPAPER="file:///usr/share/sddm/themes/sddm-astronaut-theme/Wallpapers/cyberpunk2077.jpg"
 
 kwriteconfig6 --file kscreenlockerrc --group Greeter --group Wallpaper \
@@ -133,7 +151,7 @@ kwriteconfig6 --file kxkbrc --group Layout --key Use "true"
 step_done
 
 # ── Samba ────────────────────────────────────────────────────────────────
-box "[9/13] Setting up Samba file sharing" 70 Ω
+step "Setting up Samba file sharing"
 sudo mkdir -p /var/lib/samba/usershares
 sudo groupadd -r sambashare 2>/dev/null || true  # already exists on a re-run
 sudo chown root:sambashare /var/lib/samba/usershares
@@ -158,22 +176,37 @@ EOF
 run sudo systemctl enable --now smb nmb
 step_done
 
-# ── Multilib + Steam + AUR Tools ─────────────────────────────────────────
-box "[10/13] Enabling multilib + installing Steam, Paru, Zen & qimgv" 70 Ω
+# ── Steam + AUR Tools ────────────────────────────────────────────────────
+step "Installing Steam, Paru, Zen & qimgv"
 info "Hang tight, this one takes a while to complete..."
+run sudo pacman -S --needed --noconfirm steam base-devel
 
-sudo sed -i '/\[multilib\]/,/Include/ s/^#//' /etc/pacman.conf
-run sudo pacman -Syyu --noconfirm steam base-devel
+# makepkg's internal `sudo pacman` calls (dependency install, then the final
+# `pacman -U` after building) don't pick up the cached ticket no matter how
+# it's shared — tried making it tty-independent and that didn't help either.
+# Sidestepping that mystery entirely: let this user run pacman via sudo
+# without a password, scoped to just that one binary and just to this step.
+echo "$USER ALL=(ALL) NOPASSWD: /usr/bin/pacman" | sudo tee "$SUDOERS_DROPIN" > /dev/null
+sudo chmod 440 "$SUDOERS_DROPIN"
+sudo visudo -c -f "$SUDOERS_DROPIN" > /dev/null || die "Generated sudoers drop-in is invalid"
 
-rm -rf paru  # leftover from a previous partial attempt, if any
-run git clone https://aur.archlinux.org/paru.git
-(cd paru && run makepkg -si --noconfirm)
-rm -rf paru
-run paru -S --noconfirm zen-browser-bin qimgv-git
+if command -v paru &>/dev/null; then
+    info "paru already installed — skipping build"
+else
+    # paru-bin is a prebuilt binary: seconds, instead of compiling Rust for
+    # minutes and leaving rust/cargo behind as makedeps.
+    build_dir=$(mktemp -d)
+    run git clone --depth 1 https://aur.archlinux.org/paru-bin.git "$build_dir"
+    (cd "$build_dir" && run makepkg -si --noconfirm)
+    rm -rf "$build_dir"
+fi
+run paru -S --needed --noconfirm zen-browser-bin qimgv-git
+
+sudo rm -f "$SUDOERS_DROPIN"
 step_done
 
 # ── Final Steps ──────────────────────────────────────────────────────────
-box "[11/13] Downloading KDE autostart script" 70 Ω
+step "Downloading KDE autostart script"
 curl -s -o "$HOME/kde_init.sh" "$REPO_URL/kde_init.sh"
 chmod +x "$HOME/kde_init.sh"
 
@@ -196,18 +229,21 @@ Comment=Applies first-login Plasma configuration tweaks
 EOF
 step_done
 
-box "[12/13] Enabling Bluetooth" 70 Ω
+step "Enabling Bluetooth"
 run sudo systemctl enable --now bluetooth.service
 step_done
 
-box "[13/13] Enabling SDDM (final step)" 70 Ω
-run sudo systemctl enable --now sddm
+step "Enabling SDDM (final step)"
+# No --now: sddm.service conflicts with getty@tty1, so starting it here would
+# SIGHUP the autologin session this script runs in, killing it before the
+# reboot prompt below. The reboot brings SDDM up instead.
+run sudo systemctl enable sddm
 step_done
 
 box "DONE! Reboot to see your new setup" 70 Ω
 ask "Reboot now? [Y/n]: "; read -r do_reboot
 if [[ $do_reboot =~ ^[Nn] ]]; then
-  info "Skipping reboot — log out or reboot manually to apply everything."
+  info "Skipping reboot — reboot manually when ready to apply everything."
 else
   info "Rebooting..."
   sleep 2
