@@ -22,7 +22,7 @@
 set -euo pipefail
 
 source "$(dirname "${BASH_SOURCE[0]}")/../config.sh"
-BOOTSTRAP_URL="https://raw.githubusercontent.com/$REPO/$BRANCH/refactor/bootstrap.sh"
+BOOTSTRAP_URL="https://raw.githubusercontent.com/$REPO/$BRANCH/bootstrap.sh"
 CMDLINE_FLAG=archauto
 
 IN_ISO=${1:?Usage: $0 <input-arch.iso> [output.iso]}

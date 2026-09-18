@@ -9,7 +9,7 @@ packages. Tuned for Portuguese locale/keyboard by default — see `config.sh`.
 
 Boot the official Arch ISO, connect to the network, and run:
 
-    curl -fsSL https://raw.githubusercontent.com/macaricol/arch/main/refactor/bootstrap.sh | bash
+    curl -fsSL https://raw.githubusercontent.com/macaricol/arch/main/bootstrap.sh | bash
 
 Answer four prompts (hostname, root password, username, user password),
 pick the drive from an arrow-key menu, type `YES`, and walk away. The
