@@ -10,7 +10,7 @@ IFS=$'\n\t'             # word-split only on newline+tab, not spaces (safer with
 # ── CONFIG ─────────────────────────────────────────────────────────────
 TIMEZONE='Europe/Lisbon'
 KEYMAP='pt-latin9'
-REPO_URL="https://raw.githubusercontent.com/macaricol/arch/refs/heads/clauding"
+REPO_URL="https://raw.githubusercontent.com/macaricol/arch/refs/heads/main"
 MAIN_URL="$REPO_URL/main.sh"
 POST_URL="$REPO_URL/post.sh"
 UTILS_URL="$REPO_URL/utils.sh"
