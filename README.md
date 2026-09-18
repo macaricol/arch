@@ -1,151 +1,97 @@
+# Arch Linux + KDE Plasma installer
 
-# Arch Linux + KDE Plasma Installation Scripts
+Unattended-ish installer for a UEFI machine: Btrfs root with `@`/`@home`
+subvolumes, RAM-sized swap with working hibernation, GRUB, a minimal KDE
+Plasma desktop, GPU drivers (64- and 32-bit), Steam, and a handful of AUR
+packages. Tuned for Portuguese locale/keyboard by default — see `config.sh`.
 
-This repository contains a set of scripts to automate the installation and configuration of **Arch Linux** with a minimal **KDE Plasma** desktop.
+## Quick start
 
-The repository includes three main scripts:
-- `main.sh`
-- `post.sh`
-- `kde_init.sh`
+Boot the official Arch ISO, connect to the network, and run:
 
-## Script Overview
+    curl -fsSL https://raw.githubusercontent.com/macaricol/arch/main/refactor/bootstrap.sh | bash
 
-### main.sh
-Performs the initial system installation. It handles drive selection, disk partitioning, Btrfs subvolume creation, base system installation, and bootloader setup (GRUB).
+Answer four prompts (hostname, root password, username, user password),
+pick the drive from an arrow-key menu, type `YES`, and walk away. The
+machine reboots into a one-time tty autologin that runs the desktop setup,
+reboots again into SDDM, and the first Plasma session applies the desktop
+tweaks. Two reboots in total, and one password prompt after the first.
 
-### post.sh
-Runs after the first reboot. This script configures the system, installs a minimal KDE Plasma desktop, sets up themes, wallpapers, keyboard layout, Samba file sharing, and applies user preferences.
+To install from a different branch: `curl ... | BRANCH=clauding bash`.
 
-### kde_init.sh
-Contains additional user-level configurations that run automatically on first login (autostart).
+**This erases the selected drive.** Test in a VM first.
 
-## Step-by-Step Usage
+### No-typing USB
 
-### 1. Using main.sh (Initial Installation)
-1. Boot from the Arch Linux live USB.
-2. Connect to the internet.
-3. Run:
-
-   curl -fsSL https://raw.githubusercontent.com/macaricol/arch/refs/heads/main/main.sh | bash
-
-4. Answer the prompts and confirm the drive — the script reboots automatically when done.
-
-The script switches the live session to the pt-latin9 keymap itself, so there's no separate `loadkeys` step.
-
-**Warning**: This script will **erase all data** on the selected drive.
-
-#### Optional: no-typing USB boot
-
-`build-autoinstall-iso.sh` patches an official Arch ISO with a second boot menu entry, "Automated Install", that runs the `curl | bash` command above automatically — no typing needed, just pick that entry at boot. Normal boot entries are untouched. Requires `xorriso` and `squashfs-tools`:
+`tools/build-autoinstall-iso.sh` adds an "Automated Install" entry to an
+official ISO's boot menu that runs the command above by itself:
 
     sudo pacman -S --needed xorriso squashfs-tools
-    sudo ./build-autoinstall-iso.sh archlinux-x86_64.iso archlinux-autoinstall.iso
+    sudo tools/build-autoinstall-iso.sh archlinux-x86_64.iso archlinux-autoinstall.iso
 
-Test the resulting ISO in a VM before writing it to a real USB drive.
+## How it fits together
 
-### 2. Using post.sh (Post-Installation)
-1. After rebooting, log in as the user created during installation.
-2. Run the post-installation script:
+    bootstrap.sh          fetches the repo tarball to /tmp, runs setup.sh install
+    setup.sh <phase>      single entry point; loads config + lib, runs one phase
+    config.sh             every tunable value: locale, disk, package lists, theme
+    lib/ui.sh             messages, step counter, run() spinner + setup.log
+    lib/prompt.sh         validated input, passwords, confirm, arrow-key menu
+    lib/system.sh         checks, CPU/GPU detection, pacman/AUR/service helpers
+    phases/install.sh     live ISO: partition, format, pacstrap, hand off to chroot
+    phases/chroot.sh      locale, accounts, sudo, hibernation, GRUB, first-login hook
+    phases/post.sh        first login: multilib, drivers, Plasma, theming, Samba, Steam, AUR
+    phases/kde-init.sh    first Plasma session: kwin, theme, widgets, panel, icons
 
-   ./post.sh
-   
-3. Wait for the script to complete. The system will configure KDE Plasma, SDDM theme, Samba, and other settings.
+The installer directory travels with the install: `/tmp/arch-setup` on the
+ISO → `/root/arch-setup` in the chroot → `~/.arch-setup` for the post and
+Plasma phases, which then deletes itself, leaving only `~/arch-setup.log`.
 
-### 3. kde_init.sh
-This script is automatically copied to your home directory and set to run on first login via autostart. No manual execution is required.
+Every command that goes through `run()` is logged there, with its full
+output shown on the terminal only if it fails. `VERBOSE=1 setup.sh <phase>`
+streams everything live instead.
 
-## Installed Packages
+## Running phases by hand
 
-### Base System Packages (main.sh)
+From a local checkout, phases can be run directly — useful for re-applying
+the desktop setup or iterating on it:
 
-| Package              | Purpose |
-|----------------------|--------|
-| `base`               | Core meta-package for a minimal Arch Linux system (glibc, pacman, systemd, etc.) |
-| `linux`              | The main Linux kernel |
-| `linux-firmware`     | Firmware blobs for hardware devices (Wi-Fi, GPU, etc.) |
-| `btrfs-progs`        | Tools for Btrfs filesystem management (required for subvolumes) |
-| `grub`               | GRUB bootloader |
-| `efibootmgr`         | UEFI boot manager (required for GRUB in UEFI mode) |
-| `nano`               | Simple text editor |
-| `networkmanager`     | Network management daemon (Wi-Fi, Ethernet, VPN) |
-| `sudo`               | Allows normal users to run commands as root |
+    ./setup.sh post        # as your user; idempotent (--needed everywhere)
+    ./setup.sh kde-init    # as your user, inside a Plasma session
 
-### Packages Installed by post.sh
+Running from a checkout never deletes it; only the staged `~/.arch-setup`
+copy cleans itself up.
 
-**Hardware Setup** (conditional on detected hardware)
-- `intel-ucode` / `amd-ucode` — CPU microcode updates, installed based on the detected processor vendor
-- Intel GPU: `mesa`, `lib32-mesa`, `vulkan-intel`, `lib32-vulkan-intel`, `intel-media-driver` — graphics drivers (64+32-bit), Vulkan support, and hardware video decode/encode
-- AMD GPU: `mesa`, `lib32-mesa`, `vulkan-radeon`, `lib32-vulkan-radeon`, `radeontop` — graphics drivers (64+32-bit), Vulkan support, and a GPU usage monitor
-- NVIDIA GPU: `nvidia`, `nvidia-utils`, `lib32-nvidia-utils`, `nvidia-settings`, `opencl-nvidia` — proprietary driver (64+32-bit), config GUI, and OpenCL support
-- Otherwise (VMs, unrecognised hardware): `mesa`, `lib32-mesa`, `vulkan-swrast`, `lib32-vulkan-swrast` — generic drivers with software Vulkan
+## Configuration
 
-Hybrid setups get every matching vendor. The 32-bit packages are what Steam needs; installing the right ones up front stops `pacman --noconfirm` from picking `lib32-nvidia-utils` (and with it the whole NVIDIA userspace) on AMD/Intel machines.
+Everything lives in `config.sh`: timezone, keymaps, locales, mirror
+countries, EFI size, Btrfs mount options, the package lists (`BASE_`,
+`KDE_`, `EXTRA_`, `GAMING_`, `AUR_PACKAGES`, per-vendor `GPU_PACKAGES_*`),
+the SDDM theme and wallpaper, icon theme, Plasma widgets, and the Samba
+workgroup.
 
-**Core Plasma Desktop**
-- `plasma-desktop` — Core Plasma desktop shell, panels, widgets, and workspace
-- `sddm` — Login screen (display manager)
-- `sddm-kcm` — KDE settings module for configuring SDDM
+## Design notes
 
-**Hardware & Connectivity**
-- `bluedevil` — Bluetooth support and system tray applet
-- `kdeconnect` — Phone integration (notifications, file sharing, remote control)
-- `kdenetwork-filesharing` — Enables the "Share" tab in Dolphin for easy Samba sharing
+Things that look odd but are deliberate:
 
-**System & Display**
-- `kscreen` — Display configuration (multi-monitor support)
-
-**Applications**
-- `konsole` — Terminal emulator
-- `featherpad` — Lightweight text editor
-- `dolphin` — Feature-rich file manager
-- `ark` — Archive manager (zip, 7z, rar, etc.)
-
-**Multimedia & Thumbnails**
-- `kdegraphics-thumbnailers` — Thumbnail generation for images and PDFs
-- `ffmpegthumbs` — Video thumbnail support in Dolphin
-- `pipewire-jack` — JACK audio support via PipeWire
-
-**System Management**
-- `plasma-pa` — Audio volume control (system tray)
-- `plasma-nm` — Network management (system tray)
-- `plasma-systemmonitor` — System resource monitor
-- `kwalletmanager` — Password and credential manager (KWallet)
-
-**Fonts**
-- `ttf-liberation` — Metric-compatible replacements for Arial, Times New Roman, and Courier New
-- `noto-fonts-cjk` — Chinese/Japanese/Korean character coverage
-
-**Extra Applications**
-- `fastfetch` — System information display tool
-- `mpv` — Lightweight, scriptable video player
-- `krdc` — Remote desktop client (VNC/RDP)
-- `krdp` — Remote desktop server (RDP)
-- `git` — Version control
-- `vscode` — Code editor
-- `kio-admin` — Lets Dolphin edit root-owned files with a polkit prompt instead of a separate root file manager
-
-**Gaming & AUR Tools**
-- `base-devel` — Build tool group required to compile AUR packages
-- `steam` — Gaming platform (requires enabling the multilib repo, which the script does automatically)
-- `paru` (AUR) — AUR helper, built from source so it always matches the installed pacman's libalpm (build tools are removed again afterwards)
-- `zen-browser-bin` (AUR) — Firefox-based privacy-focused browser
-- `qimgv-git` (AUR) — Lightweight, fast image viewer
-
-## Warnings
-
-- `main.sh` will **completely erase** the selected drive. Always back up important data beforehand.
-- These scripts are designed for UEFI systems with Btrfs.
-- Test in a virtual machine first if you are unsure about your hardware compatibility.
-
-## Safety Recommendations
-
-- Always have a recent backup of your data.
-- Verify the correct drive is selected before running `main.sh`.
-- Review the scripts before execution if you want to understand or modify the setup.
-
-## Contribution Guidelines
-
-Contributions are welcome!  
-1. Fork the repository  
-2. Create a new branch for your changes  
-3. Submit a Pull Request with a clear description
+- **Passwords** are written to a root-only `creds` file inside the staged
+  installer for the chroot phase (deleted first thing there, and by a trap
+  if the chroot never starts), then fed to `chpasswd` on stdin — they never
+  appear in argv, the environment, or the log.
+- **32-bit GPU drivers are installed before Steam.** `steam` depends on the
+  virtual `lib32-vulkan-driver`, and `pacman --noconfirm` picks the first
+  provider — `lib32-nvidia-utils`, which pulls the whole NVIDIA userspace
+  even on AMD/Intel. Having the right provider installed first avoids that.
+- **Microcode goes in with `pacstrap`**, so the first initramfs and
+  `grub.cfg` already include it and nothing needs regenerating later.
+- **The post phase enables SDDM without `--now`.** `sddm.service` conflicts
+  with `getty@tty1`; starting it would SIGHUP the very session the phase is
+  running in. The reboot starts it.
+- **Passwordless `sudo pacman`** exists only during the AUR step (makepkg's
+  own sudo calls don't see the cached ticket) and is removed right after,
+  with the EXIT trap as backstop.
+- **kde-init is autostarted, not run from post.sh**, because Plasma writes
+  several of the config files it edits during its own startup. The
+  containment and applet IDs it uses come from Plasma's stock first-session
+  layout.
+- The live USB is filtered out of the drive menu, and `udevadm settle`
+  runs after partitioning so the new device nodes exist before they're used.
