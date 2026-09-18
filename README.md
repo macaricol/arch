@@ -23,16 +23,25 @@ Contains additional user-level configurations that run automatically on first lo
 
 ### 1. Using main.sh (Initial Installation)
 1. Boot from the Arch Linux live USB.
-2. (Optional but recommended) Connect to the internet.
-3. Run the script:
+2. Connect to the internet.
+3. Run:
 
-   curl -O https://raw.githubusercontent.com/macaricol/arch/refs/heads/main/main.sh
-   chmod -x main.sh
-   ./main.sh
+   curl -fsSL https://raw.githubusercontent.com/macaricol/arch/refs/heads/main/main.sh | bash
 
-5. After the script finishes, reboot the system.
+4. Answer the prompts and confirm the drive — the script reboots automatically when done.
+
+The script switches the live session to the pt-latin9 keymap itself, so there's no separate `loadkeys` step.
 
 **Warning**: This script will **erase all data** on the selected drive.
+
+#### Optional: no-typing USB boot
+
+`build-autoinstall-iso.sh` patches an official Arch ISO with a second boot menu entry, "Automated Install", that runs the `curl | bash` command above automatically — no typing needed, just pick that entry at boot. Normal boot entries are untouched. Requires `xorriso` and `squashfs-tools`:
+
+    sudo pacman -S --needed xorriso squashfs-tools
+    sudo ./build-autoinstall-iso.sh archlinux-x86_64.iso archlinux-autoinstall.iso
+
+Test the resulting ISO in a VM before writing it to a real USB drive.
 
 ### 2. Using post.sh (Post-Installation)
 1. After rebooting, log in as the user created during installation.
@@ -61,7 +70,16 @@ This script is automatically copied to your home directory and set to run on fir
 | `networkmanager`     | Network management daemon (Wi-Fi, Ethernet, VPN) |
 | `sudo`               | Allows normal users to run commands as root |
 
-### Minimal KDE Plasma Packages (post.sh)
+### Packages Installed by post.sh
+
+**Hardware Setup** (conditional on detected hardware)
+- `intel-ucode` / `amd-ucode` — CPU microcode updates, installed based on the detected processor vendor
+- Intel GPU: `mesa`, `lib32-mesa`, `vulkan-intel`, `lib32-vulkan-intel`, `intel-media-driver` — graphics drivers (64+32-bit), Vulkan support, and hardware video decode/encode
+- AMD GPU: `mesa`, `lib32-mesa`, `vulkan-radeon`, `lib32-vulkan-radeon`, `radeontop` — graphics drivers (64+32-bit), Vulkan support, and a GPU usage monitor
+- NVIDIA GPU: `nvidia`, `nvidia-utils`, `lib32-nvidia-utils`, `nvidia-settings`, `opencl-nvidia` — proprietary driver (64+32-bit), config GUI, and OpenCL support
+- Otherwise (VMs, unrecognised hardware): `mesa`, `lib32-mesa`, `vulkan-swrast`, `lib32-vulkan-swrast` — generic drivers with software Vulkan
+
+Hybrid setups get every matching vendor. The 32-bit packages are what Steam needs; installing the right ones up front stops `pacman --noconfirm` from picking `lib32-nvidia-utils` (and with it the whole NVIDIA userspace) on AMD/Intel machines.
 
 **Core Plasma Desktop**
 - `plasma-desktop` — Core Plasma desktop shell, panels, widgets, and workspace
@@ -78,10 +96,9 @@ This script is automatically copied to your home directory and set to run on fir
 
 **Applications**
 - `konsole` — Terminal emulator
-- `kate` — Advanced text editor
+- `featherpad` — Lightweight text editor
 - `dolphin` — Feature-rich file manager
 - `ark` — Archive manager (zip, 7z, rar, etc.)
-- `gwenview` — Image viewer
 
 **Multimedia & Thumbnails**
 - `kdegraphics-thumbnailers` — Thumbnail generation for images and PDFs
@@ -93,6 +110,26 @@ This script is automatically copied to your home directory and set to run on fir
 - `plasma-nm` — Network management (system tray)
 - `plasma-systemmonitor` — System resource monitor
 - `kwalletmanager` — Password and credential manager (KWallet)
+
+**Fonts**
+- `ttf-liberation` — Metric-compatible replacements for Arial, Times New Roman, and Courier New
+- `noto-fonts-cjk` — Chinese/Japanese/Korean character coverage
+
+**Extra Applications**
+- `fastfetch` — System information display tool
+- `mpv` — Lightweight, scriptable video player
+- `krdc` — Remote desktop client (VNC/RDP)
+- `krdp` — Remote desktop server (RDP)
+- `git` — Version control
+- `vscode` — Code editor
+- `kio-admin` — Lets Dolphin edit root-owned files with a polkit prompt instead of a separate root file manager
+
+**Gaming & AUR Tools**
+- `base-devel` — Build tool group required to compile AUR packages
+- `steam` — Gaming platform (requires enabling the multilib repo, which the script does automatically)
+- `paru` (AUR) — AUR helper, built from source so it always matches the installed pacman's libalpm (build tools are removed again afterwards)
+- `zen-browser-bin` (AUR) — Firefox-based privacy-focused browser
+- `qimgv-git` (AUR) — Lightweight, fast image viewer
 
 ## Warnings
 
