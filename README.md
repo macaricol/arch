@@ -127,7 +127,7 @@ Hybrid setups get every matching vendor. The 32-bit packages are what Steam need
 **Gaming & AUR Tools**
 - `base-devel` — Build tool group required to compile AUR packages
 - `steam` — Gaming platform (requires enabling the multilib repo, which the script does automatically)
-- `paru-bin` (AUR) — AUR helper, prebuilt binary so it installs in seconds
+- `paru` (AUR) — AUR helper, built from source so it always matches the installed pacman's libalpm (build tools are removed again afterwards)
 - `zen-browser-bin` (AUR) — Firefox-based privacy-focused browser
 - `qimgv-git` (AUR) — Lightweight, fast image viewer
 

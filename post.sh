@@ -193,11 +193,12 @@ sudo visudo -c -f "$SUDOERS_DROPIN" > /dev/null || die "Generated sudoers drop-i
 if command -v paru &>/dev/null; then
     info "paru already installed — skipping build"
 else
-    # paru-bin is a prebuilt binary: seconds, instead of compiling Rust for
-    # minutes and leaving rust/cargo behind as makedeps.
+    # Built from source on purpose: paru-bin is compiled against a fixed
+    # libalpm and breaks whenever pacman bumps its ABI (it has been flagged
+    # out-of-date for months). -r removes the Rust toolchain again afterwards.
     build_dir=$(mktemp -d)
-    run git clone --depth 1 https://aur.archlinux.org/paru-bin.git "$build_dir"
-    (cd "$build_dir" && run makepkg -si --noconfirm)
+    run git clone --depth 1 https://aur.archlinux.org/paru.git "$build_dir"
+    (cd "$build_dir" && run makepkg -sri --noconfirm)
     rm -rf "$build_dir"
 fi
 run paru -S --needed --noconfirm zen-browser-bin qimgv-git
