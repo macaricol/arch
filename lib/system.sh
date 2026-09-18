@@ -10,7 +10,17 @@ require_network() { ping -c1 -W3 archlinux.org &>/dev/null || die "No network co
 as_root() { if (( EUID == 0 )); then "$@"; else sudo "$@"; fi; }
 
 pkg_install()    { run as_root pacman -S --needed --noconfirm "$@"; }
-aur_install()    { run paru -S --needed --noconfirm "$@"; }
+
+# AUR builds clone from aur.archlinux.org, which drops connections now and
+# then; retry rather than lose a run that's already minutes in.
+aur_install() {
+  local attempt
+  for attempt in 1 2 3; do
+    run paru -S --needed --noconfirm "$@" && return 0
+    (( attempt < 3 )) && { warn "AUR install failed (attempt $attempt/3), retrying in 10s..."; sleep 10; }
+  done
+  die "Could not install AUR packages: $*"
+}
 enable_service() { run as_root systemctl enable "$@"; }   # add --now to also start it
 
 # Regenerates grub.cfg, then comments out its "Loading Linux..." echo lines
