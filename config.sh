@@ -36,7 +36,7 @@ EXTRA_PACKAGES=(
   ntfs-3g exfatprogs dosfstools   # format/repair NTFS, exFAT, FAT32 (mounting needs nothing extra)
 )
 
-GAMING_PACKAGES=(steam base-devel)  # base-devel: required to build AUR packages
+GAMING_PACKAGES=(steam)  # only installed when a supported GPU was detected, see post phase
 AUR_PACKAGES=(zen-browser-bin qimgv-git)
 
 # The lib32-* packages are what Steam needs. Installing the right ones up
@@ -46,7 +46,10 @@ AUR_PACKAGES=(zen-browser-bin qimgv-git)
 GPU_PACKAGES_INTEL=(mesa lib32-mesa vulkan-intel lib32-vulkan-intel intel-media-driver)
 GPU_PACKAGES_AMD=(mesa lib32-mesa vulkan-radeon lib32-vulkan-radeon radeontop)
 GPU_PACKAGES_NVIDIA=(nvidia nvidia-utils lib32-nvidia-utils nvidia-settings opencl-nvidia)
-GPU_PACKAGES_FALLBACK=(mesa lib32-mesa vulkan-swrast lib32-vulkan-swrast)  # VMs, unknown hardware
+# VMs and unknown hardware. Deliberately no software Vulkan: a 64-bit Vulkan
+# device (vulkan-swrast) makes the SDDM theme's video background render blank
+# under VirtualBox, and lib32-vulkan-swrast can't be installed without it.
+GPU_PACKAGES_FALLBACK=(mesa lib32-mesa)
 
 # ── Look & feel ────────────────────────────────────────────────────────
 SDDM_THEME_REPO='https://github.com/macaricol/sddm-astronaut-theme.git'

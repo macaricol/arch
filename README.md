@@ -81,6 +81,10 @@ Things that look odd but are deliberate:
   virtual `lib32-vulkan-driver`, and `pacman --noconfirm` picks the first
   provider — `lib32-nvidia-utils`, which pulls the whole NVIDIA userspace
   even on AMD/Intel. Having the right provider installed first avoids that.
+  With no Intel/AMD/NVIDIA GPU detected (VMs), only plain `mesa` is installed
+  and Steam is skipped: software Vulkan (`vulkan-swrast`) would satisfy the
+  dependency, but a 64-bit Vulkan device makes the SDDM theme's video
+  background render blank under VirtualBox.
 - **Microcode goes in with `pacstrap`**, so the first initramfs and
   `grub.cfg` already include it and nothing needs regenerating later.
 - **The post phase enables SDDM without `--now`.** `sddm.service` conflicts

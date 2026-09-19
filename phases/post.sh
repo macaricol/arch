@@ -51,14 +51,17 @@ phase_post() {
   fi
 }
 
+# Sets GPU_SUPPORTED for the Steam decision later.
 install_gpu_drivers() {
   local -a vendors
   mapfile -t vendors < <(gpu_vendors)
   if (( ${#vendors[@]} == 0 )); then
-    warn "No Intel/AMD/NVIDIA GPU detected — installing generic drivers with software Vulkan"
+    warn "No Intel/AMD/NVIDIA GPU detected — installing generic mesa only"
     pkg_install "${GPU_PACKAGES_FALLBACK[@]}"
+    GPU_SUPPORTED=0
     return
   fi
+  GPU_SUPPORTED=1
   info "Detected GPU(s): ${vendors[*]}"
   local vendor list
   for vendor in "${vendors[@]}"; do
@@ -129,7 +132,15 @@ EOF
 
 install_gaming_and_aur() {
   info "Hang tight — this step compiles paru and builds the AUR packages."
-  pkg_install "${GAMING_PACKAGES[@]}"
+  pkg_install base-devel
+  if (( GPU_SUPPORTED )); then
+    pkg_install "${GAMING_PACKAGES[@]}"
+  else
+    # Without a real GPU driver, steam's 32-bit Vulkan dependency can only be
+    # met by software Vulkan (breaks the login screen's video) or by pacman
+    # picking lib32-nvidia-utils. Neither is worth it on a VM.
+    warn "No supported GPU — skipping Steam"
+  fi
 
   # makepkg's internal `sudo pacman` calls don't pick up the cached ticket no
   # matter how it's shared. Rather than fight that: passwordless sudo for

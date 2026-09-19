@@ -83,10 +83,12 @@ if [[ $gpus == *nvidia* ]]; then
     gpu_found=1
 fi
 if (( ! gpu_found )); then
-    # VMs and unrecognised hardware: generic mesa plus software Vulkan, which
-    # still satisfies steam's provider deps so it can't pick the NVIDIA one.
-    echo "No Intel/AMD/NVIDIA GPU detected — installing generic mesa + software Vulkan."
-    run sudo pacman -S --needed --noconfirm mesa lib32-mesa vulkan-swrast lib32-vulkan-swrast
+    # VMs and unrecognised hardware: plain mesa only. No software Vulkan here —
+    # a 64-bit Vulkan device (vulkan-swrast) makes the SDDM theme's video
+    # background render blank under VirtualBox, and lib32-vulkan-swrast can't
+    # be installed without it. Steam is skipped below for the same reason.
+    echo "No Intel/AMD/NVIDIA GPU detected — installing generic mesa only."
+    run sudo pacman -S --needed --noconfirm mesa lib32-mesa
 fi
 step_done
 
@@ -179,7 +181,15 @@ step_done
 # ── Steam + AUR Tools ────────────────────────────────────────────────────
 step "Installing Steam, Paru, Zen & qimgv"
 info "Hang tight, this one takes a while to complete..."
-run sudo pacman -S --needed --noconfirm steam base-devel
+run sudo pacman -S --needed --noconfirm base-devel
+if (( gpu_found )); then
+    run sudo pacman -S --needed --noconfirm steam
+else
+    # Without a real GPU driver there's no 32-bit Vulkan provider for steam
+    # except lib32-nvidia-utils (which --noconfirm would pick) or software
+    # Vulkan (which breaks the login screen's video). Neither is worth it.
+    echo "No supported GPU — skipping Steam."
+fi
 
 # makepkg's internal `sudo pacman` calls (dependency install, then the final
 # `pacman -U` after building) don't pick up the cached ticket no matter how

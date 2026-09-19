@@ -77,7 +77,7 @@ This script is automatically copied to your home directory and set to run on fir
 - Intel GPU: `mesa`, `lib32-mesa`, `vulkan-intel`, `lib32-vulkan-intel`, `intel-media-driver` — graphics drivers (64+32-bit), Vulkan support, and hardware video decode/encode
 - AMD GPU: `mesa`, `lib32-mesa`, `vulkan-radeon`, `lib32-vulkan-radeon`, `radeontop` — graphics drivers (64+32-bit), Vulkan support, and a GPU usage monitor
 - NVIDIA GPU: `nvidia`, `nvidia-utils`, `lib32-nvidia-utils`, `nvidia-settings`, `opencl-nvidia` — proprietary driver (64+32-bit), config GUI, and OpenCL support
-- Otherwise (VMs, unrecognised hardware): `mesa`, `lib32-mesa`, `vulkan-swrast`, `lib32-vulkan-swrast` — generic drivers with software Vulkan
+- Otherwise (VMs, unrecognised hardware): `mesa`, `lib32-mesa` only — no software Vulkan, since a 64-bit Vulkan device makes the SDDM theme's video background render blank under VirtualBox
 
 Hybrid setups get every matching vendor. The 32-bit packages are what Steam needs; installing the right ones up front stops `pacman --noconfirm` from picking `lib32-nvidia-utils` (and with it the whole NVIDIA userspace) on AMD/Intel machines.
 
@@ -126,7 +126,7 @@ Hybrid setups get every matching vendor. The 32-bit packages are what Steam need
 
 **Gaming & AUR Tools**
 - `base-devel` — Build tool group required to compile AUR packages
-- `steam` — Gaming platform (requires enabling the multilib repo, which the script does automatically)
+- `steam` — Gaming platform (requires enabling the multilib repo, which the script does automatically). Skipped when no Intel/AMD/NVIDIA GPU is detected: without a real driver its 32-bit Vulkan dependency can only be met by software Vulkan (see above) or by pacman picking `lib32-nvidia-utils`
 - `paru` (AUR) — AUR helper, built from source so it always matches the installed pacman's libalpm (build tools are removed again afterwards)
 - `zen-browser-bin` (AUR) — Firefox-based privacy-focused browser
 - `qimgv-git` (AUR) — Lightweight, fast image viewer
