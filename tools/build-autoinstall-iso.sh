@@ -1,28 +1,29 @@
 #!/usr/bin/env bash
-# Patches an official Arch Linux ISO to add an "Automated Install" boot menu
-# entry that runs main.sh unattended, without a full archiso rebuild.
+# Patches an official Arch Linux ISO with an extra "Automated Install" boot
+# entry that runs bootstrap.sh unattended — no archiso rebuild, no typing.
 #
 # How it works:
-#   - Stock Arch ISOs already auto-run /root/.automated_script.sh on login if
-#     it exists. We add one that only fires when booted with "archauto" on
-#     the kernel command line (so the normal boot entries are untouched).
-#   - We add a new systemd-boot entry that boots the same kernel/initramfs
-#     with "archauto" appended, giving you a one-keypress opt-in at the menu.
+#   - Stock Arch ISOs auto-run /root/.automated_script.sh on login if it
+#     exists. Ours only fires when "archauto" is on the kernel command line,
+#     so the normal boot entries are untouched.
+#   - A new systemd-boot entry boots the same kernel/initramfs with
+#     "archauto" appended: a one-keypress opt-in at the boot menu.
 #
-# Requires: xorriso, squashfs-tools (mksquashfs/unsquashfs), and root (for
-# loop-mounting the small EFI FAT image). Install with:
+# Requires root (to loop-mount the EFI image), xorriso and squashfs-tools:
 #   sudo pacman -S --needed xorriso squashfs-tools
 #
-# This only produces a new ISO file — it never touches a block device. Write
-# it to USB yourself once you've verified it boots (ideally in a VM first):
+# This only produces a new ISO file; it never touches a block device. Test it
+# in a VM, then write it yourself:
 #   sudo dd if=OUTPUT.iso of=/dev/sdX bs=4M status=progress oflag=sync
 #
-# Usage: ./build-autoinstall-iso.sh <input-arch.iso> [output.iso]
+# Usage: sudo ./build-autoinstall-iso.sh <input-arch.iso> [output.iso]
+# The repo/branch baked into the ISO come from ../config.sh (REPO, BRANCH),
+# both overridable from the environment.
 set -euo pipefail
 
-REPO_URL="https://raw.githubusercontent.com/macaricol/arch/refs/heads/main"
-MAIN_URL="$REPO_URL/main.sh"
-CMDLINE_FLAG="archauto"
+source "$(dirname "${BASH_SOURCE[0]}")/../config.sh"
+BOOTSTRAP_URL="https://raw.githubusercontent.com/$REPO/$BRANCH/bootstrap.sh"
+CMDLINE_FLAG=archauto
 
 IN_ISO=${1:?Usage: $0 <input-arch.iso> [output.iso]}
 OUT_ISO=${2:-archlinux-autoinstall.iso}
@@ -35,10 +36,7 @@ done
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 
-# Runs a command quietly, but shows its full output if it fails. This script
-# can't be exercised end-to-end without a real ISO + xorriso + squashfs-tools
-# on hand, so a silent failure here is worse than some noise on the step
-# that actually breaks.
+# Quiet on success, full output on failure.
 run() {
   local out; out=$(mktemp)
   if "$@" >"$out" 2>&1; then
@@ -52,11 +50,9 @@ run() {
   fi
 }
 
-# Finds the UEFI El Torito boot image's raw sector range (LBA + block count,
-# 2048 bytes/block) from `xorriso -report_el_torito plain` output. On current
-# archiso releases this image isn't a regular file in the ISO tree — it's a
-# "hidden" boot-catalog entry only addressable by sector range, so it can't
-# be found/extracted by path the way the squashfs can.
+# Prints "<lba> <blocks>" (2048-byte blocks) of the UEFI El Torito boot image.
+# On current archiso releases it isn't a regular file in the ISO tree but a
+# hidden boot-catalog entry, only addressable by sector range.
 locate_efi_image() {
   local report; report=$(xorriso -indev "$1" -report_el_torito plain 2>&1) \
     || { echo "xorriso failed to report El Torito boot images:" >&2; echo "$report" >&2; exit 1; }
@@ -68,21 +64,19 @@ locate_efi_image() {
   echo "$lba $blocks"
 }
 
-echo "==> Locating airootfs squashfs and EFI boot image inside the ISO..."
+echo "==> Locating airootfs squashfs and EFI boot image..."
 find_log=$(mktemp)
 xorriso -indev "$IN_ISO" -find / -name '*.sfs' >"$find_log" 2>&1 \
   || { echo "xorriso failed while searching for the squashfs:" >&2; cat "$find_log" >&2; exit 1; }
 sfs_path=$(awk -F"'" '/airootfs/{print $2; exit}' "$find_log")
 rm -f "$find_log"
 [[ -n $sfs_path ]] || { echo "Couldn't find airootfs*.sfs in the ISO" >&2; exit 1; }
-
 read -r efi_lba efi_blocks < <(locate_efi_image "$IN_ISO")
 echo "    squashfs: $sfs_path"
-echo "    efiboot:  LBA $efi_lba, $efi_blocks blocks (2048 bytes each)"
+echo "    efiboot:  LBA $efi_lba, $efi_blocks blocks"
 
 echo "==> Extracting airootfs squashfs..."
 run xorriso -osirrox on -indev "$IN_ISO" -extract "$sfs_path" "$work/airootfs.sfs"
-
 echo "==> Extracting EFI boot image..."
 dd if="$IN_ISO" of="$work/efiboot.img" bs=2048 skip="$efi_lba" count="$efi_blocks" status=none
 
@@ -93,18 +87,18 @@ cat > "$work/airootfs/root/.automated_script.sh" <<EOF
 grep -qw $CMDLINE_FLAG /proc/cmdline || exit 0
 
 echo "Waiting for network..."
-for i in \$(seq 1 30); do
+for _ in \$(seq 1 30); do
   ping -c1 -W1 archlinux.org &>/dev/null && break
   sleep 1
 done
 if ! ping -c1 -W1 archlinux.org &>/dev/null; then
   echo "No network after 30s."
-  echo "Connect manually (iwctl for Wi-Fi, mmcli for WWAN), then run:"
-  echo "  curl -fsSL $MAIN_URL | bash"
+  echo "Connect manually (iwctl for Wi-Fi), then run:"
+  echo "  curl -fsSL $BOOTSTRAP_URL | REPO=$REPO BRANCH=$BRANCH bash"
   exit 1
 fi
 
-curl -fsSL $MAIN_URL | bash
+curl -fsSL $BOOTSTRAP_URL | REPO=$REPO BRANCH=$BRANCH bash
 EOF
 chmod +x "$work/airootfs/root/.automated_script.sh"
 
@@ -112,17 +106,12 @@ echo "==> Repacking squashfs (this takes a while)..."
 rm -f "$work/airootfs.sfs"
 run mksquashfs "$work/airootfs" "$work/airootfs.sfs" -comp zstd -Xcompression-level 9
 
-echo "==> Adding a new boot entry to the EFI image..."
+echo "==> Adding a boot entry to the EFI image..."
 efi_mnt="$work/efi_mnt"
 mkdir -p "$efi_mnt"
 mount -o loop "$work/efiboot.img" "$efi_mnt"
-# `find | head -n1` isn't sorted — it returns whatever order the FAT
-# directory stores entries in, which can (and did) land on the wrong one:
-# archiso ships separate entries for the plain install medium, a speech/
-# accessibility variant, and memtest86+ (which boots straight via `efi=`,
-# no kernel/initrd/options at all). Match on content instead of file order:
-# has a `linux` line (excludes memtest) and no accessibility=on (excludes
-# the speech variant).
+# Pick the plain install entry by content, not directory order: it has a
+# `linux` line (memtest doesn't) and no accessibility=on (the speech one does).
 default_entry=""
 for f in "$efi_mnt"/loader/entries/*.conf; do
   grep -q '^linux[[:space:]]' "$f" || continue
@@ -132,21 +121,15 @@ for f in "$efi_mnt"/loader/entries/*.conf; do
 done
 [[ -n $default_entry ]] || { umount "$efi_mnt"; echo "No suitable Arch boot entry found in efiboot.img" >&2; exit 1; }
 new_entry="$efi_mnt/loader/entries/archauto.conf"
-sed "s/^title .*/title   Automated Install (macaricol\/arch)/" "$default_entry" > "$new_entry"
+sed "s|^title .*|title   Automated Install ($REPO)|" "$default_entry" > "$new_entry"
 sed -i "s/^options \(.*\)/options \1 $CMDLINE_FLAG/" "$new_entry"
-# Copied verbatim from the template, this ties with the real install-medium
-# entry's sort-key — put it first in the menu instead.
-sed -i "s/^sort-key .*/sort-key 00/" "$new_entry"
+sed -i "s/^sort-key .*/sort-key 00/" "$new_entry"   # first in the menu
 umount "$efi_mnt"
 
-# Only the squashfs goes through xorriso's remastering (-map) — it changed
-# size, so the ISO layout has to be rebuilt to fit it. The EFI image didn't
-# change size (we only added one small file inside its existing FAT
-# filesystem, not grown the container), so it doesn't need remastering —
-# just overwriting in place. But rebuilding the ISO for the squashfs can
-# shift where the EFI image ends up, so its offset is re-queried on the
-# *output* ISO rather than assumed to match the input.
-echo "==> Assembling patched ISO (squashfs)..."
+# Only the squashfs needs xorriso's remastering (it changed size). The EFI
+# image kept its size, so it's overwritten in place afterwards — at the
+# offset re-queried from the *output* ISO, since remastering can move it.
+echo "==> Assembling patched ISO..."
 run xorriso -indev "$IN_ISO" -outdev "$OUT_ISO" \
   -boot_image any replay \
   -map "$work/airootfs.sfs" "$sfs_path" \
@@ -155,8 +138,7 @@ run xorriso -indev "$IN_ISO" -outdev "$OUT_ISO" \
 echo "==> Patching EFI boot image into place..."
 read -r new_efi_lba new_efi_blocks < <(locate_efi_image "$OUT_ISO")
 if (( new_efi_blocks != efi_blocks )); then
-  echo "EFI image size changed after remastering ($efi_blocks -> $new_efi_blocks blocks)" >&2
-  echo "— aborting rather than risk writing the wrong-sized image into the wrong place." >&2
+  echo "EFI image size changed after remastering ($efi_blocks -> $new_efi_blocks blocks); aborting." >&2
   exit 1
 fi
 dd if="$work/efiboot.img" of="$OUT_ISO" bs=2048 seek="$new_efi_lba" conv=notrunc status=none
