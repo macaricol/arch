@@ -16,7 +16,7 @@ phase_post() {
   # -n in the trap: if the ticket is somehow gone, fail quietly rather than
   # hang on a password prompt nobody can answer.
   trap 'kill '"$keepalive_pid"' 2>/dev/null; sudo -n rm -f "$SUDOERS_DROPIN" 2>/dev/null' EXIT
-  STEP_TOTAL=10
+  STEP_TOTAL=11
 
   clear
   step "Enabling multilib & updating the system"
@@ -29,6 +29,7 @@ phase_post() {
   step "Installing KDE Plasma";            pkg_install "${KDE_PACKAGES[@]}";   step_done
   step "Installing extra applications";    pkg_install "${EXTRA_PACKAGES[@]}"; step_done
   step "Setting mpv wheel controls";       configure_mpv;                step_done
+  step "Configuring surround audio";       configure_audio;              step_done
   step "Login screen, wallpaper, keyboard"; configure_login_and_desktop; step_done
   step "Setting up Samba file sharing";    configure_samba;              step_done
   step "Installing Steam & AUR packages";  install_gaming_and_aur;       step_done
@@ -78,6 +79,39 @@ WHEEL_DOWN    seek -10
 WHEEL_LEFT    add volume -2
 WHEEL_RIGHT   add volume 2
 EOF
+}
+
+# PipeWire ships upmixing off: a stereo stream on a surround card feeds front
+# L/R and leaves every other speaker silent. The same drop-in has to go in two
+# places, because the channel mixing happens in whichever client library the
+# app uses — client.conf.d covers native PipeWire apps (mpv, Firefox/Zen's
+# native backend), pipewire-pulse.conf.d covers everything speaking PulseAudio.
+# Miss either one and half your applications quietly stay stereo.
+configure_audio() {
+  if (( ! UPMIX_SURROUND )); then
+    info "Surround upmixing disabled in config — leaving PipeWire defaults"
+    return
+  fi
+
+  local dir
+  for dir in client pipewire-pulse; do
+    sudo mkdir -p "/etc/pipewire/$dir.conf.d"
+    sudo tee "/etc/pipewire/$dir.conf.d/20-upmix.conf" > /dev/null <<EOF
+# Managed by arch-setup. Upmix stereo onto all surround speakers.
+stream.properties = {
+    channelmix.upmix        = true
+    channelmix.upmix-method = $UPMIX_METHOD
+    channelmix.lfe-cutoff   = $UPMIX_LFE_CUTOFF
+    channelmix.fc-cutoff    = $UPMIX_FC_CUTOFF
+    channelmix.rear-delay   = $UPMIX_REAR_DELAY
+}
+EOF
+  done
+
+  # Deliberately nothing here for mpv: it already hands PipeWire a stereo
+  # stream and lets the upmix do the work. Forcing audio-channels=7.1 would
+  # make mpv pad the extra channels with silence itself, and PipeWire would
+  # then see 8ch and skip upmixing entirely — front L/R only again.
 }
 
 configure_login_and_desktop() {
