@@ -5,6 +5,11 @@
 REPO=${REPO:-macaricol/arch}
 BRANCH=${BRANCH:-main}
 
+# ── Install media (tools/build-autoinstall-iso.sh) ─────────────────────
+# Where the builder fetches the official ISO from when you don't hand it one.
+# Any Arch mirror works; this is the project's own geo-balanced one.
+ISO_MIRROR='https://geo.mirror.pkgbuild.com/iso/latest'
+
 # ── Locale ─────────────────────────────────────────────────────────────
 TIMEZONE='Europe/Lisbon'
 KEYMAP='pt-latin9'                   # console keymap: live ISO and installed system
@@ -37,7 +42,7 @@ EXTRA_PACKAGES=(
 )
 
 GAMING_PACKAGES=(steam)  # only installed when a supported GPU was detected, see post phase
-AUR_PACKAGES=(zen-browser-bin qimgv-git)
+AUR_PACKAGES=(zen-browser-bin qview)
 
 # The lib32-* packages are what Steam needs. Installing the right ones up
 # front matters: steam depends on virtual lib32-vulkan-driver / lib32-libgl,
@@ -45,11 +50,29 @@ AUR_PACKAGES=(zen-browser-bin qimgv-git)
 # the whole NVIDIA userspace) even on AMD/Intel machines.
 GPU_PACKAGES_INTEL=(mesa lib32-mesa vulkan-intel lib32-vulkan-intel intel-media-driver)
 GPU_PACKAGES_AMD=(mesa lib32-mesa vulkan-radeon lib32-vulkan-radeon radeontop)
-GPU_PACKAGES_NVIDIA=(nvidia nvidia-utils lib32-nvidia-utils nvidia-settings opencl-nvidia)
+# nvidia-open, not nvidia: the proprietary kernel modules are gone from the
+# repos (nvidia-open declares Replaces: nvidia<=580.119.02-2), so the old name
+# is simply "target not found" and aborts the whole post phase. The non-dkms
+# build is the right one here because BASE_PACKAGES installs the stock `linux`
+# kernel, which it's prebuilt against. Note this only drives Turing (RTX 20xx)
+# and newer — NVIDIA's 615 branch dropped Maxwell/Pascal/Volta, and with the
+# proprietary package gone those cards now fall back to nouveau.
+GPU_PACKAGES_NVIDIA=(nvidia-open nvidia-utils lib32-nvidia-utils nvidia-settings opencl-nvidia)
 # VMs and unknown hardware. Deliberately no software Vulkan: a 64-bit Vulkan
 # device (vulkan-swrast) makes the SDDM theme's video background render blank
 # under VirtualBox, and lib32-vulkan-swrast can't be installed without it.
 GPU_PACKAGES_FALLBACK=(mesa lib32-mesa)
+
+# ── Audio ──────────────────────────────────────────────────────────────
+# PipeWire does not upmix by default: on a surround card, stereo content
+# plays out of front L/R only and the rear/side/centre speakers stay silent.
+# These settings feed every speaker. Set UPMIX_SURROUND=0 on a machine with
+# plain stereo output, where upmixing does nothing useful.
+UPMIX_SURROUND=1
+UPMIX_METHOD='psd'        # psd = matrix-decode rears from L-R; also 'simple', 'none'
+UPMIX_LFE_CUTOFF=150      # Hz and below go to the subwoofer
+UPMIX_FC_CUTOFF=12000     # Hz and below go to the centre speaker
+UPMIX_REAR_DELAY=12.0     # ms of Haas delay on the rears, so they stay behind you
 
 # ── Look & feel ────────────────────────────────────────────────────────
 SDDM_THEME_REPO='https://github.com/macaricol/sddm-astronaut-theme.git'

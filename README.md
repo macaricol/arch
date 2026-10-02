@@ -27,7 +27,19 @@ To install from a different branch: `curl ... | BRANCH=clauding bash`.
 official ISO's boot menu that runs the command above by itself:
 
     sudo pacman -S --needed xorriso squashfs-tools
+    sudo tools/build-autoinstall-iso.sh
+
+Run with no arguments it asks whether to fetch the current official ISO or
+use one you already have. `--download` skips the question for scripted use,
+and an explicit path still works as before:
+
+    sudo tools/build-autoinstall-iso.sh --download my-autoinstall.iso
     sudo tools/build-autoinstall-iso.sh archlinux-x86_64.iso archlinux-autoinstall.iso
+
+Downloads land in the current directory under their dated release name, are
+checked against the mirror's `sha256sums.txt` and GPG-verified against the
+pacman keyring, and are reused instead of re-fetched on later runs. The
+mirror is `ISO_MIRROR` in `config.sh`.
 
 ## How it fits together
 
@@ -66,8 +78,8 @@ copy cleans itself up.
 Everything lives in `config.sh`: timezone, keymaps, locales, mirror
 countries, EFI size, Btrfs mount options, the package lists (`BASE_`,
 `KDE_`, `EXTRA_`, `GAMING_`, `AUR_PACKAGES`, per-vendor `GPU_PACKAGES_*`),
-the SDDM theme and wallpaper, icon theme, Plasma widgets, and the Samba
-workgroup.
+the surround-upmix settings (`UPMIX_*`), the SDDM theme and wallpaper, icon
+theme, Plasma widgets, and the Samba workgroup.
 
 ## Design notes
 
@@ -85,6 +97,17 @@ Things that look odd but are deliberate:
   and Steam is skipped: software Vulkan (`vulkan-swrast`) would satisfy the
   dependency, but a 64-bit Vulkan device makes the SDDM theme's video
   background render blank under VirtualBox.
+- **Surround upmixing is written twice**, to
+  `/etc/pipewire/client.conf.d/` and `/etc/pipewire/pipewire-pulse.conf.d/`.
+  PipeWire mixes channels in the client library, so the native path (mpv,
+  Zen) and the PulseAudio path each need their own copy — configure one and
+  half your applications silently stay stereo. Upmixing is off in stock
+  PipeWire: without this, a stereo stream on a 5.1/7.1 card only ever
+  reaches front L/R. `lfe-cutoff`/`fc-cutoff` have to be set explicitly too;
+  left at their defaults the subwoofer and centre stay silent even with
+  `channelmix.upmix = true`. Nothing is set for mpv on purpose — forcing
+  `audio-channels=7.1` makes mpv pad the extra channels itself, so PipeWire
+  sees 8 channels and skips the upmix.
 - **Microcode goes in with `pacstrap`**, so the first initramfs and
   `grub.cfg` already include it and nothing needs regenerating later.
 - **The post phase enables SDDM without `--now`.** `sddm.service` conflicts
@@ -99,3 +122,100 @@ Things that look odd but are deliberate:
   layout.
 - The live USB is filtered out of the drive menu, and `udevadm settle`
   runs after partitioning so the new device nodes exist before they're used.
+
+## Annex: installed packages
+
+Grouped as they appear in `config.sh`, which is the source of truth — this
+table is a description of those lists, not a second copy of them.
+
+### `BASE_PACKAGES` — pacstrapped onto the new root
+
+| Package | Purpose |
+|---|---|
+| `base` | Core meta-package for a minimal Arch system (glibc, pacman, systemd) |
+| `linux` | The main Linux kernel |
+| `linux-firmware` | Firmware blobs for hardware devices (Wi-Fi, GPU, etc.) |
+| `btrfs-progs` | Btrfs filesystem tools, needed for the `@`/`@home` subvolumes |
+| `grub` | Bootloader |
+| `efibootmgr` | UEFI boot manager, required by GRUB in UEFI mode |
+| `nano` | Simple text editor, so the installed system is usable before a desktop exists |
+| `networkmanager` | Network management daemon (Wi-Fi, Ethernet, VPN) |
+| `sudo` | Lets the created user run commands as root |
+
+CPU microcode (`intel-ucode` / `amd-ucode`) is added here too, picked from the
+detected vendor — see the design note on why it goes in at this stage.
+
+### GPU drivers — `GPU_PACKAGES_*`, by detected vendor
+
+- **Intel** — `mesa`, `lib32-mesa`, `vulkan-intel`, `lib32-vulkan-intel`,
+  `intel-media-driver`: graphics drivers (64- and 32-bit), Vulkan, and
+  hardware video decode/encode
+- **AMD** — `mesa`, `lib32-mesa`, `vulkan-radeon`, `lib32-vulkan-radeon`,
+  `radeontop`: the same, plus a GPU usage monitor
+- **NVIDIA** — `nvidia-open`, `nvidia-utils`, `lib32-nvidia-utils`,
+  `nvidia-settings`, `opencl-nvidia`: open kernel modules plus the userspace
+  driver (64- and 32-bit), config GUI, OpenCL. `nvidia-open` drives Turing
+  (RTX 20xx) and newer only; older cards fall back to nouveau, since the
+  proprietary package no longer exists in the repos.
+- **Fallback** (VMs, unrecognised hardware) — `mesa`, `lib32-mesa` only.
+  Deliberately no software Vulkan: see the design note above.
+
+Hybrid setups get every matching vendor. The 32-bit halves are what Steam
+needs, and installing them first is what stops pacman pulling the NVIDIA
+userspace onto an AMD or Intel machine.
+
+### `KDE_PACKAGES` — the desktop
+
+**Core Plasma**
+- `plasma-desktop` — Plasma shell, panels, widgets, workspace
+- `sddm` — Login screen (display manager)
+- `sddm-kcm` — KDE settings module for configuring SDDM
+- `kscreen` — Display configuration and multi-monitor support
+
+**System tray & management**
+- `plasma-pa` — Audio volume control
+- `plasma-nm` — Network management
+- `plasma-systemmonitor` — System resource monitor
+- `kwalletmanager` — Password and credential manager (KWallet)
+
+**Hardware & connectivity**
+- `bluedevil` — Bluetooth support and tray applet
+- `kdeconnect` — Phone integration (notifications, file sharing, remote control)
+- `kdenetwork-filesharing` — The "Share" tab in Dolphin, for Samba shares
+
+**Applications**
+- `konsole` — Terminal emulator
+- `dolphin` — File manager
+- `ark` — Archive manager (zip, 7z, rar, …)
+- `featherpad` — Lightweight text editor
+- `kio-admin` — Lets Dolphin edit root-owned files behind a polkit prompt,
+  instead of running a whole file manager as root
+
+**Multimedia & thumbnails**
+- `kdegraphics-thumbnailers` — Thumbnails for images and PDFs
+- `ffmpegthumbs` — Video thumbnails in Dolphin
+- `pipewire-jack` — JACK audio support via PipeWire
+
+### `EXTRA_PACKAGES` — applications and fonts
+
+- `fastfetch` — System information display
+- `mpv` — Lightweight, scriptable video player
+- `krdc` — Remote desktop client (VNC/RDP)
+- `krdp` — Remote desktop server (RDP)
+- `git` — Version control
+- `code` — The open-source build of Visual Studio Code
+- `ttf-liberation` — Metric-compatible Arial / Times New Roman / Courier New
+- `noto-fonts-cjk` — Chinese, Japanese and Korean coverage
+- `ntfs-3g`, `exfatprogs`, `dosfstools` — format and repair NTFS, exFAT and
+  FAT32. Only formatting and repair need these; mounting works without them.
+
+### `GAMING_PACKAGES` and `AUR_PACKAGES`
+
+- `steam` — Installed only when a real GPU was detected, and after the 32-bit
+  drivers, for the reason in the design notes. Needs the multilib repo, which
+  the post phase enables.
+- `base-devel` — Build tools, required to compile anything from the AUR
+- `paru` (AUR) — AUR helper, built from source so it always matches the
+  installed pacman's libalpm; the Rust toolchain is removed again afterwards
+- `zen-browser-bin` (AUR) — Firefox-based privacy-focused browser
+- `qview` (AUR) — Lightweight, fast image viewer
