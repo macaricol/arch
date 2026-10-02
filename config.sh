@@ -50,7 +50,14 @@ AUR_PACKAGES=(zen-browser-bin qview)
 # the whole NVIDIA userspace) even on AMD/Intel machines.
 GPU_PACKAGES_INTEL=(mesa lib32-mesa vulkan-intel lib32-vulkan-intel intel-media-driver)
 GPU_PACKAGES_AMD=(mesa lib32-mesa vulkan-radeon lib32-vulkan-radeon radeontop)
-GPU_PACKAGES_NVIDIA=(nvidia nvidia-utils lib32-nvidia-utils nvidia-settings opencl-nvidia)
+# nvidia-open, not nvidia: the proprietary kernel modules are gone from the
+# repos (nvidia-open declares Replaces: nvidia<=580.119.02-2), so the old name
+# is simply "target not found" and aborts the whole post phase. The non-dkms
+# build is the right one here because BASE_PACKAGES installs the stock `linux`
+# kernel, which it's prebuilt against. Note this only drives Turing (RTX 20xx)
+# and newer — NVIDIA's 615 branch dropped Maxwell/Pascal/Volta, and with the
+# proprietary package gone those cards now fall back to nouveau.
+GPU_PACKAGES_NVIDIA=(nvidia-open nvidia-utils lib32-nvidia-utils nvidia-settings opencl-nvidia)
 # VMs and unknown hardware. Deliberately no software Vulkan: a 64-bit Vulkan
 # device (vulkan-swrast) makes the SDDM theme's video background render blank
 # under VirtualBox, and lib32-vulkan-swrast can't be installed without it.

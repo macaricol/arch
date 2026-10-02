@@ -152,9 +152,11 @@ detected vendor — see the design note on why it goes in at this stage.
   hardware video decode/encode
 - **AMD** — `mesa`, `lib32-mesa`, `vulkan-radeon`, `lib32-vulkan-radeon`,
   `radeontop`: the same, plus a GPU usage monitor
-- **NVIDIA** — `nvidia`, `nvidia-utils`, `lib32-nvidia-utils`,
-  `nvidia-settings`, `opencl-nvidia`: proprietary driver (64- and 32-bit),
-  config GUI, OpenCL
+- **NVIDIA** — `nvidia-open`, `nvidia-utils`, `lib32-nvidia-utils`,
+  `nvidia-settings`, `opencl-nvidia`: open kernel modules plus the userspace
+  driver (64- and 32-bit), config GUI, OpenCL. `nvidia-open` drives Turing
+  (RTX 20xx) and newer only; older cards fall back to nouveau, since the
+  proprietary package no longer exists in the repos.
 - **Fallback** (VMs, unrecognised hardware) — `mesa`, `lib32-mesa` only.
   Deliberately no software Vulkan: see the design note above.
 
