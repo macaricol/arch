@@ -52,13 +52,13 @@ phase_install() {
   wait_for_usb_removal
   info "Rebooting..."
   sync
-  # The new system is unmounted and nothing on the live ISO needs a clean
-  # shutdown, so skip stopping its services: --force goes straight to
-  # killing processes and rebooting, without the screens of "Stopped ..."
-  # lines or the 90 s wait for the Wi-Fi service. RTMIN+21 tells systemd to
-  # stop printing status for whatever is left.
-  kill -s RTMIN+21 1 2>/dev/null || true
-  systemctl reboot --force || echo b > /proc/sysrq-trigger
+  # The new system is unmounted and synced, and the live ISO's own files
+  # are in RAM, so nothing needs a shutdown: --force twice reboots at once,
+  # without stopping services ("Stopped ..." screens) or waiting on
+  # processes (iwd ignores SIGTERM, which held a single --force for 90 s).
+  # dmesg -n 1 keeps any last kernel message off the screen.
+  dmesg -n 1 2>/dev/null || true
+  systemctl reboot --force --force || echo b > /proc/sysrq-trigger
 }
 
 # Left plugged in, the USB can win the boot order and start the installer

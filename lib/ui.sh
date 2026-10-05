@@ -74,8 +74,24 @@ scale_console_font() {
     diff=$(( rows > target ? rows - target : target - rows ))
     (( diff < best_diff )) && { best=$font; best_diff=$diff; }
   done
-  setfont "${best:-default8x16}" 2>/dev/null || true
+  if setfont "${best:-default8x16}" 2>/dev/null && [[ $best == "$SETUP_DIR"/* ]]; then
+    PATCHED_FONT=1
+    : > "$PATCHED_FONT_MARK" 2>/dev/null || true
+  fi
   update_margin
+}
+
+# The double-resolution logo is drawn with glyphs only the patched fonts
+# have, so it's used only once one of them is loaded: by scale_console_font
+# in this process, or, at the first boot, by the service's root step before
+# this process started, which leaves PATCHED_FONT_MARK behind.
+PATCHED_FONT_MARK=/run/arch-setup-patched-font
+logo_file() {
+  if on_console && [[ ${PATCHED_FONT:-0} == 1 || -e $PATCHED_FONT_MARK ]] && [[ -f $SETUP_DIR/logo-hd.txt ]]; then
+    echo "$SETUP_DIR/logo-hd.txt"
+  else
+    echo "$LOGO_FILE"
+  fi
 }
 
 # Called first thing by each interactive phase.
@@ -152,16 +168,17 @@ PROGRESS_WIDTH=40
 
 # The logo, then TAGLINE (config.sh) underneath.
 draw_logo() {
-  [[ -r $LOGO_FILE ]] || return 0
+  local file; file=$(logo_file)
+  [[ -r $file ]] || return 0
   # All lines are padded to one width, so measuring the first is enough.
   # ${#line} counts bytes, not █s, unless the locale is UTF-8.
   local LC_ALL=C.UTF-8 line width
-  IFS= read -r line < "$LOGO_FILE"
+  IFS= read -r line < "$file"
   width=${#line}
   printf '\n\n'
   while IFS= read -r line; do
     center "${C_CYAN}${line}${C_RESET}" "$width"
-  done < "$LOGO_FILE"
+  done < "$file"
   echo
   center "${C_PINK}${TAGLINE}${C_RESET}" "${#TAGLINE}"
   echo

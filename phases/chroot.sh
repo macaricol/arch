@@ -144,6 +144,10 @@ PAMName=login
 WorkingDirectory=$home
 Environment=TERM=linux
 ExecStartPre=-+/usr/bin/plymouth quit
+# Font and palette as root (see setup.sh). No TTYVTDisallocate below: it
+# applies before every Exec line, and a re-created VT starts over with the
+# kernel's own character table, so the font's ᗧ, padlock and dot would be
+# boxes by the time the post phase draws them.
 ExecStartPre=-+/bin/bash $home/.arch-setup/setup.sh console
 ExecStart=/bin/bash $home/.arch-setup/setup.sh post
 ExecStopPost=+/usr/bin/systemctl --no-block start getty@tty1.service
@@ -153,7 +157,6 @@ StandardError=tty
 TTYPath=/dev/tty1
 TTYReset=yes
 TTYVHangup=yes
-TTYVTDisallocate=yes
 
 [Install]
 WantedBy=multi-user.target

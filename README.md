@@ -55,6 +55,7 @@ mirror is `ISO_MIRROR` in `config.sh`.
     setup.sh <phase>      single entry point; loads config + lib, runs one phase
     config.sh             every tunable value: locale, disk, package lists, theme
     logo.txt              the logo drawn above every step
+    logo-hd.txt           the same at double resolution, for the console (tools/make-logo.py)
     assets/plymouth/      the boot splash theme: script, logo, spinner
     assets/consolefonts/  the console fonts, with Pac-Man and a padlock added (tools/make-console-fonts.py)
     lib/ui.sh             console font/palette, centred step screens, run() spinner + setup.log
@@ -134,10 +135,10 @@ Things that look odd but are deliberate:
   itself once the phase succeeds; if the phase fails, tty1 gets its login
   prompt back and the service tries again on the next boot. sudo's
   first-use lecture is switched off (`/etc/sudoers.d/10-wheel`).
-- **The live ISO reboots with `systemctl reboot --force`**, after the new
-  system is unmounted: nothing on the ISO needs a clean shutdown, and
-  stopping its services meant screens of status lines and a 90 s wait for
-  the Wi-Fi service.
+- **The live ISO reboots with `systemctl reboot --force --force`**, after
+  the new system is unmounted and synced: nothing on the ISO needs a clean
+  shutdown, and one was screens of status lines and a 90 s wait for the
+  Wi-Fi daemon, which ignores SIGTERM. The double force reboots at once.
 - **The post phase enables SDDM without `--now`.** It would take over tty1,
   where the phase is still running. The reboot starts it.
 - **Passwordless `sudo pacman`** exists only during the AUR step (makepkg's
@@ -157,7 +158,16 @@ Things that look odd but are deliberate:
   carry the first-boot unlock screen's padlock, Omarchy's lock shape
   redrawn as a block of 5×3 tiles (U+E000–U+E00E), 80% as tall as the
   password box beside it. No stock console font has any of these;
-  `tools/make-console-fonts.py` rebuilds the copies. Each step
+  `tools/make-console-fonts.py` rebuilds the copies.
+- **The console gets a double-resolution logo.** Plain console characters
+  go no finer than half blocks, two pixels per cell, which is `logo.txt`.
+  `tools/make-logo.py` draws the logo at 144×28 pixels instead, 2×4 per
+  cell, and writes `logo-hd.txt`: each cell that isn't empty, full or a
+  half block is a private-use character (U+E100 + its pixel pattern), and
+  `tools/make-console-fonts.py` draws those patterns into the fonts. It's
+  shown only once a patched font is loaded (as root; at the first boot the
+  service's root step leaves `/run/arch-setup-patched-font`), and
+  `logo.txt` everywhere else, such as in a terminal emulator. Each step
   then clears the screen and redraws the logo, a progress bar and the step
   title in one centred column; earlier output stays in the log, which is
   why `warn` writes there too. None of this persists after a reboot.

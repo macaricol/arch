@@ -139,7 +139,7 @@ DOT=$'\ue010'   # a round bullet, from the same fonts
 unlock_screen() {
   local __var=$1 __hint=$2 __error=${3:-} LC_ALL=C.UTF-8
   local -a __logo
-  mapfile -t __logo < "$LOGO_FILE"
+  mapfile -t __logo < "$(logo_file)"
   local __box=36 __pw='' __key __rest __line __shown
   # logo, blank, tagline, 2 blanks, box (3 rows), blank, message
   local __top=$(( ($(term_rows) - ${#__logo[@]} - 9) / 2 + 1 ))

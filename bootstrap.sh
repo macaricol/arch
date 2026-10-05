@@ -12,7 +12,8 @@ REPO=${REPO:-macaricol/arch}
 BRANCH=${BRANCH:-main}
 DEST=/tmp/arch-setup
 
-echo "Fetching $REPO@$BRANCH..."
+# QUIET=1: the USB's splash already says what is happening.
+[[ ${QUIET:-0} == 1 ]] || echo "Fetching $REPO@$BRANCH..."
 rm -rf "$DEST"
 mkdir -p "$DEST"
 # GitHub names the tarball's top directory <repo>-<branch>; strip it so

@@ -8,10 +8,13 @@ from, each with two glyphs redrawn as Pac-Man.
                  first-boot unlock screen (lib/prompt.sh's unlock_screen)
   U+E010         a round bullet, for that screen's password box (the
                  fonts' own • ranges from a square to a diamond)
+  U+E100 + n     the cells of logo-hd.txt (tools/make-logo.py): each a 2 x 4
+                 grid of blocks, bit n set for each one filled
 
 The console can't show emoji or colour glyphs, and no stock console font has
 any of them, so they take over the slots of glyphs the installer never
-prints (old DOS symbols like ☺ ♀, or Hebrew letters in the 512-glyph font).
+prints (old DOS and box-drawing symbols like ☺ ♀ ╬, or Hebrew and Arabic
+letters in the 512-glyph font).
 The two Pac-Men are as tall as the font's capital O and centred on it, so
 they sit in a line of text like a letter. The padlock is the shape of
 Omarchy's (default/plymouth/lock.png in basecamp/omarchy), redrawn from its
@@ -36,8 +39,13 @@ LOCK = [chr(0xE000 + i) for i in range(LOCK_COLS * LOCK_ROWS)]   # row by row
 DOT = "\ue010"
 MOUTH_DEGREES = 38   # half the opening, measured from the horizontal
 # Slots to give up, in order of preference.
-# (Not •, ↑ or ↓: the installer prints those.)
-SPARE = list("☺☻♀♂♪♫☼♥♦♣♠◘○◙►◄↕‼▬↨∟↔▲▼⌂") + [chr(c) for c in range(0x5D0, 0x5EB)]
+LOGO = pathlib.Path(__file__).resolve().parent.parent / "logo-hd.txt"
+# (Not •, ·, ↑, ↓ or the single-line box drawing: the installer prints those.)
+SPARE = (list("☺☻♀♂♪♫☼♥♦♣♠◘○◙►◄↕‼▬↨∟↔▲▼⌂")
+         + list("╔╗╚╝═║╠╣╦╩╬╒╓╕╖╘╙╛╜╞╟╡╢╤╥╧╨╪╫")
+         + list("αΓπΣστΦΘδ∞φε∩≡≥≤⌠⌡≈√ⁿ░▒▓")
+         + [chr(c) for c in range(0x5D0, 0x5EB)]     # Hebrew and Arabic letters, in the
+         + [chr(c) for c in range(0x600, 0x700)])    # 512-glyph font only
 
 
 def load(path):
@@ -135,6 +143,20 @@ def draw_dot(font):
     return glyph
 
 
+def draw_cell(font, bits):
+    """A logo cell: the glyph split into 2 columns and 4 rows of blocks, on
+    the same boundaries as the font's own ▌▐ and ▀▄, filled where bits says."""
+    w, h, row = font["width"], font["height"], (font["width"] + 7) // 8
+    xs, ys = (0, w // 2, w), [round(h * k / 4) for k in range(5)]
+    glyph = bytearray(font["size"])
+    for n in range(8):
+        if bits >> n & 1:
+            for y in range(ys[n // 2], ys[n // 2 + 1]):
+                for x in range(xs[n % 2], xs[n % 2 + 1]):
+                    glyph[y * row + x // 8] |= 0x80 >> (x % 8)
+    return glyph
+
+
 def draw(font, mouth):
     """A filled circle as tall as the capital O and centred on it; mouth > 0
     cuts a wedge open to the right."""
@@ -169,6 +191,8 @@ def main():
         spare = [i for c in SPARE for i, t in enumerate(font["table"]) if chars_of(t) == c]
         glyphs = [(PACMAN, draw(font, MOUTH_DEGREES)), (CLOSED, draw(font, 0))]
         glyphs += list(zip(LOCK, draw_lock(font))) + [(DOT, draw_dot(font))]
+        cells = sorted({c for c in LOGO.read_text() if ord(c) >= 0xE100})
+        glyphs += [(c, draw_cell(font, ord(c) - 0xE100)) for c in cells]
         assert len(spare) >= len(glyphs), f"{name}: not enough spare glyph slots"
         for slot, (char, glyph) in zip(spare, glyphs):
             font["glyphs"][slot] = glyph
