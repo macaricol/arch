@@ -78,9 +78,13 @@ scale_console_font() {
   on_console && (( EUID == 0 )) && command -v setfont &>/dev/null || return 0
   local target=48 best='' best_diff=99999 font rows cols diff dev errors i
   dev=$(console_dev) errors=$(mktemp)
-  # A console still in graphics mode refuses any font, with kbd's misleading
-  # "Unable to load such font with such kernel version": at the first boot,
-  # Plymouth can still be handing tty1 back. Wait (up to 10 s) until it takes one.
+  # With a quiet boot, the console may have no font support yet: the kernel
+  # defers the framebuffer console's takeover until something is printed
+  # (fbcon deferred takeover, for flicker-free boots), and until then every
+  # font is refused, which kbd reports as "Unable to load such font with
+  # such kernel version". So print something (clearing the screen), then
+  # wait (up to 10 s) for the takeover, which happens asynchronously.
+  printf '\e[H\e[2J' > "$dev" 2>/dev/null || true
   for i in {1..20}; do
     setfont -f -C "$dev" default8x16 2>/dev/null && break
     sleep 0.5

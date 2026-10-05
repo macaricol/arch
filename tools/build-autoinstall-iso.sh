@@ -283,6 +283,14 @@ LAYOUT_WIDTH=72
 # takes over the console, udev re-runs systemd-vconsole-setup, which puts
 # the stock font back, and that can land seconds into boot.
 udevadm settle --timeout=15 2>/dev/null
+# The quiet boot leaves the framebuffer console's takeover deferred until
+# something is printed, and until then setfont fails: print, then wait for
+# the takeover (asynchronous) to accept a font.
+printf '\e[H\e[2J'
+for _ in {1..20}; do
+  setfont -f -C /dev/tty1 default8x16 2>/dev/null && break
+  sleep 0.5
+done
 best='' best_diff=99999
 for font in default8x16 sun12x22 latarcyrheb-sun32; do
   font=/usr/local/share/archauto/$font.psfu.gz
