@@ -57,9 +57,10 @@ phase_install() {
   # are in RAM, so nothing needs a shutdown: --force twice reboots at once,
   # without stopping services ("Stopped ..." screens) or waiting on
   # processes (iwd ignores SIGTERM, which held a single --force for 90 s).
-  # dmesg -n 1 keeps any last kernel message off the screen.
+  # dmesg -n 1 keeps any last kernel message off the screen, and systemctl's
+  # own "Rebooting." goes nowhere.
   dmesg -n 1 2>/dev/null || true
-  systemctl reboot --force --force || echo b > /proc/sysrq-trigger
+  systemctl reboot --force --force &>/dev/null || echo b > /proc/sysrq-trigger
 }
 
 # Left plugged in, the USB can win the boot order and start the installer
