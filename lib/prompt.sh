@@ -26,6 +26,15 @@ gum_cancelled() { (( $1 == 130 )) && die "Cancelled."; return 0; }
 valid_hostname() { [[ $1 =~ ^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$ ]]; }
 valid_username() { [[ $1 =~ ^[a-z_][a-z0-9_-]{0,31}$ ]]; }
 
+# What to say when a validator rejects an answer.
+invalid_hint() {
+  case $1 in
+    valid_hostname) echo "Use lowercase letters, numbers and dashes" ;;
+    valid_username) echo "Start with a letter, then use lowercase letters, numbers, _ and -" ;;
+    *)              echo "That doesn't look right, try again" ;;
+  esac
+}
+
 # input VAR "Prompt" [validator] [--secret]
 # Asks on one line, "ᗧ Prompt > answer", followed by a blank line. Loops
 # until a non-empty value passes the validator, then stores it in VAR.
@@ -56,7 +65,7 @@ input() {
     echo
     __val=${__val##+([[:space:]])}; __val=${__val%%+([[:space:]])}
     [[ -n $__val ]] || { warn "Cannot be empty"; continue; }
-    if [[ -n $__validator ]] && ! "$__validator" "$__val"; then warn "Invalid value"; continue; fi
+    if [[ -n $__validator ]] && ! "$__validator" "$__val"; then warn "$(invalid_hint "$__validator")"; continue; fi
     printf -v "$__var" '%s' "$__val"
     return 0
   done

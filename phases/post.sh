@@ -19,20 +19,43 @@ phase_post() {
   (( STEP_TOTAL )) || STEP_TOTAL=10   # unless carrying on the installer's bar
 
   step "Updating the system"
+  info "Making sure everything is up to date..."
   require_network
   # gum: the prompt UI (lib/prompt.sh), for the reboot question at the end.
   run sudo pacman -Syu --noconfirm --needed gum
 
-  step "Installing KDE Plasma";            pkg_install "${KDE_PACKAGES[@]}"
-  step "Installing extra applications";    pkg_install "${EXTRA_PACKAGES[@]}"
-  step "Setting mpv wheel controls";       configure_mpv
-  step "Configuring surround audio";       configure_audio
-  step "Login screen, wallpaper, keyboard"; configure_login_and_desktop
-  step "Setting up Samba file sharing";    configure_samba
-  step "Installing Steam & AUR packages";  install_gaming_and_aur
-  step "Scheduling Plasma first-login setup"; schedule_kde_init
+  step "Installing the desktop"
+  info "Installing KDE Plasma, the desktop you'll log into. This is the big download."
+  pkg_install "${KDE_PACKAGES[@]}"
 
-  step "Enabling services"
+  step "Installing apps"
+  info "Adding apps: video player, code editor, remote desktop, fonts..."
+  pkg_install "${EXTRA_PACKAGES[@]}"
+
+  step "Tuning the video player"
+  info "Scroll to seek, tilt the wheel for volume"
+  configure_mpv
+
+  step "Setting up sound"
+  configure_audio
+
+  step "Personalising"
+  info "Setting up the login screen, wallpaper and keyboard layout..."
+  configure_login_and_desktop
+
+  step "Setting up file sharing"
+  info "Letting you share folders with other computers on your network"
+  configure_samba
+
+  step "Installing games & extras"
+  install_gaming_and_aur
+
+  step "Preparing your first login"
+  info "Your desktop layout and theme will be applied the first time you log in"
+  schedule_kde_init
+
+  step "Finishing up"
+  info "Turning on Bluetooth and the login screen..."
   enable_service --now bluetooth
   # No --now for SDDM: run by hand, it would take over tty1, where this phase
   # is still running, before the prompt below. The reboot starts it.
@@ -81,9 +104,10 @@ EOF
 # Miss either one and half your applications quietly stay stereo.
 configure_audio() {
   if (( ! UPMIX_SURROUND )); then
-    info "Surround upmixing disabled in config — leaving PipeWire defaults"
+    info "Keeping standard stereo sound"
     return
   fi
+  info "Spreading stereo sound to all your speakers"
 
   local dir
   for dir in client pipewire-pulse; do
@@ -174,7 +198,7 @@ EOF
 }
 
 install_gaming_and_aur() {
-  info "Hang tight — this step compiles paru and builds the AUR packages."
+  info "Building a few extras from the Arch community. This is the slowest step."
   pkg_install base-devel
   if [[ -n $(gpu_vendors) ]]; then
     pkg_install "${GAMING_PACKAGES[@]}"
@@ -182,7 +206,7 @@ install_gaming_and_aur() {
     # Without a real GPU driver, steam's 32-bit Vulkan dependency can only be
     # met by software Vulkan (breaks the login screen's video) or by pacman
     # picking lib32-nvidia-utils. Neither is worth it on a VM.
-    warn "No supported GPU — skipping Steam"
+    warn "Skipping Steam: no gaming graphics card found"
   fi
 
   # makepkg's internal `sudo pacman` calls don't pick up the cached ticket no
@@ -193,7 +217,7 @@ install_gaming_and_aur() {
   sudo visudo -c -f "$SUDOERS_DROPIN" > /dev/null || die "Generated sudoers drop-in is invalid"
 
   if command -v paru &>/dev/null; then
-    info "paru already installed — skipping build"
+    info "The community package helper is already installed"
   else
     # Built from source on purpose: paru-bin is compiled against a fixed
     # libalpm and breaks whenever pacman bumps its ABI (it has been flagged

@@ -3,8 +3,8 @@
 
 require_root()    { (( EUID == 0 )) || die "Must be run as root"; }
 require_user()    { (( EUID != 0 )) || die "Run this as your regular user (it uses sudo itself), not as root"; }
-require_uefi()    { [[ -d /sys/firmware/efi ]] || die "Not booted in UEFI mode"; }
-require_network() { ping -c1 -W3 archlinux.org &>/dev/null || die "No network connectivity"; }
+require_uefi()    { [[ -d /sys/firmware/efi ]] || die "This computer started in legacy (BIOS) mode. Restart and boot the USB in UEFI mode."; }
+require_network() { ping -c1 -W3 archlinux.org &>/dev/null || die "No internet connection. Plug in a cable or connect Wi-Fi (iwctl), then try again."; }
 
 # Runs a command as root: directly when already root, through sudo otherwise.
 as_root() { if (( EUID == 0 )); then "$@"; else sudo "$@"; fi; }
@@ -17,7 +17,7 @@ aur_install() {
   local attempt
   for attempt in 1 2 3; do
     run paru -S --needed --noconfirm "$@" && return 0
-    (( attempt < 3 )) && { warn "AUR install failed (attempt $attempt/3), retrying in 10s..."; sleep 10; }
+    (( attempt < 3 )) && { warn "Download hiccup, trying again ($((attempt + 1)) of 3)..."; sleep 10; }
   done
   die "Could not install AUR packages: $*"
 }
@@ -90,7 +90,7 @@ git_clone() {
   for attempt in 1 2 3; do
     rm -rf "$2"
     run git clone --depth 1 "$1" "$2" && return 0
-    (( attempt < 3 )) && { warn "Clone failed (attempt $attempt/3), retrying in 5s..."; sleep 5; }
+    (( attempt < 3 )) && { warn "Download hiccup, trying again ($((attempt + 1)) of 3)..."; sleep 5; }
   done
   die "Could not clone $1"
 }

@@ -8,7 +8,7 @@ phase_install() {
   setup_console
 
   header "Arch Linux installer"
-  info "Running pre-flight checks..."
+  info "Checking this computer is ready (UEFI boot, internet)..."
   require_root
   require_uefi
   require_network
@@ -30,17 +30,17 @@ phase_install() {
   printf "$MARGIN %s\n" "Hostname:  $HOST_NAME" "Username:  $USER_NAME" "Drive:     $DRIVE" \
     "Timezone:  $TIMEZONE" "Keymap:    $KEYMAP"
   echo
-  warn "This will ERASE ALL DATA on $DRIVE. This cannot be undone."
+  warn "Everything on $DRIVE will be erased. This can't be undone."
   ask "Type YES to continue >"; cursor on; read -r ack; cursor off
-  [[ $ack == YES ]] || { info "Aborted."; exit 0; }
+  [[ $ack == YES ]] || { info "Nothing was changed. Run the installer again whenever you're ready."; exit 0; }
 
-  step "Partitioning & formatting"
+  step "Preparing the drive"
   partition_and_mount
 
-  step "Installing the base system"
+  step "Installing Arch Linux"
   install_base
 
-  step "Configuring the new system"
+  step "Setting up your system"
   configure_new_system
 
   # Unmount first so nothing on the new system is lost if the stick is
@@ -51,9 +51,9 @@ phase_install() {
   umount -R /mnt || warn "Couldn't unmount /mnt — leave the USB in until the reboot starts"
   systemctl --version > /dev/null
 
-  finish "Installed! Remove the installation USB"
+  finish "All done! Remove the USB stick"
   wait_for_usb_removal
-  info "Rebooting..."
+  info "Restarting..."
   sync
   # The new system is unmounted and synced, and the live ISO's own files
   # are in RAM, so nothing needs a shutdown: --force twice reboots at once,
@@ -75,13 +75,13 @@ wait_for_usb_removal() {
   # Not a typing prompt: a plain message, and no cursor while it waits
   # (the key pressed isn't echoed).
   if [[ -n $usb ]]; then
-    info "Unplug the USB to reboot, or press Enter if it's already out."
+    info "Unplug the USB stick and your computer will restart into your new system."
   else
-    info "Remove the installation media, then press Enter to reboot."
+    info "Remove the installation media, then press Enter to restart."
   fi
   cursor off
   while :; do
-    [[ -n $usb && ! -b $usb ]] && { info "USB removed."; return; }
+    [[ -n $usb && ! -b $usb ]] && { info "See you on the other side!"; return; }
     read -rs -t 1 key && return
   done
 }
@@ -90,8 +90,8 @@ wait_for_usb_removal() {
 # overlay, so this costs a few MB of RAM and nothing on the target disk.
 install_gum() {
   command -v gum &>/dev/null && return 0
-  info "Fetching the prompt UI (gum)..."
-  run pacman -Sy --noconfirm --needed gum || warn "Couldn't install gum — using plain prompts"
+  info "Getting things ready..."
+  run pacman -Sy --noconfirm --needed gum || warn "Using simple prompts (couldn't download the fancy ones)"
 }
 
 # Arrow-key menu over the machine's disks, minus the live USB we booted from.
@@ -113,8 +113,11 @@ select_drive() {
 
   DRIVE=${MENU_CHOICE%% *}
   [[ -b $DRIVE ]] || die "Not a block device: $DRIVE"
+  local size model
+  read -r _ size model <<< "$MENU_CHOICE"
+  model=${model%%+([[:space:]])}
   echo
-  info "Selected $DRIVE"
+  info "Installing to $DRIVE (${model:-disk}, $size)"
 }
 
 partition_and_mount() {
@@ -129,7 +132,8 @@ partition_and_mount() {
 
   local ram_mib
   ram_mib=$(( $(awk '/MemTotal/{print $2}' /proc/meminfo) / 1024 ))
-  info "Layout: $EFI_SIZE EFI, ${ram_mib}M swap (= RAM, for hibernation), rest Btrfs"
+  info "Creating space for the system, hibernation and your files"
+  printf 'Layout: %s EFI, %sM swap (= RAM, for hibernation), rest Btrfs\n' "$EFI_SIZE" "$ram_mib" >> "$LOG_FILE"
 
   run wipefs -af "$DRIVE"
   run sgdisk -Z \
@@ -142,12 +146,11 @@ partition_and_mount() {
   udevadm settle
   [[ -b $efi && -b $swap && -b $root ]] || die "Partitioning failed"
 
-  info "Formatting..."
+  info "Setting up the file system..."
   run mkfs.fat -F32 -n BOOT "$efi"
   run mkswap -L SWAP "$swap"
   run mkfs.btrfs -f -L ROOT "$root"
 
-  info "Creating and mounting Btrfs subvolumes..."
   run mount "$root" /mnt
   run btrfs subvolume create /mnt/@ /mnt/@home
   run umount /mnt
@@ -178,14 +181,14 @@ install_base() {
   local countries mirrorlist=/etc/pacman.d/mirrorlist
   countries=$(mirror_countries)
   if [[ -n $countries ]]; then
-    info "Ranking mirrors in $countries..."
+    info "Finding the fastest download servers near you ($countries)..."
     run reflector --country "$countries" --latest 8 --protocol https \
       --sort rate --number 6 --save "$mirrorlist" || true
   fi
   if [[ -z $countries ]] || ! grep -q '^Server' "$mirrorlist"; then
-    info "Ranking mirrors worldwide..."
+    info "Finding the fastest download servers worldwide..."
     run reflector --latest 20 --protocol https --sort rate --number 6 --save "$mirrorlist" \
-      || warn "reflector failed — keeping the ISO's default mirrorlist"
+      || warn "Couldn't rank download servers, using the default ones"
   fi
   grep -q '^Server' "$mirrorlist" || die "Mirrorlist is empty"
 
@@ -200,9 +203,14 @@ install_base() {
   esac
   mapfile -t vendors < <(gpu_vendors)
   if (( ${#vendors[@]} )); then
-    info "Detected GPU(s): ${vendors[*]}"
+    local names='' vendor
+    for vendor in "${vendors[@]}"; do
+      case $vendor in intel) vendor=Intel ;; amd) vendor=AMD ;; nvidia) vendor=NVIDIA ;; esac
+      names+=${names:+ and }$vendor
+    done
+    info "Found $names graphics, adding the drivers"
   else
-    warn "No Intel/AMD/NVIDIA GPU detected — installing generic mesa only"
+    warn "No Intel, AMD or NVIDIA graphics found, using basic graphics drivers"
   fi
   mapfile -t gpu < <(gpu_packages)
   packages+=("${gpu[@]}")
@@ -212,7 +220,8 @@ install_base() {
   # it here covers both.
   sed -i '/^#\[multilib\]/,/^#Include/ s/^#//' /etc/pacman.conf
 
-  info "Installing: ${packages[*]}"
+  info "Downloading and installing the core system. This takes a few minutes."
+  printf 'Packages: %s\n' "${packages[*]}" >> "$LOG_FILE"
   run pacstrap -K -P /mnt "${packages[@]}"
   genfstab -U /mnt >> /mnt/etc/fstab
   cp /etc/pacman.d/mirrorlist /mnt/etc/pacman.d/mirrorlist
@@ -231,7 +240,6 @@ configure_new_system() {
   install -m 600 /dev/null "$stage/creds"
   printf '%s\n%s\n' "$PASSWORD" "$PASSWORD" > "$stage/creds"
 
-  info "Entering chroot..."
   arch-chroot /mnt env HOST_NAME="$HOST_NAME" USER_NAME="$USER_NAME" VERBOSE="$VERBOSE" \
     STEP="$STEP" STEP_TOTAL="$STEP_TOTAL" PATCHED_FONT="${PATCHED_FONT:-0}" \
     bash /root/arch-setup/setup.sh chroot

@@ -18,7 +18,7 @@ phase_chroot() {
 }
 
 configure_locale() {
-  info "Locale, timezone, keymap..."
+  info "Setting language, time zone and keyboard..."
   ln -sf "/usr/share/zoneinfo/$TIMEZONE" /etc/localtime
   hwclock --systohc
   local locale
@@ -32,7 +32,7 @@ configure_locale() {
 
 # $1 root password, $2 user password
 configure_accounts() {
-  info "Hostname, accounts, sudo..."
+  info "Creating your account..."
   echo "$HOST_NAME" > /etc/hostname
   printf '127.0.0.1 localhost\n::1       localhost\n127.0.1.1 %s\n' "$HOST_NAME" > /etc/hosts
 
@@ -54,11 +54,11 @@ configure_accounts() {
 # configure_hibernation, whose mkinitcpio -P builds the hook in, and before
 # install_bootloader, which writes the kernel options into grub.cfg.
 configure_boot_splash() {
-  info "Configuring the boot splash..."
+  info "Adding the boot screen..."
   # Right after the systemd (or udev) hook, so it starts as early as it can.
   grep -q '^HOOKS=.*plymouth' /etc/mkinitcpio.conf \
     || sed -i -E 's/^(HOOKS=\(.*\b(systemd|udev))\b/\1 plymouth/' /etc/mkinitcpio.conf
-  grep -q '^HOOKS=.*plymouth' /etc/mkinitcpio.conf || warn "Couldn't add the plymouth hook — no splash"
+  grep -q '^HOOKS=.*plymouth' /etc/mkinitcpio.conf || warn "Couldn't add the boot screen, startup will show text instead"
 
   # NVIDIA's driver has to be in the initramfs (early KMS), or the splash
   # only appears late or falls back to text. Intel/AMD get theirs from the
@@ -71,7 +71,7 @@ configure_boot_splash() {
   if install_splash_theme; then
     run plymouth-set-default-theme archman
   else
-    warn "Splash theme missing from the installer — using the stock bgrt theme"
+    warn "Using the standard boot screen (the custom one is missing from the installer)"
     run plymouth-set-default-theme bgrt
   fi
   # vt.global_cursor_default=0: no blinking cursor on the text console, which
@@ -104,10 +104,10 @@ install_splash_theme() {
 # A RAM-sized swap partition alone doesn't enable hibernation: the initramfs
 # needs the resume hook and the kernel needs to be told where the image is.
 configure_hibernation() {
-  info "Configuring hibernation..."
+  info "Enabling hibernation..."
   local swap_uuid=''
   swap_uuid=$(blkid -o value -s UUID -t LABEL=SWAP | head -1) || true
-  [[ -n $swap_uuid ]] || { warn "Swap partition not found — skipping hibernation"; return; }
+  [[ -n $swap_uuid ]] || { warn "No swap space found, hibernation won't be available"; return; }
 
   # The systemd initramfs hook resumes on its own; the udev-based default
   # needs the resume hook, ordered before filesystems.
@@ -121,7 +121,7 @@ configure_hibernation() {
 }
 
 install_bootloader() {
-  info "Installing GRUB (hidden menu, no timeout)..."
+  info "Making the drive bootable..."
   sed -i 's/^GRUB_TIMEOUT=.*/GRUB_TIMEOUT=0/; s/^GRUB_TIMEOUT_STYLE=.*/GRUB_TIMEOUT_STYLE=hidden/' /etc/default/grub
   run grub-install --target=x86_64-efi --efi-directory=/boot --bootloader-id=GRUB
   regenerate_grub
