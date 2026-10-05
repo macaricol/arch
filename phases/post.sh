@@ -16,16 +16,13 @@ phase_post() {
   # -n in the trap: if the ticket is somehow gone, fail quietly rather than
   # hang on a password prompt nobody can answer.
   trap 'kill '"$keepalive_pid"' 2>/dev/null; sudo -n rm -f "$SUDOERS_DROPIN" 2>/dev/null' EXIT
-  STEP_TOTAL=11
+  STEP_TOTAL=10
 
   clear
-  step "Enabling multilib & updating the system"
-  # Must precede the GPU step, which installs 32-bit drivers from multilib.
-  sudo sed -i '/\[multilib\]/,/Include/ s/^#//' /etc/pacman.conf
+  step "Updating the system"
   run sudo pacman -Syu --noconfirm
   step_done
 
-  step "Installing GPU drivers";           install_gpu_drivers;          step_done
   step "Installing KDE Plasma";            pkg_install "${KDE_PACKAGES[@]}";   step_done
   step "Installing extra applications";    pkg_install "${EXTRA_PACKAGES[@]}"; step_done
   step "Setting mpv wheel controls";       configure_mpv;                step_done
@@ -50,25 +47,6 @@ phase_post() {
   else
     info "Reboot manually when ready to apply everything."
   fi
-}
-
-# Sets GPU_SUPPORTED for the Steam decision later.
-install_gpu_drivers() {
-  local -a vendors
-  mapfile -t vendors < <(gpu_vendors)
-  if (( ${#vendors[@]} == 0 )); then
-    warn "No Intel/AMD/NVIDIA GPU detected — installing generic mesa only"
-    pkg_install "${GPU_PACKAGES_FALLBACK[@]}"
-    GPU_SUPPORTED=0
-    return
-  fi
-  GPU_SUPPORTED=1
-  info "Detected GPU(s): ${vendors[*]}"
-  local vendor list
-  for vendor in "${vendors[@]}"; do
-    list="GPU_PACKAGES_${vendor^^}[@]"
-    pkg_install "${!list}"
-  done
 }
 
 configure_mpv() {
@@ -167,7 +145,7 @@ EOF
 install_gaming_and_aur() {
   info "Hang tight — this step compiles paru and builds the AUR packages."
   pkg_install base-devel
-  if (( GPU_SUPPORTED )); then
+  if [[ -n $(gpu_vendors) ]]; then
     pkg_install "${GAMING_PACKAGES[@]}"
   else
     # Without a real GPU driver, steam's 32-bit Vulkan dependency can only be

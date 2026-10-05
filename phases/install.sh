@@ -45,20 +45,48 @@ phase_install() {
   configure_new_system
   step_done
 
-  box "DONE! Rebooting in 5s..."
-  sleep 5
-  reboot
+  # Unmount first so nothing on the new system is lost if the stick is
+  # pulled; and the live ISO may be running from that stick, so `reboot`
+  # gets loaded into memory now while it can still be read. If it can't be
+  # run anyway, sysrq reboots directly — safe, as the target is unmounted.
+  swapoff -a 2>/dev/null || true
+  umount -R /mnt || warn "Couldn't unmount /mnt — leave the USB in until the reboot starts"
+  systemctl --version > /dev/null
+
+  box "DONE! Remove the installation USB"
+  wait_for_usb_removal
+  info "Rebooting..."
+  sync
+  reboot || echo b > /proc/sysrq-trigger
+}
+
+# Left plugged in, the USB can win the boot order and start the installer
+# all over again. Reboots once the stick is pulled out, or on Enter (for
+# ISOs booted from a VM's virtual CD, or with copytoram, where there is no
+# USB to watch).
+wait_for_usb_removal() {
+  local usb='' key
+  usb=$(live_usb_disk) || true
+  if [[ -n $usb ]]; then
+    ask "Unplug the USB to reboot, or press Enter if it's already out:"
+  else
+    ask "Remove the installation media, then press Enter to reboot:"
+  fi
+  while :; do
+    [[ -n $usb && ! -b $usb ]] && { echo; info "USB removed."; return; }
+    read -rs -t 1 key && { echo; return; }
+  done
 }
 
 # Arrow-key menu over the machine's disks, minus the live USB we booted from.
 select_drive() {
   local live_disk=''
-  live_disk=$(lsblk -no PKNAME "$(findmnt -no SOURCE /run/archiso/bootmnt 2>/dev/null)" 2>/dev/null) || true
+  live_disk=$(live_usb_disk) || true
 
   local -a drives
   mapfile -t drives < <(
     lsblk -dpno PATH,SIZE,MODEL,TYPE \
-      | awk -v skip="/dev/$live_disk" '$NF == "disk" && $1 != skip { $NF = ""; print }'
+      | awk -v skip="$live_disk" '$NF == "disk" && $1 != skip { $NF = ""; print }'
   )
   (( ${#drives[@]} )) || die "No disks found"
 
@@ -120,19 +148,32 @@ install_base() {
     --sort rate --number 6 --save /etc/pacman.d/mirrorlist \
     || warn "reflector failed — keeping the ISO's default mirrorlist"
   [[ -s /etc/pacman.d/mirrorlist ]] || die "Mirrorlist is empty"
-  grep -q '^ILoveCandy' /etc/pacman.conf || sed -i '/\[options\]/a ILoveCandy' /etc/pacman.conf
 
-  # Microcode goes in with the base system so the very first initramfs and
-  # grub.cfg already include it.
-  local -a packages=("${BASE_PACKAGES[@]}")
+  # Microcode and GPU drivers go in with the base system, so the initramfs
+  # the chroot phase builds already includes them: NVIDIA machines boot on
+  # nvidia-open from the very first boot instead of nouveau.
+  local -a packages=("${BASE_PACKAGES[@]}") gpu vendors
   case $(cpu_vendor) in
     intel) packages+=(intel-ucode) ;;
     amd)   packages+=(amd-ucode) ;;
     *)     warn "Unknown CPU vendor — skipping microcode" ;;
   esac
+  mapfile -t vendors < <(gpu_vendors)
+  if (( ${#vendors[@]} )); then
+    info "Detected GPU(s): ${vendors[*]}"
+  else
+    warn "No Intel/AMD/NVIDIA GPU detected — installing generic mesa only"
+  fi
+  mapfile -t gpu < <(gpu_packages)
+  packages+=("${gpu[@]}")
+
+  # The drivers' 32-bit halves (for Steam) live in multilib. pacstrap reads
+  # the ISO's pacman.conf, and -P copies it into the new system, so enabling
+  # it here covers both.
+  sed -i '/^#\[multilib\]/,/^#Include/ s/^#//' /etc/pacman.conf
 
   info "Installing: ${packages[*]}"
-  run pacstrap -K /mnt "${packages[@]}"
+  run pacstrap -K -P /mnt "${packages[@]}"
   genfstab -U /mnt >> /mnt/etc/fstab
   cp /etc/pacman.d/mirrorlist /mnt/etc/pacman.d/mirrorlist
 }
@@ -153,4 +194,11 @@ configure_new_system() {
   info "Entering chroot..."
   arch-chroot /mnt env HOST_NAME="$HOST_NAME" USER_NAME="$USER_NAME" VERBOSE="$VERBOSE" \
     bash /root/arch-setup/setup.sh chroot
+}
+
+# Prints the disk the live ISO booted from (/dev/sdX), if it's still mounted.
+live_usb_disk() {
+  local name
+  name=$(lsblk -no PKNAME "$(findmnt -no SOURCE /run/archiso/bootmnt 2>/dev/null)" 2>/dev/null) || return 1
+  [[ -n $name ]] && echo "/dev/$name"
 }

@@ -51,6 +51,19 @@ gpu_vendors() {
   done < <(lspci | grep -E 'VGA|3D|Display') | sort -u
 }
 
+# Prints the GPU_PACKAGES_* list for every detected vendor, or the fallback
+# list when none is found (VMs). Hybrid machines get each vendor's list.
+gpu_packages() {
+  local -a vendors
+  mapfile -t vendors < <(gpu_vendors)
+  (( ${#vendors[@]} )) || vendors=(fallback)
+  local vendor list
+  for vendor in "${vendors[@]}"; do
+    list="GPU_PACKAGES_${vendor^^}[@]"
+    printf '%s\n' "${!list}"
+  done | sort -u
+}
+
 # partition_path DEVICE N — sda → sda1, but nvme0n1 → nvme0n1p1 (and the same
 # "p" rule applies to mmcblk/loop: any device name ending in a digit).
 partition_path() { if [[ $1 =~ [0-9]$ ]]; then echo "${1}p$2"; else echo "${1}$2"; fi; }

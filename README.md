@@ -12,8 +12,10 @@ Boot the official Arch ISO, connect to the network, and run:
     curl -fsSL https://raw.githubusercontent.com/macaricol/arch/main/bootstrap.sh | bash
 
 Answer four prompts (hostname, root password, username, user password),
-pick the drive from an arrow-key menu, type `YES`, and walk away. The
-machine reboots into a one-time tty autologin that runs the desktop setup,
+pick the drive from an arrow-key menu, type `YES`, and walk away. When the
+base install is done it asks you to remove the USB, and reboots as soon as
+you unplug it (or press Enter). The machine then comes up in a one-time tty
+autologin that runs the desktop setup,
 reboots again into SDDM, and the first Plasma session applies the desktop
 tweaks. Two reboots in total, and one password prompt after the first.
 
@@ -49,9 +51,9 @@ mirror is `ISO_MIRROR` in `config.sh`.
     lib/ui.sh             messages, step counter, run() spinner + setup.log
     lib/prompt.sh         validated input, passwords, confirm, arrow-key menu
     lib/system.sh         checks, CPU/GPU detection, pacman/AUR/service helpers
-    phases/install.sh     live ISO: partition, format, pacstrap, hand off to chroot
+    phases/install.sh     live ISO: partition, format, pacstrap (+ CPU/GPU drivers), hand off to chroot
     phases/chroot.sh      locale, accounts, sudo, hibernation, GRUB, first-login hook
-    phases/post.sh        first login: multilib, drivers, Plasma, theming, Samba, Steam, AUR
+    phases/post.sh        first login: Plasma, theming, Samba, Steam, AUR
     phases/kde-init.sh    first Plasma session: kwin, theme, widgets, panel, icons
 
 The installer directory travels with the install: `/tmp/arch-setup` on the
@@ -108,8 +110,13 @@ Things that look odd but are deliberate:
   `channelmix.upmix = true`. Nothing is set for mpv on purpose — forcing
   `audio-channels=7.1` makes mpv pad the extra channels itself, so PipeWire
   sees 8 channels and skips the upmix.
-- **Microcode goes in with `pacstrap`**, so the first initramfs and
-  `grub.cfg` already include it and nothing needs regenerating later.
+- **Microcode and GPU drivers go in with `pacstrap`**, so the first
+  initramfs and `grub.cfg` already include them and nothing needs
+  regenerating later; an NVIDIA machine runs `nvidia-open` from its very
+  first boot rather than nouveau. That needs multilib (for the 32-bit
+  drivers) enabled before `pacstrap`: the install phase turns it on in the
+  live ISO's `pacman.conf`, which `pacstrap` reads, and `pacstrap -P` copies
+  that config into the new system.
 - **The post phase enables SDDM without `--now`.** `sddm.service` conflicts
   with `getty@tty1`; starting it would SIGHUP the very session the phase is
   running in. The reboot starts it.
@@ -145,7 +152,7 @@ table is a description of those lists, not a second copy of them.
 CPU microcode (`intel-ucode` / `amd-ucode`) is added here too, picked from the
 detected vendor — see the design note on why it goes in at this stage.
 
-### GPU drivers — `GPU_PACKAGES_*`, by detected vendor
+### GPU drivers — `GPU_PACKAGES_*`, by detected vendor, pacstrapped too
 
 - **Intel** — `mesa`, `lib32-mesa`, `vulkan-intel`, `lib32-vulkan-intel`,
   `intel-media-driver`: graphics drivers (64- and 32-bit), Vulkan, and
@@ -213,7 +220,7 @@ userspace onto an AMD or Intel machine.
 
 - `steam` — Installed only when a real GPU was detected, and after the 32-bit
   drivers, for the reason in the design notes. Needs the multilib repo, which
-  the post phase enables.
+  the install phase enables.
 - `base-devel` — Build tools, required to compile anything from the AUR
 - `paru` (AUR) — AUR helper, built from source so it always matches the
   installed pacman's libalpm; the Rust toolchain is removed again afterwards
