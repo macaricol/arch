@@ -21,13 +21,24 @@ TAG_COLS=2   # the tag and the space after it
 LAYOUT_WIDTH=72
 
 # stty reads the size from /dev/tty, as stdin may be the curl pipe.
+# The terminal to act on: standard input when it's a virtual console
+# (/dev/ttyN), which is how the install phase and the first-boot service run,
+# else the controlling terminal. Named explicitly because setfont, left to
+# find a console itself, can settle on another one (or none) in a service.
+# (setfont also gets -f, to load the font's Unicode table unconditionally:
+# without it, the added characters show as boxes.)
+console_dev() {
+  local dev
+  dev=$(tty 2>/dev/null) || dev=
+  if [[ $dev == /dev/tty[0-9]* ]]; then echo "$dev"; else echo /dev/tty; fi
+}
 term_cols() {
   local size
-  size=$(stty size 2>/dev/null < /dev/tty) && echo "${size#* }" || echo "${COLUMNS:-80}"
+  size=$(stty -F "$(console_dev)" size 2>/dev/null) && echo "${size#* }" || echo "${COLUMNS:-80}"
 }
 term_rows() {
   local size
-  size=$(stty size 2>/dev/null < /dev/tty) && echo "${size% *}" || echo "${LINES:-24}"
+  size=$(stty -F "$(console_dev)" size 2>/dev/null) && echo "${size% *}" || echo "${LINES:-24}"
 }
 update_margin() {
   local pad=$(( ($(term_cols) - LAYOUT_WIDTH) / 2 ))
@@ -65,20 +76,24 @@ set_console_palette() {
 # runs `setup.sh console` as root before the post phase for this reason.
 scale_console_font() {
   on_console && (( EUID == 0 )) && command -v setfont &>/dev/null || return 0
-  local target=48 best='' best_diff=99999 font rows cols diff
+  local target=48 best='' best_diff=99999 font rows cols diff dev errors
+  dev=$(console_dev) errors=$(mktemp)
   for font in default8x16 sun12x22 latarcyrheb-sun32; do
     [[ -f $SETUP_DIR/assets/consolefonts/$font.psfu.gz ]] && font=$SETUP_DIR/assets/consolefonts/$font.psfu.gz
-    setfont "$font" 2>/dev/null || continue
+    setfont -f -C "$dev" "$font" 2>>"$errors" || continue
     rows=$(term_rows) cols=$(term_cols)
     (( cols >= 80 )) || continue
     diff=$(( rows > target ? rows - target : target - rows ))
     (( diff < best_diff )) && { best=$font; best_diff=$diff; }
   done
   best_font=${best:-default8x16}
-  if setfont "${best:-default8x16}" 2>/dev/null && [[ $best == "$SETUP_DIR"/* ]]; then
+  if setfont -f -C "$dev" "${best:-default8x16}" 2>>"$errors" && [[ $best == "$SETUP_DIR"/* ]]; then
     PATCHED_FONT=1
     : > "$PATCHED_FONT_MARK" 2>/dev/null || true
   fi
+  # setfont's complaints, if any, for the journal (see log_console_font)
+  [[ -s $errors ]] && logger -t arch-setup "setfont on $dev: $(sort -u "$errors" | tr '\n' ' ')" 2>/dev/null
+  rm -f "$errors"
   update_margin
 }
 
@@ -87,8 +102,8 @@ scale_console_font() {
 # which font scale_console_font picked. 0 means boxes on screen.
 log_console_font() {
   local mapped
-  mapped=$(getunimap 2>/dev/null | grep -ci '^0x[0-9a-f]*[[:space:]]*U+E[01]') || true
-  logger -t arch-setup "$1: uid $EUID, tty $(tty 2>/dev/null), font ${best_font:-none}, private-use chars mapped: ${mapped:-?}" 2>/dev/null || true
+  mapped=$(getunimap -C "$(console_dev)" 2>/dev/null | grep -ci '^0x[0-9a-f]*[[:space:]]*U+E[01]') || true
+  logger -t arch-setup "$1: uid $EUID, console $(console_dev), font ${best_font:-none}, patched ${PATCHED_FONT:-0}, private-use chars mapped: ${mapped:-?}" 2>/dev/null || true
 }
 
 # The double-resolution logo is drawn with glyphs only the patched fonts

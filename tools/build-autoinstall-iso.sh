@@ -286,13 +286,13 @@ udevadm settle --timeout=15 2>/dev/null
 best='' best_diff=99999
 for font in default8x16 sun12x22 latarcyrheb-sun32; do
   font=/usr/local/share/archauto/$font.psfu.gz
-  setfont "$font" 2>/dev/null || continue
+  setfont -f -C /dev/tty1 "$font" 2>/dev/null || continue
   read -r rows cols < <(stty size < /dev/tty)
   (( cols >= 80 )) || continue
   diff=$(( rows > 48 ? rows - 48 : 48 - rows ))
   (( diff < best_diff )) && { best=$font; best_diff=$diff; }
 done
-setfont "${best:-default8x16}" 2>/dev/null
+setfont -f -C /dev/tty1 "${best:-default8x16}" 2>/dev/null
 
 for i in "${!CONSOLE_PALETTE[@]}"; do printf '\e]P%X%s' "$i" "${CONSOLE_PALETTE[i]}"; done
 printf '\e[0m\e[?25l'
