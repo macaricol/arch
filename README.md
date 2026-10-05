@@ -248,7 +248,11 @@ CPU microcode (`intel-ucode` / `amd-ucode`) is added here too, picked from the
 detected vendor — see the design note on why it goes in at this stage.
 
 ### GPU drivers — `GPU_PACKAGES_*`, by detected vendor, pacstrapped too
-
+  The same splash covers reboot and power-off (Plymouth's own shutdown
+  units). Around it, the text console shows for a moment, so it's kept
+  blank: `vt.global_cursor_default=0` hides its cursor, and
+  `/etc/sysctl.d/20-quiet-printk.conf` keeps kernel warnings off it for the
+  whole session (`loglevel=3` only lasts through boot).
 - **Intel** — `mesa`, `lib32-mesa`, `vulkan-intel`, `lib32-vulkan-intel`,
   `intel-media-driver`: graphics drivers (64- and 32-bit), Vulkan, and
   hardware video decode/encode

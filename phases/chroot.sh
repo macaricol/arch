@@ -74,11 +74,19 @@ configure_boot_splash() {
     warn "Splash theme missing from the installer — using the stock bgrt theme"
     run plymouth-set-default-theme bgrt
   fi
+  # vt.global_cursor_default=0: no blinking cursor on the text console, which
+  # shows for a moment around the splash (between Plasma exiting and the
+  # shutdown splash starting, say).
   local opt
-  for opt in quiet splash; do
+  for opt in quiet splash vt.global_cursor_default=0; do
     grep -qE "^GRUB_CMDLINE_LINUX_DEFAULT=\".*\b$opt\b" /etc/default/grub \
       || sed -i "s|^\(GRUB_CMDLINE_LINUX_DEFAULT=\".*\)\"|\1 $opt\"|" /etc/default/grub
   done
+
+  # loglevel=3 only covers boot: keep kernel messages below "error" off the
+  # console for good, or warnings (clocksource, hardware quirks...) end up on
+  # the text console and show at shutdown, around the splash.
+  echo 'kernel.printk = 3 3 3 3' > /etc/sysctl.d/20-quiet-printk.conf
 }
 
 # The archman theme (assets/plymouth): Arch's logo where firmware logos sit

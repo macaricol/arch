@@ -74,10 +74,9 @@ Rectangle {
         border.color: config.border
         border.width: root.s
 
-        // A dot per character typed, a cell each, from the box's second cell.
+        // A dot per character typed, a cell each, centred in the box.
         Row {
-          x: root.cellW * 2
-          anchors.verticalCenter: parent.verticalCenter
+          anchors.centerIn: parent
           Repeater {
             model: Math.min(password.text.length, 34)
             Image {
