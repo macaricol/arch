@@ -76,8 +76,15 @@ set_console_palette() {
 # runs `setup.sh console` as root before the post phase for this reason.
 scale_console_font() {
   on_console && (( EUID == 0 )) && command -v setfont &>/dev/null || return 0
-  local target=48 best='' best_diff=99999 font rows cols diff dev errors
+  local target=48 best='' best_diff=99999 font rows cols diff dev errors i
   dev=$(console_dev) errors=$(mktemp)
+  # A console still in graphics mode refuses any font, with kbd's misleading
+  # "Unable to load such font with such kernel version": at the first boot,
+  # Plymouth can still be handing tty1 back. Wait (up to 10 s) until it takes one.
+  for i in {1..20}; do
+    setfont -f -C "$dev" default8x16 2>/dev/null && break
+    sleep 0.5
+  done
   for font in default8x16 sun12x22 latarcyrheb-sun32; do
     [[ -f $SETUP_DIR/assets/consolefonts/$font.psfu.gz ]] && font=$SETUP_DIR/assets/consolefonts/$font.psfu.gz
     setfont -f -C "$dev" "$font" 2>>"$errors" || continue

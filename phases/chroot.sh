@@ -144,6 +144,9 @@ PAMName=login
 WorkingDirectory=$home
 Environment=TERM=linux
 ExecStartPre=-+/usr/bin/plymouth quit
+# quit returns before Plymouth has given tty1 back in text mode, and a
+# console in graphics mode refuses fonts: wait for it to be gone.
+ExecStartPre=-+/usr/bin/plymouth --wait
 # Font and palette as root (see setup.sh). No TTYVTDisallocate below: it
 # applies before every Exec line, and a re-created VT starts over with the
 # kernel's own character table, so the font's ᗧ, padlock and dot would be
