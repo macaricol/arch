@@ -47,9 +47,8 @@ configure_accounts() {
   run systemctl enable NetworkManager
 }
 
-# Plymouth splash instead of scrolling boot messages (Esc still shows them).
-# The stock bgrt theme shows the firmware's own logo with a spinner, or just
-# the spinner where there is none (VMs). Must run before
+# Plymouth splash instead of scrolling boot messages (Esc still shows them),
+# using the pacman theme below. Must run before
 # configure_hibernation, whose mkinitcpio -P builds the hook in, and before
 # install_bootloader, which writes the kernel options into grub.cfg.
 configure_boot_splash() {
@@ -67,12 +66,29 @@ configure_boot_splash() {
       -e 's/^MODULES=\( /MODULES=(/' /etc/mkinitcpio.conf
   fi
 
-  run plymouth-set-default-theme bgrt
+  if install_splash_theme; then
+    run plymouth-set-default-theme pacman
+  else
+    warn "Splash theme missing from the installer — using the stock bgrt theme"
+    run plymouth-set-default-theme bgrt
+  fi
   local opt
   for opt in quiet splash; do
     grep -qE "^GRUB_CMDLINE_LINUX_DEFAULT=\".*\b$opt\b" /etc/default/grub \
       || sed -i "s|^\(GRUB_CMDLINE_LINUX_DEFAULT=\".*\)\"|\1 $opt\"|" /etc/default/grub
   done
+}
+
+# The pacman theme (assets/plymouth): Arch's logo where firmware logos sit
+# and a spinner, both scaled to the screen height by pacman.script, so they
+# keep their size relative to the screen at any resolution.
+install_splash_theme() {
+  local src=$SETUP_DIR/assets/plymouth dir=/usr/share/plymouth/themes/pacman f
+  for f in pacman.plymouth pacman.script logo.png spinner.png; do
+    [[ -f $src/$f ]] || return 1
+  done
+  rm -rf "$dir"
+  install -Dm644 -t "$dir" "$src"/{pacman.plymouth,pacman.script,logo.png,spinner.png}
 }
 
 # A RAM-sized swap partition alone doesn't enable hibernation: the initramfs

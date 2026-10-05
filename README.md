@@ -49,6 +49,7 @@ mirror is `ISO_MIRROR` in `config.sh`.
     setup.sh <phase>      single entry point; loads config + lib, runs one phase
     config.sh             every tunable value: locale, disk, package lists, theme
     logo.txt              the logo drawn above every step
+    assets/plymouth/      the boot splash theme: script, logo, spinner
     lib/ui.sh             console font/palette, centred step screens, run() spinner + setup.log
     lib/prompt.sh         validated input, passwords, confirm, arrow-key menu
     lib/system.sh         checks, CPU/GPU detection, pacman/AUR/service helpers
@@ -145,8 +146,12 @@ Things that look odd but are deliberate:
   erase the drive stays plain typed text on purpose.
 - **Boot is quiet, behind a Plymouth splash.** The chroot phase adds the
   `plymouth` hook right after `systemd`/`udev`, `quiet splash` to the kernel
-  options, and the stock `bgrt` theme: the firmware's own logo with a
-  spinner (just the spinner in VMs). Press Esc during boot to see the
+  options, and its own `pacman` theme (`assets/plymouth`): Arch's logo
+  where firmware logos sit and a spinner, on black. It's a Plymouth script
+  theme, so `pacman.script` can size both from the screen height: the logo
+  is 24.5% of it (196 px at 1280×800, the size of VirtualBox's firmware
+  logo), and the images are rendered large enough for 4K and only scaled
+  down. Press Esc during boot to see the
   messages. On NVIDIA the driver modules go into the initramfs too, so the
   splash has a display that early.
 - The live USB is filtered out of the drive menu, and `udevadm settle`
@@ -170,7 +175,7 @@ table is a description of those lists, not a second copy of them.
 | `nano` | Simple text editor, so the installed system is usable before a desktop exists |
 | `networkmanager` | Network management daemon (Wi-Fi, Ethernet, VPN) |
 | `sudo` | Lets the created user run commands as root |
-| `plymouth` | Boot splash (stock `bgrt` theme) instead of scrolling boot messages |
+| `plymouth` | Boot splash (the `pacman` theme) instead of scrolling boot messages |
 
 CPU microcode (`intel-ucode` / `amd-ucode`) is added here too, picked from the
 detected vendor — see the design note on why it goes in at this stage.

@@ -14,7 +14,7 @@ TAG="${C_CYAN}${C_BOLD}[ Ω ]${C_RESET}"
 # ── Console look ───────────────────────────────────────────────────────
 # Everything is laid out in one centred column, LAYOUT_WIDTH wide (the width
 # of the logo); MARGIN is the indent that centres it on the current terminal.
-LAYOUT_WIDTH=70
+LAYOUT_WIDTH=72
 
 # stty reads the size from /dev/tty, as stdin may be the curl pipe.
 term_cols() {

@@ -1,0 +1,64 @@
+# PACMAN boot splash: Arch's logo and a spinner on black, sized from the
+# screen height so they look the same at any resolution. The proportions
+# copy the stock bgrt theme on a 1280x800 screen, where the firmware logo
+# is about 196 px tall centred 38% down, and the 32 px spinner sits 70% down.
+#
+# The images are rendered large (logo.png is 540 px tall, enough for 4K) and
+# only ever scaled down. Globals set inside functions use global., as a
+# plain assignment there would create a local.
+
+Window.SetBackgroundTopColor(0, 0, 0);
+Window.SetBackgroundBottomColor(0, 0, 0);
+
+LOGO_HEIGHT = 0.245;     # of the screen height (196/800)
+LOGO_CENTRE = 0.381;     # vertical centre (305/800)
+LOGO_MAX_WIDTH = 0.9;    # of the screen width, for portrait screens
+SPINNER_HEIGHT = 0.04;   # (32/800)
+SPINNER_CENTRE = 0.7;
+
+logo.source = Image("logo.png");
+logo.sprite = Sprite();
+spinner.source = Image("spinner.png");
+spinner.sprite = Sprite();
+spinner_angle = 0;
+spinner_image = spinner.source;
+layout_width = 0;
+layout_height = 0;
+
+# image scaled to height, keeping its aspect ratio
+fun scale_to_height(image, height) {
+  return image.Scale(Math.Int(image.GetWidth() * height / image.GetHeight()), Math.Int(height));
+}
+
+# sprite showing image, centred horizontally, its middle at centre_y
+fun place(sprite, image, centre_y) {
+  sprite.SetImage(image);
+  sprite.SetX(Window.GetX() + Window.GetWidth() / 2 - image.GetWidth() / 2);
+  sprite.SetY(Window.GetY() + Window.GetHeight() * centre_y - image.GetHeight() / 2);
+}
+
+fun layout_sprites() {
+  global.layout_width = Window.GetWidth();
+  global.layout_height = Window.GetHeight();
+
+  logo_image = scale_to_height(logo.source, layout_height * LOGO_HEIGHT);
+  if (logo_image.GetWidth() > layout_width * LOGO_MAX_WIDTH) {
+    logo_image = logo.source.Scale(Math.Int(layout_width * LOGO_MAX_WIDTH),
+      Math.Int(layout_width * LOGO_MAX_WIDTH * logo.source.GetHeight() / logo.source.GetWidth()));
+  }
+  place(logo.sprite, logo_image, LOGO_CENTRE);
+
+  global.spinner_image = scale_to_height(spinner.source, layout_height * SPINNER_HEIGHT);
+}
+
+# Called about 50 times a second. Laid out again whenever the screen size
+# changes: a display can come up after plymouthd has started.
+fun refresh_callback() {
+  if (Window.GetWidth() != layout_width || Window.GetHeight() != layout_height) {
+    layout_sprites();
+  }
+  global.spinner_angle = spinner_angle + 2 * Math.Pi / 50;   # one turn a second
+  place(spinner.sprite, spinner_image.Rotate(spinner_angle), SPINNER_CENTRE);
+}
+
+Plymouth.SetRefreshFunction(refresh_callback);

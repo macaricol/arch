@@ -1,0 +1,8 @@
+[Plymouth Theme]
+Name=PACMAN
+Description=Arch Linux logo and a spinner, scaled to the screen
+ModuleName=script
+
+[script]
+ImageDir=/usr/share/plymouth/themes/pacman
+ScriptFile=/usr/share/plymouth/themes/pacman/pacman.script
