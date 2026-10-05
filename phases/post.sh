@@ -8,15 +8,16 @@ phase_post() {
   setup_console
   log_console_font "post phase start"
 
-  # One password prompt up front; a background loop then keeps the ticket
-  # alive so no later step stalls on a second prompt under a spinner.
-  unlock_sudo
+  # One password prompt up front (none when run from the installer, which
+  # allows sudo without one); a background loop then keeps the ticket alive
+  # so no later step stalls on a second prompt under a spinner.
+  sudo -n true 2>/dev/null || unlock_sudo
   ( while kill -0 $$ 2>/dev/null; do sudo -n true; sleep 60; done ) &>/dev/null &
   local keepalive_pid=$!
   # -n in the trap: if the ticket is somehow gone, fail quietly rather than
   # hang on a password prompt nobody can answer.
   trap 'kill '"$keepalive_pid"' 2>/dev/null; sudo -n rm -f "$SUDOERS_DROPIN" 2>/dev/null' EXIT
-  STEP_TOTAL=10
+  (( STEP_TOTAL )) || STEP_TOTAL=10   # unless carrying on the installer's bar
 
   step "Updating the system"
   wait_for_network
@@ -34,11 +35,12 @@ phase_post() {
 
   step "Enabling services"
   enable_service --now bluetooth
-  # No --now for SDDM: it would take over tty1, where this phase is still
-  # running, before the prompt below. The reboot starts it.
+  # No --now for SDDM: run by hand, it would take over tty1, where this phase
+  # is still running, before the prompt below. The reboot starts it.
   enable_service sddm
 
-  remove_first_boot_service
+  # Run from the installer: its own last screen and reboot follow.
+  in_chroot && return 0
   finish "All done! Reboot to see your new setup"
   if confirm "Reboot now?"; then
     info "Rebooting..."
@@ -60,14 +62,6 @@ unlock_sudo() {
     error="Wrong password, try again"
   done
   clear
-}
-
-# Set up by the chroot phase to run this phase on the first boot; once it has
-# succeeded, it has no reason to exist. (~/.arch-setup outlives it: the
-# Plasma first-login step still runs from there.)
-remove_first_boot_service() {
-  sudo systemctl disable arch-setup-post.service &>/dev/null || true
-  sudo rm -f /etc/systemd/system/arch-setup-post.service
 }
 
 configure_mpv() {
@@ -188,7 +182,9 @@ install_gaming_and_aur() {
     # Built from source on purpose: paru-bin is compiled against a fixed
     # libalpm and breaks whenever pacman bumps its ABI (it has been flagged
     # out-of-date for months). -r removes the Rust toolchain again afterwards.
-    local build; build=$(mktemp -d)
+    # On disk: in the installer's chroot, /tmp is in RAM, and a Rust build
+    # can outgrow it.
+    local build; build=$(mktemp -d -p /var/tmp)
     git_clone https://aur.archlinux.org/paru.git "$build"
     (cd "$build" && run makepkg -sri --noconfirm)
     rm -rf "$build"

@@ -13,8 +13,8 @@ phase_chroot() {
   configure_boot_splash
   configure_hibernation
   install_bootloader
-  configure_first_login
   hand_over_to_user
+  run_post_phase
 }
 
 configure_locale() {
@@ -40,8 +40,8 @@ configure_accounts() {
   # chpasswd reads stdin, so the passwords never appear in argv or env.
   printf 'root:%s\n%s:%s\n' "$1" "$USER_NAME" "$2" | chpasswd
 
-  # No lecture on first use: the first sudo is the first-boot unlock screen,
-  # which is the prompt.
+  # No lecture on first use: when the post phase is run by hand, its first
+  # sudo is the unlock screen, which is the prompt.
   printf '%s\n' '%wheel ALL=(ALL:ALL) ALL' 'Defaults lecture = never' > /etc/sudoers.d/10-wheel
   chmod 440 /etc/sudoers.d/10-wheel
   visudo -c -f /etc/sudoers.d/10-wheel > /dev/null || die "Generated sudoers drop-in is invalid"
@@ -119,60 +119,29 @@ install_bootloader() {
   regenerate_grub
 }
 
-# Runs the post phase on tty1 at the first boot, as the user, from its own
-# service rather than an autologin: no /etc/issue, login line or motd, just
-# the boot splash and then the post phase's unlock screen. It asks for the
-# user's password before doing anything, and removes this service once it
-# has succeeded. If it fails, ExecStopPost gives tty1 its login prompt back;
-# the service runs again on the next boot until the phase succeeds.
-configure_first_login() {
-  info "Scheduling the post-install phase for the first boot..."
-  local home=/home/$USER_NAME
-  cat > /etc/systemd/system/arch-setup-post.service <<EOF
-[Unit]
-Description=Finish the installation
-ConditionPathExists=$home/.arch-setup/setup.sh
-Wants=network-online.target
-After=network-online.target systemd-user-sessions.service plymouth-quit-wait.service
-Before=getty@tty1.service
-Conflicts=getty@tty1.service
-
-[Service]
-Type=simple
-User=$USER_NAME
-PAMName=login
-WorkingDirectory=$home
-Environment=TERM=linux
-# quit returns before Plymouth has given tty1 back in text mode, and a
-# console in graphics mode refuses fonts: the root step below retries until
-# it takes one. (Not `plymouth --wait`: it blocked here, leaving a black
-# screen.)
-ExecStartPre=-+/usr/bin/plymouth quit
-# Font and palette as root (see setup.sh). No TTYVTDisallocate below: it
-# applies before every Exec line, and a re-created VT starts over with the
-# kernel's own character table, so the font's ᗧ, padlock and dot would be
-# boxes by the time the post phase draws them.
-ExecStartPre=-+/bin/bash $home/.arch-setup/setup.sh console
-ExecStart=/bin/bash $home/.arch-setup/setup.sh post
-ExecStopPost=+/usr/bin/systemctl --no-block start getty@tty1.service
-StandardInput=tty
-StandardOutput=tty
-StandardError=tty
-TTYPath=/dev/tty1
-TTYReset=yes
-TTYVHangup=yes
-
-[Install]
-WantedBy=multi-user.target
-EOF
-  run systemctl enable arch-setup-post.service
-}
-
-# Moves this installer into the new user's home for the post phase. Last
-# thing in this phase, since the log file lives in the directory being moved.
+# Moves this installer into the new user's home, for the post phase and the
+# Plasma first-login step. Nothing in this phase logs after it, since the log
+# file lives in the directory being moved.
 hand_over_to_user() {
   local dest=/home/$USER_NAME/.arch-setup
   rm -rf "$dest"
   mv "$SETUP_DIR" "$dest"
   chown -R "$USER_NAME:$USER_NAME" "$dest"
+}
+
+# The desktop setup (phases/post.sh), run here as the new user rather than on
+# a first boot: all of it works in the chroot, on the live system's network,
+# so the machine reboots once, straight into SDDM. A temporary sudo rule
+# stands in for the password the phase would otherwise ask for, and the
+# progress bar carries on from the install phase's (STEP, STEP_TOTAL).
+run_post_phase() {
+  local home=/home/$USER_NAME rule=/etc/sudoers.d/90-arch-setup-install
+  echo "$USER_NAME ALL=(ALL:ALL) NOPASSWD: ALL" > "$rule"
+  chmod 440 "$rule"
+  visudo -c -f "$rule" > /dev/null || die "Generated sudoers drop-in is invalid"
+  trap 'rm -f '"$rule" EXIT
+  runuser -u "$USER_NAME" -- env TERM="$TERM" VERBOSE="$VERBOSE" STEP="$STEP" STEP_TOTAL="$STEP_TOTAL" \
+    PATCHED_FONT="${PATCHED_FONT:-0}" IN_CHROOT=1 \
+    bash "$home/.arch-setup/setup.sh" post
+  rm -f "$rule"
 }

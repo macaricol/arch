@@ -44,7 +44,7 @@ EFI_SIZE='512M'
 BTRFS_MOUNT_OPTS='noatime,compress=zstd:1'
 
 # ── Packages ───────────────────────────────────────────────────────────
-BASE_PACKAGES=(base linux linux-firmware btrfs-progs grub efibootmgr nano networkmanager sudo plymouth)
+BASE_PACKAGES=(base linux linux-firmware btrfs-progs grub efibootmgr nano networkmanager sudo plymouth pciutils)
 
 KDE_PACKAGES=(
   plasma-desktop sddm sddm-kcm kscreen plasma-pa plasma-nm plasma-systemmonitor

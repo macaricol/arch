@@ -22,7 +22,7 @@ LAYOUT_WIDTH=72
 
 # stty reads the size from /dev/tty, as stdin may be the curl pipe.
 # The terminal to act on: standard input when it's a virtual console
-# (/dev/ttyN), which is how the install phase and the first-boot service run,
+# (/dev/ttyN), which is how the installer runs,
 # else the controlling terminal. Named explicitly because setfont, left to
 # find a console itself, can settle on another one (or none) in a service.
 # (setfont also gets -f, to load the font's Unicode table unconditionally:
@@ -71,9 +71,8 @@ set_console_palette() {
 # loaded from assets/consolefonts, the same fonts with Pac-Man added, and
 # from kbd if that copy is missing.
 #
-# Root only: as a regular user, setfont can't install the font's Unicode
-# table, so the added glyphs would show as boxes. The first-boot service
-# runs `setup.sh console` as root before the post phase for this reason.
+# Root only: the post phase, run as the user from the installer, keeps the
+# font the install phase loaded.
 scale_console_font() {
   on_console && (( EUID == 0 )) && command -v setfont &>/dev/null || return 0
   local target=48 best='' best_diff=99999 font rows cols diff dev errors i
@@ -102,7 +101,6 @@ scale_console_font() {
   best_font=${best:-default8x16}
   if setfont -f -C "$dev" "${best:-default8x16}" 2>>"$errors" && [[ $best == "$SETUP_DIR"/* ]]; then
     PATCHED_FONT=1
-    : > "$PATCHED_FONT_MARK" 2>/dev/null || true
   fi
   # setfont's complaints, if any, for the journal (see log_console_font)
   [[ -s $errors ]] && logger -t arch-setup "setfont on $dev: $(sort -u "$errors" | tr '\n' ' ')" 2>/dev/null
@@ -122,12 +120,11 @@ log_console_font() {
 }
 
 # The double-resolution logo is drawn with glyphs only the patched fonts
-# have, so it's used only once one of them is loaded: by scale_console_font
-# in this process, or, at the first boot, by the service's root step before
-# this process started, which leaves PATCHED_FONT_MARK behind.
-PATCHED_FONT_MARK=/run/arch-setup-patched-font
+# have, so it's used only once one of them is loaded: by scale_console_font,
+# in this process or in the install phase that started it (which passes
+# PATCHED_FONT down through the chroot phase to the post phase).
 logo_file() {
-  if on_console && [[ ${PATCHED_FONT:-0} == 1 || -e $PATCHED_FONT_MARK ]] && [[ -f $SETUP_DIR/logo-hd.txt ]]; then
+  if on_console && [[ ${PATCHED_FONT:-0} == 1 && -f $SETUP_DIR/logo-hd.txt ]]; then
     echo "$SETUP_DIR/logo-hd.txt"
   else
     echo "$LOGO_FILE"
@@ -205,7 +202,9 @@ center() {
 # ── Step header ────────────────────────────────────────────────────────
 # Numbered steps. Phases set STEP_TOTAL once; the counter does the rest, so
 # inserting a step never means renumbering the others.
-STEP=0
+# Both may come from the environment: the post phase, run from the
+# installer, carries on the install phase's progress bar.
+STEP=${STEP:-0}
 STEP_TOTAL=${STEP_TOTAL:-0}
 PROGRESS_WIDTH=40
 

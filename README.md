@@ -13,12 +13,11 @@ Boot the official Arch ISO, connect to the network, and run:
 
 Answer three prompts (hostname, username, and one password used for both
 your user and root),
-pick the drive from an arrow-key menu, type `YES`, and walk away. When the
-base install is done it asks you to remove the USB, and reboots as soon as
-you unplug it (or press Enter). The machine then boots, behind the splash,
-into an unlock screen asking for your password, and runs the desktop setup;
-reboots again into SDDM, and the first Plasma session applies the desktop
-tweaks. Two reboots in total, and one password prompt after the first.
+pick the drive from an arrow-key menu, type `YES`, and walk away. The
+installer sets up everything, desktop included, then asks you to remove the
+USB and reboots as soon as you unplug it (or press Enter): straight into
+SDDM, where the first Plasma session applies the desktop tweaks. One reboot,
+and no prompts after the first screens.
 
 To install from a different branch: `curl ... | BRANCH=clauding bash`.
 
@@ -62,13 +61,14 @@ mirror is `ISO_MIRROR` in `config.sh`.
     lib/prompt.sh         validated input, passwords, confirm, arrow-key menu
     lib/system.sh         checks, CPU/GPU detection, pacman/AUR/service helpers
     phases/install.sh     live ISO: partition, format, pacstrap (+ CPU/GPU drivers), hand off to chroot
-    phases/chroot.sh      locale, accounts, sudo, hibernation, GRUB, first-login hook
-    phases/post.sh        first login: Plasma, theming, Samba, Steam, AUR
+    phases/chroot.sh      locale, accounts, sudo, hibernation, GRUB, then runs post.sh as the user
+    phases/post.sh        the desktop: Plasma, theming, Samba, Steam, AUR
     phases/kde-init.sh    first Plasma session: kwin, theme, widgets, panel, icons
 
 The installer directory travels with the install: `/tmp/arch-setup` on the
-ISO → `/root/arch-setup` in the chroot → `~/.arch-setup` for the post and
-Plasma phases, which then deletes itself, leaving only `~/arch-setup.log`.
+ISO → `/root/arch-setup` in the chroot → `~/.arch-setup` for the post
+phase (still in the chroot) and the Plasma first-login step, which then
+deletes it, leaving only `~/arch-setup.log`.
 
 Every command that goes through `run()` is logged there, with its full
 output shown on the terminal only if it fails. `VERBOSE=1 setup.sh <phase>`
@@ -79,7 +79,7 @@ streams everything live instead.
 From a local checkout, phases can be run directly — useful for re-applying
 the desktop setup or iterating on it:
 
-    ./setup.sh post        # as your user; idempotent (--needed everywhere)
+    ./setup.sh post        # as your user; idempotent (--needed everywhere); asks for your password
     ./setup.sh kde-init    # as your user, inside a Plasma session
 
 Running from a checkout never deletes it; only the staged `~/.arch-setup`
@@ -128,19 +128,22 @@ Things that look odd but are deliberate:
   drivers) enabled before `pacstrap`: the install phase turns it on in the
   live ISO's `pacman.conf`, which `pacstrap` reads, and `pacstrap -P` copies
   that config into the new system.
-- **The first boot runs the post phase from a service, not an autologin.**
-  `arch-setup-post.service` (written by the chroot phase) runs it as your
-  user on tty1, so no login text appears: the splash gives way straight to
-  the unlock screen, whose password goes to `sudo -S` on stdin. It removes
-  itself once the phase succeeds; if the phase fails, tty1 gets its login
-  prompt back and the service tries again on the next boot. sudo's
-  first-use lecture is switched off (`/etc/sudoers.d/10-wheel`).
+- **The post phase runs inside the chroot, not on a first boot.** Nothing
+  it does needs the new system running: packages install from the live
+  system's network, services are enabled without being started (`--now`
+  is dropped in a chroot), and AUR builds run as the user (`runuser`), on
+  disk rather than in the chroot's RAM-backed `/tmp`. A temporary
+  `NOPASSWD` sudo rule (`/etc/sudoers.d/90-arch-setup-install`, removed
+  afterwards) stands in for the password, and the progress bar carries on
+  from the install phase's. Run by hand later, the phase opens with an
+  Omarchy-style unlock screen instead, whose password goes to `sudo -S` on
+  stdin; sudo's first-use lecture is off (`/etc/sudoers.d/10-wheel`).
 - **The live ISO reboots with `systemctl reboot --force --force`**, after
   the new system is unmounted and synced: nothing on the ISO needs a clean
   shutdown, and one was screens of status lines and a 90 s wait for the
   Wi-Fi daemon, which ignores SIGTERM. The double force reboots at once.
-- **The post phase enables SDDM without `--now`.** It would take over tty1,
-  where the phase is still running. The reboot starts it.
+- **The post phase enables SDDM without `--now`.** Run by hand, it would
+  take over tty1, where the phase is still running. The reboot starts it.
 - **Passwordless `sudo pacman`** exists only during the AUR step (makepkg's
   own sudo calls don't see the cached ticket) and is removed right after,
   with the EXIT trap as backstop.
@@ -155,7 +158,7 @@ Things that look odd but are deliberate:
   are copies from `assets/consolefonts` with two unused glyphs redrawn as
   Pac-Man: `ᗧ`, the tag on every message, and `⬤`, its closed mouth, which
   the spinner alternates with it while eating a row of pellets. They also
-  carry the first-boot unlock screen's padlock, Omarchy's lock shape
+  carry the unlock screen's padlock, Omarchy's lock shape
   redrawn as a block of 5×3 tiles (U+E000–U+E00E), 80% as tall as the
   password box beside it. No stock console font has any of these;
   `tools/make-console-fonts.py` rebuilds the copies.
@@ -179,15 +182,16 @@ Things that look odd but are deliberate:
   cell, and writes `logo-hd.txt`: each cell that isn't empty, full or a
   half block is a private-use character (U+E100 + its pixel pattern), and
   `tools/make-console-fonts.py` draws those patterns into the fonts. It's
-  shown only once a patched font is loaded (as root; at the first boot the
-  service's root step leaves `/run/arch-setup-patched-font`), and
+  shown only once a patched font is loaded (by the install phase, as root;
+  it tells the chroot and post phases through `PATCHED_FONT`), and
   `logo.txt` everywhere else, such as in a terminal emulator. Each step
   then clears the screen and redraws the logo, a progress bar and the step
   title in one centred column; earlier output stays in the log, which is
   why `warn` writes there too. None of this persists after a reboot.
 - **Prompts use [gum](https://github.com/charmbracelet/gum) when it runs.**
   The install phase fetches it onto the live ISO (`pacman -Sy gum`, a few
-  MB of RAM) and the post phase installs it on the new system. That first
+  MB of RAM) and the post phase installs it on the new system, for runs by
+  hand. That first
   install is a partial upgrade, so gum is only used after `gum --version`
   succeeds; if it can't be fetched or won't start, the plain prompts in
   `lib/prompt.sh` take over. Esc asks again, Ctrl+C aborts. Typing `YES` to
@@ -224,6 +228,7 @@ table is a description of those lists, not a second copy of them.
 | `networkmanager` | Network management daemon (Wi-Fi, Ethernet, VPN) |
 | `sudo` | Lets the created user run commands as root |
 | `plymouth` | Boot splash (the `pacman` theme) instead of scrolling boot messages |
+| `pciutils` | `lspci`, for the GPU check that decides on Steam (the post phase runs in the chroot, on the new system's tools) |
 
 CPU microcode (`intel-ucode` / `amd-ucode`) is added here too, picked from the
 detected vendor — see the design note on why it goes in at this stage.

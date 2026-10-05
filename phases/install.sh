@@ -14,7 +14,9 @@ phase_install() {
   require_uefi
   require_network
   install_gum
-  STEP_TOTAL=6
+  # The post phase runs from the chroot phase and carries on this progress
+  # bar, so the total includes its steps.
+  STEP_TOTAL=$(( 6 + $(grep -c '^  step ' "$SETUP_DIR/phases/post.sh") ))
 
   step "Set up your account"
   input HOST_NAME "Hostname" valid_hostname
@@ -208,6 +210,7 @@ configure_new_system() {
 
   info "Entering chroot..."
   arch-chroot /mnt env HOST_NAME="$HOST_NAME" USER_NAME="$USER_NAME" VERBOSE="$VERBOSE" \
+    STEP="$STEP" STEP_TOTAL="$STEP_TOTAL" PATCHED_FONT="${PATCHED_FONT:-0}" \
     bash /root/arch-setup/setup.sh chroot
 }
 

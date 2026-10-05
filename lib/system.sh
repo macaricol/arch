@@ -32,7 +32,22 @@ aur_install() {
   done
   die "Could not install AUR packages: $*"
 }
-enable_service() { run as_root systemctl enable "$@"; }   # add --now to also start it
+# True inside a chroot, such as the installer's arch-chroot. IN_CHROOT=1
+# says so for processes that can't check themselves: systemd-detect-virt
+# needs to read /proc/1/root, which only root may.
+in_chroot() { [[ ${IN_CHROOT:-0} == 1 ]] || systemd-detect-virt --chroot &>/dev/null; }
+
+# enable_service [--now] UNIT... — --now also starts them, except in a
+# chroot, where nothing can be started (the first boot does it).
+enable_service() {
+  local -a args=()
+  local arg
+  for arg; do
+    [[ $arg == --now ]] && in_chroot && continue
+    args+=("$arg")
+  done
+  run as_root systemctl enable "${args[@]}"
+}
 
 # Regenerates grub.cfg, then comments out its "Loading Linux..." echo lines
 # (there is no /etc/default/grub knob for those).
