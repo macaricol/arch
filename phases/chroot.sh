@@ -40,7 +40,9 @@ configure_accounts() {
   # chpasswd reads stdin, so the passwords never appear in argv or env.
   printf 'root:%s\n%s:%s\n' "$1" "$USER_NAME" "$2" | chpasswd
 
-  echo '%wheel ALL=(ALL:ALL) ALL' > /etc/sudoers.d/10-wheel
+  # No lecture on first use: the first sudo is the first-boot unlock screen,
+  # which is the prompt.
+  printf '%s\n' '%wheel ALL=(ALL:ALL) ALL' 'Defaults lecture = never' > /etc/sudoers.d/10-wheel
   chmod 440 /etc/sudoers.d/10-wheel
   visudo -c -f /etc/sudoers.d/10-wheel > /dev/null || die "Generated sudoers drop-in is invalid"
 
@@ -117,30 +119,45 @@ install_bootloader() {
   regenerate_grub
 }
 
-# Auto-login on tty1 for exactly one boot, landing the user in the post
-# phase. The .bash_profile hook removes the autologin again *before* running
-# it, so the exposure ends at that first login even if the phase fails.
+# Runs the post phase on tty1 at the first boot, as the user, from its own
+# service rather than an autologin: no /etc/issue, login line or motd, just
+# the boot splash and then the post phase's unlock screen. It asks for the
+# user's password before doing anything, and removes this service once it
+# has succeeded. If it fails, ExecStopPost gives tty1 its login prompt back;
+# the service runs again on the next boot until the phase succeeds.
 configure_first_login() {
-  info "Scheduling the post-install phase for first login..."
-  mkdir -p /etc/systemd/system/getty@tty1.service.d
-  cat > /etc/systemd/system/getty@tty1.service.d/autologin.conf <<EOF
-[Service]
-ExecStart=
-ExecStart=-/usr/bin/agetty --autologin $USER_NAME --noclear %I \$TERM
-EOF
+  info "Scheduling the post-install phase for the first boot..."
+  local home=/home/$USER_NAME
+  cat > /etc/systemd/system/arch-setup-post.service <<EOF
+[Unit]
+Description=Finish the installation
+ConditionPathExists=$home/.arch-setup/setup.sh
+Wants=network-online.target
+After=network-online.target systemd-user-sessions.service plymouth-quit-wait.service
+Before=getty@tty1.service
+Conflicts=getty@tty1.service
 
-  local profile=/home/$USER_NAME/.bash_profile
-  cat > "$profile" <<'EOF'
-# One-shot hook written by the installer.
-sudo rm -f /etc/systemd/system/getty@tty1.service.d/autologin.conf
-sudo rmdir /etc/systemd/system/getty@tty1.service.d 2>/dev/null
-# Unlink first, then copy: bash is still reading this file through an open
-# fd, and overwriting it in place would corrupt the rest of the read.
-rm -f "$HOME/.bash_profile"
-cp /etc/skel/.bash_profile "$HOME/.bash_profile"
-[[ -f "$HOME/.arch-setup/setup.sh" ]] && bash "$HOME/.arch-setup/setup.sh" post
+[Service]
+Type=simple
+User=$USER_NAME
+PAMName=login
+WorkingDirectory=$home
+Environment=TERM=linux
+ExecStartPre=-+/usr/bin/plymouth quit
+ExecStart=/bin/bash $home/.arch-setup/setup.sh post
+ExecStopPost=+/usr/bin/systemctl --no-block start getty@tty1.service
+StandardInput=tty
+StandardOutput=tty
+StandardError=tty
+TTYPath=/dev/tty1
+TTYReset=yes
+TTYVHangup=yes
+TTYVTDisallocate=yes
+
+[Install]
+WantedBy=multi-user.target
 EOF
-  chown "$USER_NAME:$USER_NAME" "$profile"
+  run systemctl enable arch-setup-post.service
 }
 
 # Moves this installer into the new user's home for the post phase. Last

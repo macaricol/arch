@@ -15,8 +15,8 @@ Answer three prompts (hostname, username, and one password used for both
 your user and root),
 pick the drive from an arrow-key menu, type `YES`, and walk away. When the
 base install is done it asks you to remove the USB, and reboots as soon as
-you unplug it (or press Enter). The machine then comes up in a one-time tty
-autologin that runs the desktop setup,
+you unplug it (or press Enter). The machine then boots, behind the splash,
+into an unlock screen asking for your password, and runs the desktop setup;
 reboots again into SDDM, and the first Plasma session applies the desktop
 tweaks. Two reboots in total, and one password prompt after the first.
 
@@ -56,7 +56,7 @@ mirror is `ISO_MIRROR` in `config.sh`.
     config.sh             every tunable value: locale, disk, package lists, theme
     logo.txt              the logo drawn above every step
     assets/plymouth/      the boot splash theme: script, logo, spinner
-    assets/consolefonts/  the console fonts, with Pac-Man added (tools/make-console-fonts.py)
+    assets/consolefonts/  the console fonts, with Pac-Man and a padlock added (tools/make-console-fonts.py)
     lib/ui.sh             console font/palette, centred step screens, run() spinner + setup.log
     lib/prompt.sh         validated input, passwords, confirm, arrow-key menu
     lib/system.sh         checks, CPU/GPU detection, pacman/AUR/service helpers
@@ -127,9 +127,19 @@ Things that look odd but are deliberate:
   drivers) enabled before `pacstrap`: the install phase turns it on in the
   live ISO's `pacman.conf`, which `pacstrap` reads, and `pacstrap -P` copies
   that config into the new system.
-- **The post phase enables SDDM without `--now`.** `sddm.service` conflicts
-  with `getty@tty1`; starting it would SIGHUP the very session the phase is
-  running in. The reboot starts it.
+- **The first boot runs the post phase from a service, not an autologin.**
+  `arch-setup-post.service` (written by the chroot phase) runs it as your
+  user on tty1, so no login text appears: the splash gives way straight to
+  the unlock screen, whose password goes to `sudo -S` on stdin. It removes
+  itself once the phase succeeds; if the phase fails, tty1 gets its login
+  prompt back and the service tries again on the next boot. sudo's
+  first-use lecture is switched off (`/etc/sudoers.d/10-wheel`).
+- **The live ISO reboots with `systemctl reboot --force`**, after the new
+  system is unmounted: nothing on the ISO needs a clean shutdown, and
+  stopping its services meant screens of status lines and a 90 s wait for
+  the Wi-Fi service.
+- **The post phase enables SDDM without `--now`.** It would take over tty1,
+  where the phase is still running. The reboot starts it.
 - **Passwordless `sudo pacman`** exists only during the AUR step (makepkg's
   own sudo calls don't see the cached ticket) and is removed right after,
   with the EXIT trap as backstop.
@@ -143,9 +153,11 @@ Things that look odd but are deliberate:
   screens, and swaps the 16 VGA colours for `CONSOLE_PALETTE`. The fonts
   are copies from `assets/consolefonts` with two unused glyphs redrawn as
   Pac-Man: `ᗧ`, the tag on every message, and `⬤`, its closed mouth, which
-  the spinner alternates with it while eating a row of pellets. No stock
-  console font has either character; `tools/make-console-fonts.py`
-  rebuilds the copies. Each step
+  the spinner alternates with it while eating a row of pellets. They also
+  carry the first-boot unlock screen's padlock, Omarchy's lock shape
+  redrawn as a block of 5×3 tiles (U+E000–U+E00E), 80% as tall as the
+  password box beside it. No stock console font has any of these;
+  `tools/make-console-fonts.py` rebuilds the copies. Each step
   then clears the screen and redraws the logo, a progress bar and the step
   title in one centred column; earlier output stays in the log, which is
   why `warn` writes there too. None of this persists after a reboot.

@@ -5,14 +5,11 @@ SUDOERS_DROPIN=/etc/sudoers.d/99-arch-setup-temp
 
 phase_post() {
   require_user
-  require_network
   setup_console
-  header "Desktop setup"
 
   # One password prompt up front; a background loop then keeps the ticket
   # alive so no later step stalls on a second prompt under a spinner.
-  info "Requesting sudo access..."
-  sudo -v
+  unlock_sudo
   ( while kill -0 $$ 2>/dev/null; do sudo -n true; sleep 60; done ) &>/dev/null &
   local keepalive_pid=$!
   # -n in the trap: if the ticket is somehow gone, fail quietly rather than
@@ -21,6 +18,7 @@ phase_post() {
   STEP_TOTAL=10
 
   step "Updating the system"
+  wait_for_network
   # gum: the prompt UI (lib/prompt.sh), for the reboot question at the end.
   run sudo pacman -Syu --noconfirm --needed gum
 
@@ -35,10 +33,11 @@ phase_post() {
 
   step "Enabling services"
   enable_service --now bluetooth
-  # No --now for SDDM: its unit conflicts with getty@tty1, so starting it here
-  # would SIGHUP this very session before the prompt below. The reboot does it.
+  # No --now for SDDM: it would take over tty1, where this phase is still
+  # running, before the prompt below. The reboot starts it.
   enable_service sddm
 
+  remove_first_boot_service
   finish "All done! Reboot to see your new setup"
   if confirm "Reboot now?"; then
     info "Rebooting..."
@@ -47,6 +46,27 @@ phase_post() {
   else
     info "Reboot manually when ready to apply everything."
   fi
+}
+
+# The password screen, until sudo accepts what's typed. The password goes
+# to sudo on stdin, never in argv; lecture and prompt are suppressed, as the
+# screen is the prompt.
+unlock_sudo() {
+  local password error=''
+  while :; do
+    unlock_screen password "Enter your password to finish setting up" "$error"
+    printf '%s\n' "$password" | sudo -S -p '' -v 2>/dev/null && break
+    error="Wrong password, try again"
+  done
+  clear
+}
+
+# Set up by the chroot phase to run this phase on the first boot; once it has
+# succeeded, it has no reason to exist. (~/.arch-setup outlives it: the
+# Plasma first-login step still runs from there.)
+remove_first_boot_service() {
+  sudo systemctl disable arch-setup-post.service &>/dev/null || true
+  sudo rm -f /etc/systemd/system/arch-setup-post.service
 }
 
 configure_mpv() {

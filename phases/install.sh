@@ -52,7 +52,13 @@ phase_install() {
   wait_for_usb_removal
   info "Rebooting..."
   sync
-  reboot || echo b > /proc/sysrq-trigger
+  # The new system is unmounted and nothing on the live ISO needs a clean
+  # shutdown, so skip stopping its services: --force goes straight to
+  # killing processes and rebooting, without the screens of "Stopped ..."
+  # lines or the 90 s wait for the Wi-Fi service. RTMIN+21 tells systemd to
+  # stop printing status for whatever is left.
+  kill -s RTMIN+21 1 2>/dev/null || true
+  systemctl reboot --force || echo b > /proc/sysrq-trigger
 }
 
 # Left plugged in, the USB can win the boot order and start the installer
@@ -62,14 +68,17 @@ phase_install() {
 wait_for_usb_removal() {
   local usb='' key
   usb=$(live_usb_disk) || true
+  # Not a typing prompt: a plain message, and no cursor while it waits
+  # (the key pressed isn't echoed).
   if [[ -n $usb ]]; then
-    ask "Unplug the USB to reboot, or press Enter if it's already out:"
+    info "Unplug the USB to reboot, or press Enter if it's already out."
   else
-    ask "Remove the installation media, then press Enter to reboot:"
+    info "Remove the installation media, then press Enter to reboot."
   fi
+  printf '\e[?25l'
   while :; do
-    [[ -n $usb && ! -b $usb ]] && { echo; info "USB removed."; return; }
-    read -rs -t 1 key && { echo; return; }
+    [[ -n $usb && ! -b $usb ]] && { info "USB removed."; return; }
+    read -rs -t 1 key && return
   done
 }
 
