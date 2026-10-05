@@ -11,7 +11,7 @@ BRANCH=${BRANCH:-main}
 ISO_MIRROR='https://geo.mirror.pkgbuild.com/iso/latest'
 
 # ── Installer look ─────────────────────────────────────────────────────
-# Shown under the logo (logo.txt) on every step.
+# Shown under the logo (assets/logo) on every step.
 TAGLINE='ARCHMAN · KDE Plasma'
 # The 16 console colours used while installing, in VT order. Built on the
 # palette 01050E near-black, 021742 navy, 033574 blue, A80440 crimson,
@@ -40,7 +40,9 @@ MESSAGES_LOCALE='en_US.UTF-8'        # terminal and log messages
 # ── Disk ───────────────────────────────────────────────────────────────
 # Layout is always: EFI, swap sized to RAM (so hibernation works), Btrfs root
 # with @ and @home subvolumes.
-MIRROR_COUNTRIES='PT,ES'
+# Mirrors are ranked in this machine's country, looked up from its public IP
+# (auto), or in the countries listed here, e.g. 'PT,ES'.
+MIRROR_COUNTRIES='auto'
 EFI_SIZE='512M'
 BTRFS_MOUNT_OPTS='noatime,compress=zstd:1'
 

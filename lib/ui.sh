@@ -3,7 +3,7 @@
 
 VERBOSE=${VERBOSE:-0}
 LOG_FILE=${LOG_FILE:-$SETUP_DIR/setup.log}
-LOGO_FILE=$SETUP_DIR/logo.txt
+LOGO_FILE=$SETUP_DIR/assets/logo/logo.txt
 
 C_RESET=$'\e[0m' C_BOLD=$'\e[1m' C_REVERSE=$'\e[7m'
 C_CYAN=$'\e[96m' C_GREEN=$'\e[92m' C_YELLOW=$'\e[93m' C_RED=$'\e[91m'
@@ -110,8 +110,8 @@ scale_console_font() {
 # in this process or in the install phase that started it (which passes
 # PATCHED_FONT down through the chroot phase to the post phase).
 logo_file() {
-  if on_console && [[ ${PATCHED_FONT:-0} == 1 && -f $SETUP_DIR/logo-hd.txt ]]; then
-    echo "$SETUP_DIR/logo-hd.txt"
+  if on_console && [[ ${PATCHED_FONT:-0} == 1 && -f $SETUP_DIR/assets/logo/logo-hd.txt ]]; then
+    echo "$SETUP_DIR/assets/logo/logo-hd.txt"
   else
     echo "$LOGO_FILE"
   fi

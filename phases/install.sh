@@ -158,12 +158,36 @@ partition_and_mount() {
   run swapon "$swap"
 }
 
+# Prints the countries to rank mirrors in: MIRROR_COUNTRIES, or with auto the
+# two-letter code of this machine's public IP's country (ipinfo.io), or
+# nothing if that lookup fails.
+mirror_countries() {
+  if [[ $MIRROR_COUNTRIES != auto ]]; then
+    echo "$MIRROR_COUNTRIES"
+    return
+  fi
+  local code
+  code=$(curl -fsS --max-time 5 https://ipinfo.io/country 2>/dev/null | tr -d '[:space:]') || true
+  [[ $code =~ ^[A-Z]{2}$ ]] && echo "$code"
+  return 0
+}
+
 install_base() {
-  info "Ranking mirrors ($MIRROR_COUNTRIES)..."
-  run reflector --country "$MIRROR_COUNTRIES" --latest 8 --protocol https \
-    --sort rate --number 6 --save /etc/pacman.d/mirrorlist \
-    || warn "reflector failed — keeping the ISO's default mirrorlist"
-  [[ -s /etc/pacman.d/mirrorlist ]] || die "Mirrorlist is empty"
+  # The fastest mirrors in our country; worldwide when it isn't known or has
+  # no HTTPS mirrors reflector can find (it then leaves no Server lines).
+  local countries mirrorlist=/etc/pacman.d/mirrorlist
+  countries=$(mirror_countries)
+  if [[ -n $countries ]]; then
+    info "Ranking mirrors in $countries..."
+    run reflector --country "$countries" --latest 8 --protocol https \
+      --sort rate --number 6 --save "$mirrorlist" || true
+  fi
+  if [[ -z $countries ]] || ! grep -q '^Server' "$mirrorlist"; then
+    info "Ranking mirrors worldwide..."
+    run reflector --latest 20 --protocol https --sort rate --number 6 --save "$mirrorlist" \
+      || warn "reflector failed — keeping the ISO's default mirrorlist"
+  fi
+  grep -q '^Server' "$mirrorlist" || die "Mirrorlist is empty"
 
   # Microcode and GPU drivers go in with the base system, so the initramfs
   # the chroot phase builds already includes them: NVIDIA machines boot on

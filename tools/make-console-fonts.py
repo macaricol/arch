@@ -8,7 +8,7 @@ from, each with two glyphs redrawn as Pac-Man.
                  first-boot unlock screen (lib/prompt.sh's unlock_screen)
   U+E010         a round bullet, for that screen's password box (the
                  fonts' own • ranges from a square to a diamond)
-  U+E100 + n     the cells of logo-hd.txt (tools/make-logo.py): each a 2 x 4
+  U+E100 + n     the cells of assets/logo/logo-hd.txt (tools/make-logo.py): each a 2 x 4
                  grid of blocks, bit n set for each one filled
 
 The console can't show emoji or colour glyphs, and no stock console font has
@@ -39,7 +39,7 @@ LOCK = [chr(0xE000 + i) for i in range(LOCK_COLS * LOCK_ROWS)]   # row by row
 DOT = "\ue010"
 MOUTH_DEGREES = 38   # half the opening, measured from the horizontal
 # Slots to give up, in order of preference.
-LOGO = pathlib.Path(__file__).resolve().parent.parent / "logo-hd.txt"
+LOGO = pathlib.Path(__file__).resolve().parent.parent / "assets" / "logo" / "logo-hd.txt"
 # (Not •, ·, ↑, ↓ or the single-line box drawing: the installer prints those.)
 SPARE = (list("☺☻♀♂♪♫☼♥♦♣♠◘○◙►◄↕‼▬↨∟↔▲▼⌂")
          + list("╔╗╚╝═║╠╣╦╩╬╒╓╕╖╘╙╛╜╞╟╡╢╤╥╧╨╪╫")

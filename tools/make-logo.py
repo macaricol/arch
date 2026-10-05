@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Draws the ARCHMAN logo and writes logo-hd.txt and logo.txt.
+"""Draws the ARCHMAN logo and writes assets/logo: logo-hd.txt and logo.txt.
 
 The style is the classic arcade title: chunky letters over a solid copy of
 themselves shifted up and left (the extrusion, in its own colour), set edge
@@ -36,6 +36,7 @@ import tempfile
 import zlib
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
+OUT = ROOT / "assets" / "logo"
 ARCH_SVG = pathlib.Path("/usr/share/pixmaps/archlinux-logo.svg")
 WIDTH, HEIGHT = 158, 28        # pixels: 79 x 7 cells of 2 x 4 (the console has 80)
 CELL_W, CELL_H = 2, 4
@@ -334,8 +335,8 @@ def cells(canvas, cell_w, cell_h, named):
 
 
 def write(name, lines, colours):
-    (ROOT / f"{name}.txt").write_text("\n".join(lines) + "\n")
-    (ROOT / f"{name}.colors").write_text("\n".join(colours) + "\n")
+    (OUT / f"{name}.txt").write_text("\n".join(lines) + "\n")
+    (OUT / f"{name}.colors").write_text("\n".join(colours) + "\n")
 
 
 def main():

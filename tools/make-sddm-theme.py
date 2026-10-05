@@ -83,8 +83,8 @@ def main():
     accent, text = palette[14], palette[15]
     OUT.mkdir(parents=True, exist_ok=True)
 
-    logo = (ROOT / "logo-hd.txt").read_text().rstrip("\n").split("\n")
-    colours = (ROOT / "logo-hd.colors").read_text().rstrip("\n").split("\n")
+    logo = (ROOT / "assets" / "logo" / "logo-hd.txt").read_text().rstrip("\n").split("\n")
+    colours = (ROOT / "assets" / "logo" / "logo-hd.colors").read_text().rstrip("\n").split("\n")
     png(OUT / "logo.png", render(font, logo, colours, palette))
     lock = ["".join(fonts.LOCK[r * fonts.LOCK_COLS:(r + 1) * fonts.LOCK_COLS]) for r in range(fonts.LOCK_ROWS)]
     png(OUT / "lock.png", render(font, lock, rgb=accent))

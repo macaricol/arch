@@ -53,9 +53,8 @@ mirror is `ISO_MIRROR` in `config.sh`.
     bootstrap.sh          fetches the repo tarball to /tmp, runs setup.sh install
     setup.sh <phase>      single entry point; loads config + lib, runs one phase
     config.sh             every tunable value: locale, disk, package lists, theme
-    logo.txt              the logo drawn above every step (tools/make-logo.py)
-    logo-hd.txt           the same at double resolution, for the console
-    logo*.colors          their colours, a digit per cell
+    assets/logo/          the logo drawn above every step (tools/make-logo.py): logo.txt,
+                          logo-hd.txt at double resolution for the console, their .colors
     assets/plymouth/      the boot splash theme: script, logo, spinner
     assets/sddm/archman/  the login screen: the unlock screen as an SDDM theme (tools/make-sddm-theme.py)
     assets/consolefonts/  the console fonts, with Pac-Man and a padlock added (tools/make-console-fonts.py)
@@ -123,6 +122,11 @@ Things that look odd but are deliberate:
   `channelmix.upmix = true`. Nothing is set for mpv on purpose — forcing
   `audio-channels=7.1` makes mpv pad the extra channels itself, so PipeWire
   sees 8 channels and skips the upmix.
+- **Mirrors are picked by location.** With `MIRROR_COUNTRIES='auto'` (the
+  default), the install phase looks up the country of the machine's public
+  IP at ipinfo.io (just its two-letter code) and has reflector rank that
+  country's HTTPS mirrors; if the lookup fails or the country has none, it
+  ranks mirrors worldwide. A list such as `'PT,ES'` pins the countries.
 - **Microcode and GPU drivers go in with `pacstrap`**, so the first
   initramfs and `grub.cfg` already include them and nothing needs
   regenerating later; an NVIDIA machine runs `nvidia-open` from its very

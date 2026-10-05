@@ -265,7 +265,7 @@ ln -sf ../archauto.service "$work/airootfs/etc/systemd/system/multi-user.target.
 # The script it runs: the installer's palette and logo with a status line,
 # laid out like lib/ui.sh's step screens so the installer takes over without
 # anything moving, then the network wait and bootstrap.sh. Settings are
-# baked in from config.sh and logo-hd.txt at build time; the patched console
+# baked in from config.sh and assets/logo at build time; the patched console
 # fonts that logo needs (assets/consolefonts) are copied alongside.
 mkdir -p "$work/airootfs/usr/local/bin"
 install -Dm644 -t "$work/airootfs/usr/local/share/archauto" "$repo_dir"/assets/consolefonts/*.psfu.gz
