@@ -9,6 +9,9 @@ console draws them: logo.png from logo-hd.txt, lock.png from the padlock's
 scale with smoothing off. theme.conf carries the colours and tagline from
 config.sh (CONSOLE_PALETTE, TAGLINE).
 
+It also writes assets/logo/banner.png, the same logo on the palette's
+background with a margin, for the top of the README.
+
 Run it again after changing the logo, the fonts, the palette or the tagline;
 the output is committed:
   tools/make-sddm-theme.py
@@ -85,7 +88,14 @@ def main():
 
     logo = (ROOT / "assets" / "logo" / "logo-hd.txt").read_text().rstrip("\n").split("\n")
     colours = (ROOT / "assets" / "logo" / "logo-hd.colors").read_text().rstrip("\n").split("\n")
-    png(OUT / "logo.png", render(font, logo, colours, palette))
+    logo_pixels = render(font, logo, colours, palette)
+    png(OUT / "logo.png", logo_pixels)
+    # The README's banner: on the background, 16 px of it all round.
+    margin, w = 16, len(logo_pixels[0])
+    blank = [palette[0]] * (w + 2 * margin)
+    banner = [blank] * margin + [[palette[0]] * margin + [p or palette[0] for p in row] + [palette[0]] * margin
+                                for row in logo_pixels] + [blank] * margin
+    png(ROOT / "assets" / "logo" / "banner.png", banner)
     lock = ["".join(fonts.LOCK[r * fonts.LOCK_COLS:(r + 1) * fonts.LOCK_COLS]) for r in range(fonts.LOCK_ROWS)]
     png(OUT / "lock.png", render(font, lock, rgb=accent))
     png(OUT / "dot.png", render(font, [fonts.DOT], rgb=text))
@@ -99,7 +109,7 @@ border=#{palette[8]}
 hint=#{palette[8]}
 error=#{palette[9]}
 """)
-    print(f"{OUT.relative_to(ROOT)}: logo.png, lock.png, dot.png, theme.conf")
+    print(f"{OUT.relative_to(ROOT)}: logo.png, lock.png, dot.png, theme.conf; assets/logo/banner.png")
 
 
 if __name__ == "__main__":

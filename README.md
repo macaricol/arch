@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/logo/banner.png" alt="ARCHMAN" width="664">
+</p>
+
 # Arch Linux + KDE Plasma installer
 
 Unattended-ish installer for a UEFI machine: Btrfs root with `@`/`@home`
@@ -25,13 +29,15 @@ To install from a different branch: `curl ... | BRANCH=clauding bash`.
 
 ### No-typing USB
 
-`tools/build-autoinstall-iso.sh` adds an "Automated Install" entry to an
-official ISO's boot menu that runs the command above by itself. That entry
-boots quietly: no kernel or systemd messages and no login text, just the
-firmware logo, then the installer's logo with "Waiting for network…" /
-"Fetching the installer…" until the installer takes over. If either fails,
-it says so and leaves a root shell on tty1. The ISO's own entries are
-unchanged.
+`tools/build-autoinstall-iso.sh` turns an official ISO into a USB that runs
+the command above by itself. It has no boot menu (on UEFI): it boots
+straight in, quietly — no kernel or systemd messages and no login text —
+shows the ARCHMAN logo across two thirds of the screen for 4 seconds while
+the network comes up (`tools/fb-logo.py`, drawn on the framebuffer), then
+starts the installer. A status line appears under the logo only if the
+network takes longer. If it never comes up, or the installer can't be
+fetched, it says so and leaves a root shell on tty1. The stock ISO's other
+boot entries (the live system, memtest...) are removed.
 
     sudo pacman -S --needed xorriso squashfs-tools
     sudo tools/build-autoinstall-iso.sh
@@ -54,7 +60,8 @@ mirror is `ISO_MIRROR` in `config.sh`.
     setup.sh <phase>      single entry point; loads config + lib, runs one phase
     config.sh             every tunable value: locale, disk, package lists, theme
     assets/logo/          the logo drawn above every step (tools/make-logo.py): logo.txt,
-                          logo-hd.txt at double resolution for the console, their .colors
+                          logo-hd.txt at double resolution for the console, their .colors,
+                          and banner.png for this README (tools/make-sddm-theme.py)
     assets/plymouth/      the boot splash theme: script, logo, spinner
     assets/sddm/archman/  the login screen: the unlock screen as an SDDM theme (tools/make-sddm-theme.py)
     assets/consolefonts/  the console fonts, with Pac-Man and a padlock added (tools/make-console-fonts.py)
