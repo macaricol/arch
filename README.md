@@ -55,6 +55,7 @@ mirror is `ISO_MIRROR` in `config.sh`.
     config.sh             every tunable value: locale, disk, package lists, theme
     logo.txt              the logo drawn above every step (tools/make-logo.py)
     logo-hd.txt           the same at double resolution, for the console
+    logo*.colors          their colours, a digit per cell
     assets/plymouth/      the boot splash theme: script, logo, spinner
     assets/sddm/archman/  the login screen: the unlock screen as an SDDM theme (tools/make-sddm-theme.py)
     assets/consolefonts/  the console fonts, with Pac-Man and a padlock added (tools/make-console-fonts.py)
@@ -187,11 +188,20 @@ Things that look odd but are deliberate:
   If loading still fails, setfont's error is in `journalctl -b -t arch-setup`.
 - **The console gets a double-resolution logo.** Plain console characters
   go no finer than half blocks, two pixels per cell, which is `logo.txt`.
-  The A's are the Arch Linux logo's mark, rasterised from the copy in
-  `/usr/share/pixmaps` (thickened a pixel, with its two slivers cut back
-  in, so it holds its own next to the other letters). R, H, M and N are
-  arcade-style pixel art, drawn on a 10×10 grid and doubled, for even 45°
-  staircases and hard bevels.
+  The style is the classic arcade title: pink letters over a blue copy of
+  themselves shifted up and left (the extrusion), set edge to edge. R, H, M
+  and N are pixel art drawn as a thick outline with a dark inside; the C is
+  a solid Pac-Man with his eye cut out; the A's are the Arch Linux logo's
+  mark, kept solid, rasterised from the copy in `/usr/share/pixmaps`
+  (thickened a pixel, with its two slivers cut back in). A console cell
+  has only two colours, its character's and its background's: the
+  `.colors` file gives each cell its pair (pink on blue where a letter
+  meets its extrusion), from palette slots 0–7 only, which 512-glyph fonts
+  keep; in a terminal emulator the same colours go out as 24-bit RGB. The
+  plain `logo.txt` is the same design with solid letters: at half the
+  resolution there's no room for outlines.
+  Doubling the console logo's resolution again would take about 150 cell
+  glyphs, more than a 256-character console font has room for.
   `tools/make-logo.py` draws the logo at 156×28 pixels instead, 2×4 per
   cell, and writes `logo-hd.txt`: each cell that isn't empty, full or a
   half block is a private-use character (U+E100 + its pixel pattern), and

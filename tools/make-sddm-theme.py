@@ -17,7 +17,10 @@ import importlib.util
 import pathlib
 import struct
 import subprocess
+import sys
 import zlib
+
+sys.dont_write_bytecode = True   # no __pycache__ from importing the font tool
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 OUT = ROOT / "assets" / "sddm" / "archman"
@@ -33,10 +36,10 @@ def config(expr):
                           check=True, capture_output=True, text=True).stdout
 
 
-def png(path, pixels, rgb):
-    """Writes on/off pixels as an RGBA PNG: rgb where on, transparent elsewhere."""
-    colour = bytes.fromhex(rgb)
-    raw = b"".join(b"\x00" + b"".join(colour + b"\xff" if on else b"\x00\x00\x00\x00" for on in row)
+def png(path, pixels):
+    """Writes pixels, each an RGB hex colour or None, as an RGBA PNG; None
+    is transparent."""
+    raw = b"".join(b"\x00" + b"".join(bytes.fromhex(p) + b"\xff" if p else b"\x00\x00\x00\x00" for p in row)
                    for row in pixels)
 
     def chunk(kind, data):
@@ -47,23 +50,30 @@ def png(path, pixels, rgb):
                      + chunk(b"IDAT", zlib.compress(raw, 9)) + chunk(b"IEND", b""))
 
 
-def render(font, lines):
-    """Text drawn with the font's glyphs, one cell per character."""
+def render(font, lines, colours=None, palette=None, rgb=None):
+    """Text drawn with the font's glyphs, one cell per character, as colours:
+    rgb for every glyph pixel, or with colours (lines of digits fg * 3 + bg,
+    as lib/ui.sh's logo_lines reads them) the palette's slot for each; the
+    background (0) is transparent."""
     index = {}
     for i, entry in enumerate(font["table"]):
         for char in fonts.chars_of(entry):
             index.setdefault(char, i)
     w, h = font["width"], font["height"]
-    pixels = [[False] * (w * max(map(len, lines))) for _ in range(h * len(lines))]
+    slots = (None, palette[6], palette[2]) if palette else None   # background, letters, extrusion
+    pixels = [[None] * (w * max(map(len, lines))) for _ in range(h * len(lines))]
     for row, line in enumerate(lines):
         for col, char in enumerate(line):
             if char == " ":
                 continue
+            fg, bg = rgb, None
+            if colours:
+                attr = int(colours[row][col])
+                fg, bg = slots[attr // 3], slots[attr % 3]
             glyph = font["glyphs"][index[char]]
             for y in range(h):
                 for x in range(w):
-                    if fonts.pixel(font, glyph, x, y):
-                        pixels[row * h + y][col * w + x] = True
+                    pixels[row * h + y][col * w + x] = fg if fonts.pixel(font, glyph, x, y) else bg
     return pixels
 
 
@@ -74,10 +84,11 @@ def main():
     OUT.mkdir(parents=True, exist_ok=True)
 
     logo = (ROOT / "logo-hd.txt").read_text().rstrip("\n").split("\n")
-    png(OUT / "logo.png", render(font, logo), accent)
+    colours = (ROOT / "logo-hd.colors").read_text().rstrip("\n").split("\n")
+    png(OUT / "logo.png", render(font, logo, colours, palette))
     lock = ["".join(fonts.LOCK[r * fonts.LOCK_COLS:(r + 1) * fonts.LOCK_COLS]) for r in range(fonts.LOCK_ROWS)]
-    png(OUT / "lock.png", render(font, lock), accent)
-    png(OUT / "dot.png", render(font, [fonts.DOT]), text)
+    png(OUT / "lock.png", render(font, lock, rgb=accent))
+    png(OUT / "dot.png", render(font, [fonts.DOT], rgb=text))
 
     # The roles lib/ui.sh gives the palette's slots.
     (OUT / "theme.conf").write_text(f"""[General]

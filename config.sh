@@ -18,13 +18,14 @@ TAGLINE='ARCHMAN · KDE Plasma'
 # F3065E neon pink; the grey-white text, blue-grey hints, amber warnings and
 # red-orange errors are tints added for roles it has no colour for. How
 # lib/ui.sh uses them:
-#   0 background · 4 empty progress bar, unselected buttons · 8 hints
+#   0 background · 2 the logo's extrusion · 6 the logo's letters
+#   4 empty progress bar, unselected buttons · 8 hints
 #   9 errors · 10 closing title · 11 warnings · 13 tagline
-#   14 logo, tags, progress, spinner · 15 text
+#   14 tags, progress, spinner · 15 text
 # Only applies on a real console (TERM=linux), not in a terminal emulator.
 CONSOLE_PALETTE=(
   # black  red    green  yellow blue   magenta cyan   white
-  01050E A80440 F3065E C98A2E 021742 A80440 F3065E 8E95A8
+  01050E A80440 033574 C98A2E 021742 A80440 F3065E 8E95A8
   4A5A80 FF5A3C F3065E E0A040 033574 A80440 F3065E C9CEDB
 )
 

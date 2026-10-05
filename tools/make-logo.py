@@ -1,19 +1,27 @@
 #!/usr/bin/env python3
 """Draws the ARCHMAN logo and writes logo-hd.txt and logo.txt.
 
-The A's are the Arch Linux logo's mark, rasterised from the copy the
-filesystem package installs (/usr/share/pixmaps/archlinux-logo.svg), which
-needs rsvg-convert (librsvg) to run this.
+The style is the classic arcade title: chunky letters over a solid copy of
+themselves shifted up and left (the extrusion, in its own colour), set edge
+to edge so every letter covers the extrusion of the next. R, H, M and N are
+pixel art on a grid of 2 px units, drawn as a thick outline with a dark
+inside; the C is a solid Pac-Man with his eye cut out; the A's are the Arch
+Linux logo's mark, kept solid, rasterised from the copy the filesystem
+package installs (/usr/share/pixmaps/archlinux-logo.svg), which needs
+rsvg-convert (librsvg) to run this.
 
 The console's own characters can't go finer than logo.txt: half blocks, two
-pixels per character cell. Here every cell holds 2 x 4 pixels, so the logo is
-156 x 28 pixels in 78 x 7 cells. Cells that are empty, full or a
-top or bottom half use those characters; any other pattern is the private-use
+pixels per character cell. logo-hd.txt holds 2 x 4 pixels a cell, so the
+logo is 156 x 28 pixels in 78 x 7 cells. Cells that are empty, full or a top
+or bottom half use those characters; any other pattern is the private-use
 character U+E100 + its bit pattern (bit 0 top-left, bit 1 top-right, then
 row by row), which tools/make-console-fonts.py draws into the console fonts.
-lib/ui.sh shows this logo only on the console, where those fonts are loaded,
-and logo.txt everywhere else: the same drawing at half the resolution, in
-half blocks only, which every font has.
+Each .txt has a .colors file beside it: a digit a cell, its character's
+colour times 3 plus its background's (see DARK, LETTER, SHADE below).
+lib/ui.sh shows logo-hd.txt only on the console, where those fonts are
+loaded, and logo.txt everywhere else: the same design at half the
+resolution, in half blocks only, which every font has, with solid letters
+(there's no room for outlines).
 
 Run it again only to change the drawing; the output is committed:
   tools/make-logo.py
@@ -32,38 +40,18 @@ WIDTH, HEIGHT = 156, 28        # pixels: 78 x 7 cells of 2 x 4 (the console has 
 CELL_W, CELL_H = 2, 4
 PUA = 0xE100                   # + the cell's bit pattern
 
-STROKE = 4
-LETTER = 20                    # letters are 20 x 20, Pac-Man 24 x 24
-GAP = 2                        # seven letters only fit in 80 columns this tight
-TOP = (HEIGHT - LETTER) // 2   # letters' top row; Pac-Man is centred on them
-
-
-def rounded_rect(u, v, x0, y0, x1, y1, radii):
-    """Inside a rectangle whose corners (top-left, top-right, bottom-right,
-    bottom-left) are rounded with the given radii."""
-    if not (x0 <= u <= x1 and y0 <= v <= y1):
-        return False
-    tl, tr, br, bl = radii
-    for r, cx, cy, left, top in ((tl, x0 + tl, y0 + tl, True, True), (tr, x1 - tr, y0 + tr, False, True),
-                                 (br, x1 - br, y1 - br, False, False), (bl, x0 + bl, y1 - bl, True, False)):
-        beyond = (u < cx if left else u > cx) and (v < cy if top else v > cy)
-        if r and beyond and (u - cx) ** 2 + (v - cy) ** 2 > r * r:
-            return False
-    return True
+# The two versions' proportions. Full: 2 px units, 24 px letters, a 3 px
+# extrusion, 2 px outlines. Plain (half the resolution) has no room for
+# outlines, so its letters are solid over a 2 px extrusion.
+FULL = dict(unit=2, top=4, shadow=3, outline=2, width=WIDTH, height=HEIGHT)
+PLAIN = dict(unit=1, top=2, shadow=2, outline=0, width=WIDTH // 2, height=HEIGHT // 2)
+OUTLINE_A = False              # True: the A's outlined like the rest
 
 
 def near_segment(u, v, x0, y0, x1, y1, half):
     dx, dy = x1 - x0, y1 - y0
     t = max(0.0, min(1.0, ((u - x0) * dx + (v - y0) * dy) / (dx * dx + dy * dy)))
     return math.hypot(u - (x0 + t * dx), v - (y0 + t * dy)) <= half
-
-
-# Letters in their own 0..20 square.
-def letter_p(u, v):
-    stem = 0 <= u <= STROKE and 0 <= v <= 20
-    bowl = rounded_rect(u, v, 0, 0, 20, 13, (0, 6.5, 6.5, 0)) and not \
-        rounded_rect(u, v, STROKE, STROKE, 20 - STROKE, 13 - STROKE, (0, 2.5, 2.5, 0))
-    return stem or bowl
 
 
 def load_arch_mark(size=600):
@@ -113,140 +101,174 @@ def load_arch_mark(size=600):
 ARCH_MARK = load_arch_mark()
 
 
-def letter_r(u, v):
-    """The P, with a leg from the bowl down to the bottom right."""
-    return letter_p(u, v) or near_segment(u, v, 9, 11, 18, 19, 2.3)
+# R, H and M: 12 units tall, 4-unit strokes, small counters, as in the
+# arcade original. N is generated: its diagonal has to be as thick as its
+# stems, or the outline leaves nothing of it.
+ART = {
+    "R": ["#########.",
+          "##########",
+          "####..####",
+          "####..####",
+          "##########",
+          "#########.",
+          "####.####.",
+          "####..####",
+          "####..####",
+          "####..####",
+          "####..####",
+          "####..####"],
+    "H": ["####..####"] * 4 + ["##########"] * 3 + ["####..####"] * 5,
+    "M": ["####...####",
+          "#####.#####",
+          "###########",
+          "###########",
+          "####.#.####",
+          "####...####"] + ["####...####"] * 6,
+}
+ART["N"] = ["".join("#" if c < 4 or c > 7 or round(r * 8 / 11) <= c < round(r * 8 / 11) + 4 else "."
+                    for c in range(12)) for r in range(12)]
 
 
-def letter_h(u, v):
-    stems = (0 <= u <= STROKE or 20 - STROKE <= u <= 20) and 0 <= v <= 20
-    bar = 0 <= u <= 20 and 8 <= v <= 8 + STROKE
-    return stems or bar
+def from_art(rows, unit):
+    return [[rows[y // unit][x // unit] == "#" for x in range(len(rows[0]) * unit)]
+            for y in range(len(rows) * unit)]
 
 
-def letter_a(u, v):
-    """The Arch mark, stretched to the letter's square."""
-    h, w = len(ARCH_MARK), len(ARCH_MARK[0])
-    x, y = int(u / 20 * w), int(v / 20 * h)
-    return 0 <= x < w and 0 <= y < h and ARCH_MARK[y][x]
+def sample(inside, w, h, coverage=0.5):
+    """inside(u, v) as a w x h grid, a pixel on if enough of it is covered."""
+    return [[sum(inside(x + (sx + 0.5) / 4, y + (sy + 0.5) / 4) for sy in range(4) for sx in range(4))
+             >= 16 * coverage for x in range(w)] for y in range(h)]
 
 
-def letter_m(u, v):
-    stems = (0 <= u <= STROKE or 20 - STROKE <= u <= 20) and 0 <= v <= 20
-    v_shape = near_segment(u, v, 2, 1, 10, 12, 2.3) or near_segment(u, v, 18, 1, 10, 12, 2.3)
-    return stems or v_shape
+def arch_a(w=20, h=24):
+    """The Arch mark at w x h. At this size it comes out lighter than the
+    letters, so it's taken at a quarter coverage and thickened a pixel; its
+    two slivers, thinner than a pixel here, are then cut back in as slits."""
+    mh, mw = len(ARCH_MARK), len(ARCH_MARK[0])
+    g = sample(lambda u, v: 0 <= u < w and 0 <= v < h and ARCH_MARK[int(v / h * mh)][int(u / w * mw)], w, h, 0.25)
+    g = [[g[y][x] or any(0 <= y + dy < h and 0 <= x + dx < w and g[y + dy][x + dx]
+                         for dy, dx in ((-1, 0), (1, 0), (0, -1), (0, 1)))
+          for x in range(w)] for y in range(h)]
+    for x0, y0, x1, y1 in ((5.6, 6.6, 9.6, 8.6), (18.4, 15.6, 14.6, 13.8)):   # in a 20 x 20 square
+        for y in range(h):
+            for x in range(w):
+                if near_segment(x + 0.5, y + 0.5, x0 * w / 20, y0 * h / 20, x1 * w / 20, y1 * h / 20, 0.55):
+                    g[y][x] = False
+    return g
 
 
-def letter_n(u, v):
-    stems = (0 <= u <= STROKE or 20 - STROKE <= u <= 20) and 0 <= v <= 20
-    return stems or near_segment(u, v, 2, 1, 18, 19, 2.4)
+def pacman(size=24):
+    """A circle with a 35-degree half-opening mouth (the eye goes on later)."""
+    c = size / 2
+
+    def inside(u, v):
+        du, dv = u - c, v - c
+        return du * du + dv * dv <= c * c and not (du > 0 and abs(math.degrees(math.atan2(dv, du))) < 35)
+    return sample(inside, size, size)
 
 
-def pacman(u, v):
-    """24 x 24: a circle with a 35-degree half-opening mouth and an eye."""
-    cx, cy, r = 12, 12, 12
-    du, dv = u - cx, v - cy
-    if du * du + dv * dv > r * r:
-        return False
-    if du > 0 and abs(math.degrees(math.atan2(dv, du))) < 35:
-        return False
-    return (u - 11.5) ** 2 + (v - 6) ** 2 > 2.2 ** 2
+def erode(g, n):
+    """g shrunk by n pixels all round (8-neighbourhood)."""
+    h, w = len(g), len(g[0])
+    for _ in range(n):
+        g = [[g[y][x] and all(0 <= y + dy < h and 0 <= x + dx < w and g[y + dy][x + dx]
+                              for dy in (-1, 0, 1) for dx in (-1, 0, 1))
+              for x in range(w)] for y in range(h)]
+    return g
 
 
-# How much of a pixel a shape must cover to fill it, and how many pixels to
-# thicken it by afterwards. The Arch mark is a slim triangle with a wide
-# doorway; as drawn, its A's come out much lighter than the 4 px strokes of
-# the other letters.
-THRESHOLD = {letter_a: 0.25}
-THICKEN = {letter_a: 1}
-# The mark's two slivers are thinner than a pixel at this size, so they're
-# cut back in as 1 px slits after thickening, where the mark has them: one
-# from the left edge a third of the way down, one from the right edge near
-# the base. Segments in the letter's 0..20 square.
-CUTS = {letter_a: [(5.6, 6.6, 9.6, 8.6), (18.4, 15.6, 14.6, 13.8)]}
+# Colours: the background, the letters, the extrusion. On the console they
+# are palette slots 0, 6 and 2 (lib/ui.sh's logo_lines).
+DARK, LETTER, SHADE = 0, 1, 2
 
 
-def shape_at(x):
-    """The shape whose box spans column x, with its box's left and top."""
-    left = 0
-    for shape, size in ((letter_a, LETTER), (letter_r, LETTER), (pacman, 24), (letter_h, LETTER),
-                        (letter_m, LETTER), (letter_a, LETTER), (letter_n, LETTER)):
-        if left <= x < left + size:
-            return shape, left, TOP - (size - LETTER) // 2, size
-        left += size + GAP
-    return None, 0, 0, 0
+def compose(unit, top, shadow, outline, width, height):
+    """The logo as colours: every letter's extrusion first, then each letter
+    over it. R, H, M and N are outlined, with a dark inside; Pac-Man and the
+    A's are solid, Pac-Man with his eye cut out."""
+    letters = [("A", arch_a(10 * unit, 12 * unit), OUTLINE_A), ("R", from_art(ART["R"], unit), True),
+               ("C", pacman(12 * unit), False), ("H", from_art(ART["H"], unit), True),
+               ("M", from_art(ART["M"], unit), True), ("A", arch_a(10 * unit, 12 * unit), OUTLINE_A),
+               ("N", from_art(ART["N"], unit), True)]
+    placed, left = [], shadow
+    for name, body, outlined in letters:
+        placed.append((name, body, outlined, left))
+        left += len(body[0])
+    assert left <= width, f"logo is {left} px wide, the canvas {width}"
+    canvas = [[DARK] * width for _ in range(height)]
+
+    def put(y, x, colour):
+        if 0 <= y < height and 0 <= x < width:
+            canvas[y][x] = colour
+
+    for _, body, _, left in placed:
+        for y, row in enumerate(body):
+            for x, on in enumerate(row):
+                if on:
+                    put(top + y - shadow, left + x - shadow, SHADE)
+    for name, body, outlined, left in placed:
+        h, w = len(body), len(body[0])
+        inner = erode(body, outline) if outlined and outline else [[False] * w for _ in range(h)]
+        for y in range(h):
+            for x in range(w):
+                if body[y][x]:
+                    put(top + y, left + x, DARK if inner[y][x] else LETTER)
+        if name == "C":                                       # Pac-Man's eye
+            for y in range(round(2.5 * unit), round(4 * unit)):
+                for x in range(5 * unit, round(6.5 * unit)):
+                    put(top + y, left + x, DARK)
+    return canvas
 
 
-def logo(x, y):
-    """The whole logo, in pixel coordinates."""
-    shape, left, top, size = shape_at(x)
-    return shape is not None and 0 <= y - top <= size and shape(x - left, y - top)
-
-
-def cells(pixels, cell_w, cell_h, named):
-    """The pixel grid as lines of characters, one per cell: named[bits] where
-    there is one, else the private-use character for the pattern."""
-    lines, used = [], set()
-    for row in range(len(pixels) // cell_h):
-        line = ""
-        for col in range(len(pixels[0]) // cell_w):
-            bits = sum(1 << (dy * cell_w + dx)
-                       for dy in range(cell_h) for dx in range(cell_w)
-                       if pixels[row * cell_h + dy][col * cell_w + dx])
+def cells(canvas, cell_w, cell_h, named):
+    """The colour grid as lines of characters and lines of colours, a cell
+    each. A cell takes two colours, its character's (fg) and its
+    background's (bg), written as the digit fg * 3 + bg. The character is
+    named[bits] when there is one, else the private-use character for the
+    pattern; bits are the fg pixels. Letter pixels are the fg wherever
+    there are any; a third colour in a cell becomes whichever of the other
+    two it has more of (a pixel or two, behind a letter's edge)."""
+    lines, colours, used = [], [], set()
+    for row in range(len(canvas) // cell_h):
+        line = attrs = ""
+        for col in range(len(canvas[0]) // cell_w):
+            px = [canvas[row * cell_h + dy][col * cell_w + dx] for dy in range(cell_h) for dx in range(cell_w)]
+            present = set(px)
+            if present == {DARK}:
+                line, attrs = line + " ", attrs + "0"
+                continue
+            fg = LETTER if LETTER in present else SHADE
+            others = [c for c in px if c != fg]
+            bg = max((DARK, SHADE), key=others.count) if others else DARK
+            bits = sum(1 << i for i, c in enumerate(px) if c == fg)
             if bits not in named:
                 used.add(bits)
             line += named.get(bits, chr(PUA + bits))
+            attrs += str(fg * 3 + bg)
         lines.append(line)
+        colours.append(attrs)
     while lines and not lines[0].strip():
-        lines.pop(0)
+        lines.pop(0), colours.pop(0)
     while lines and not lines[-1].strip():
-        lines.pop()
-    return lines, used
+        lines.pop(), colours.pop()
+    return lines, colours, used
 
 
-def rasterise():
-    """The logo as pixels, each on if enough of it is covered (4 x 4 samples;
-    half, or the shape's THRESHOLD)."""
-    pixels = []
-    for y in range(HEIGHT):
-        row = []
-        for x in range(WIDTH):
-            shape = shape_at(x + 0.5)[0]
-            hits = sum(logo(x + (sx + 0.5) / 4, y + (sy + 0.5) / 4) for sy in range(4) for sx in range(4))
-            row.append(hits >= 16 * THRESHOLD.get(shape, 0.5))
-        pixels.append(row)
-    for _ in range(max(THICKEN.values())):
-        pixels = [[pixels[y][x] or (THICKEN.get(shape_at(x + 0.5)[0], 0) and any(
-                       0 <= y + dy < HEIGHT and 0 <= x + dx < WIDTH and pixels[y + dy][x + dx]
-                       and shape_at(x + dx + 0.5)[0] is shape_at(x + 0.5)[0]
-                       for dy, dx in ((-1, 0), (1, 0), (0, -1), (0, 1))))
-                   for x in range(WIDTH)] for y in range(HEIGHT)]
-    for y in range(HEIGHT):
-        for x in range(WIDTH):
-            shape, left, top, _ = shape_at(x + 0.5)
-            if any(near_segment(x + 0.5 - left, y + 0.5 - top, *seg, 0.55) for seg in CUTS.get(shape, [])):
-                pixels[y][x] = False
-    return pixels
-
-
-def halve(pixels):
-    """Half the resolution, a pixel on if any of the four it replaces is: so
-    the plain logo keeps the strokes as heavy as the full one's."""
-    return [[any(pixels[2 * y + dy][2 * x + dx] for dy in (0, 1) for dx in (0, 1))
-             for x in range(len(pixels[0]) // 2)] for y in range(len(pixels) // 2)]
+def write(name, lines, colours):
+    (ROOT / f"{name}.txt").write_text("\n".join(lines) + "\n")
+    (ROOT / f"{name}.colors").write_text("\n".join(colours) + "\n")
 
 
 def main():
     # Double resolution: 2 x 4 pixels a cell. Only characters every console
     # font has are used as themselves (▌▐ aren't in latarcyrheb).
-    pixels = rasterise()
-    hd, used = cells(pixels, CELL_W, CELL_H, {0: " ", 0xFF: "█", 0x0F: "▀", 0xF0: "▄"})
-    (ROOT / "logo-hd.txt").write_text("\n".join(hd) + "\n")
+    hd, colours, used = cells(compose(**FULL), CELL_W, CELL_H, {0xFF: "█", 0x0F: "▀", 0xF0: "▄"})
+    write("logo-hd", hd, colours)
     print(f"logo-hd.txt: {len(hd)} rows, {len(used)} cell patterns needing glyphs")
     # Half resolution: 1 x 2 pixels a cell, half blocks only.
-    plain, used = cells(halve(pixels), 1, 2, {0: " ", 3: "█", 1: "▀", 2: "▄"})
+    plain, colours, used = cells(compose(**PLAIN), 1, 2, {3: "█", 1: "▀", 2: "▄"})
     assert not used
-    (ROOT / "logo.txt").write_text("\n".join(plain) + "\n")
+    write("logo", plain, colours)
     print(f"logo.txt: {len(plain)} rows")
 
 

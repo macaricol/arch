@@ -198,18 +198,54 @@ STEP_TOTAL=${STEP_TOTAL:-0}
 PROGRESS_WIDTH=40
 
 # The logo, then TAGLINE (config.sh) underneath.
+# logo_lines — the logo (logo_file) as printable lines in LOGO_LINES, its
+# width in columns in LOGO_WIDTH. Its .colors file gives each cell a digit,
+# fg * 3 + bg, of the colours 0 background, 1 letters, 2 extrusion: on the
+# console the palette's slots 0, 6 and 2 (slots 0-7, as 512-glyph fonts have
+# no others), elsewhere the same colours as 24-bit RGB, since a terminal
+# emulator doesn't use CONSOLE_PALETTE.
+logo_lines() {
+  local file colours LC_ALL=C.UTF-8   # ${#} and ${:i:1} count characters, not bytes
+  file=$(logo_file) colours=${file%.txt}.colors
+  LOGO_LINES=() LOGO_WIDTH=0
+  [[ -r $file && -r $colours ]] || return 0
+  local -a lines attrs fg bg
+  mapfile -t lines < "$file"
+  mapfile -t attrs < "$colours"
+  LOGO_WIDTH=${#lines[0]}
+  local i hex
+  local -a slots=(0 6 2)
+  for i in 0 1 2; do
+    if on_console; then
+      fg[i]=$(( 30 + slots[i] )) bg[i]=$(( 40 + slots[i] ))
+    else
+      hex=${CONSOLE_PALETTE[slots[i]]}
+      fg[i]="38;2;$((16#${hex:0:2}));$((16#${hex:2:2}));$((16#${hex:4:2}))"
+      bg[i]="48;2;$((16#${hex:0:2}));$((16#${hex:2:2}));$((16#${hex:4:2}))"
+    fi
+  done
+  bg[0]=49   # the dark: whatever the background is (slot 0 on the console)
+  local row col char attr sgr prev out
+  for row in "${!lines[@]}"; do
+    out='' prev=''
+    for (( col = 0; col < ${#lines[row]}; col++ )); do
+      char=${lines[row]:col:1} attr=${attrs[row]:col:1}
+      if [[ $char == ' ' ]]; then sgr=0; else sgr="0;${fg[attr / 3]};${bg[attr % 3]}"; fi
+      [[ $sgr != "$prev" ]] && out+=$'\e['"${sgr}m" prev=$sgr
+      out+=$char
+    done
+    LOGO_LINES+=("$out$C_RESET")
+  done
+}
+
 draw_logo() {
-  local file; file=$(logo_file)
-  [[ -r $file ]] || return 0
-  # All lines are padded to one width, so measuring the first is enough.
-  # ${#line} counts bytes, not █s, unless the locale is UTF-8.
-  local LC_ALL=C.UTF-8 line width
-  IFS= read -r line < "$file"
-  width=${#line}
+  logo_lines
+  (( LOGO_WIDTH )) || return 0
   printf '\n\n'
-  while IFS= read -r line; do
-    center "${C_CYAN}${line}${C_RESET}" "$width"
-  done < "$file"
+  local line
+  for line in "${LOGO_LINES[@]}"; do
+    center "$line" "$LOGO_WIDTH"
+  done
   echo
   center "${C_PINK}${TAGLINE}${C_RESET}" "${#TAGLINE}"
   echo

@@ -1,2 +1,3 @@
 setup.log
 *.iso
+__pycache__/

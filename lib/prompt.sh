@@ -169,16 +169,15 @@ LOCK=($'\ue000\ue001\ue002\ue003\ue004' $'\ue005\ue006\ue007\ue008\ue009'
 DOT=$'\ue010'   # a round bullet, from the same fonts
 unlock_screen() {
   local __var=$1 __hint=$2 __error=${3:-} LC_ALL=C.UTF-8
-  local -a __logo
-  mapfile -t __logo < "$(logo_file)"
+  logo_lines
   local __box=36 __pw='' __key __rest __line __shown
   # logo, blank, tagline, 2 blanks, box (3 rows), blank, message
-  local __top=$(( ($(term_rows) - ${#__logo[@]} - 9) / 2 + 1 ))
+  local __top=$(( ($(term_rows) - ${#LOGO_LINES[@]} - 9) / 2 + 1 ))
   (( __top < 1 )) && __top=1
   clear
   update_margin
   printf '\e[%d;1H' "$__top"
-  for __line in "${__logo[@]}"; do center "${C_CYAN}${__line}${C_RESET}" "${#__logo[0]}"; done
+  for __line in "${LOGO_LINES[@]}"; do center "$__line" "$LOGO_WIDTH"; done
   echo
   center "${C_PINK}${TAGLINE}${C_RESET}" "${#TAGLINE}"
   printf '\n\n'
@@ -195,7 +194,7 @@ unlock_screen() {
   fi
 
   # The field: the box's middle row, one space in from its left border.
-  local __row=$(( __top + ${#__logo[@]} + 5 )) __col=$(( __pad + 5 + 1 + 1 + 2 ))
+  local __row=$(( __top + ${#LOGO_LINES[@]} + 5 )) __col=$(( __pad + 5 + 1 + 1 + 2 ))
   cursor on
   while :; do
     __shown=$(( ${#__pw} < __box - 2 ? ${#__pw} : __box - 2 ))
