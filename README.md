@@ -11,7 +11,8 @@ Boot the official Arch ISO, connect to the network, and run:
 
     curl -fsSL https://raw.githubusercontent.com/macaricol/arch/main/bootstrap.sh | bash
 
-Answer four prompts (hostname, root password, username, user password),
+Answer three prompts (hostname, username, and one password used for both
+your user and root),
 pick the drive from an arrow-key menu, type `YES`, and walk away. When the
 base install is done it asks you to remove the USB, and reboots as soon as
 you unplug it (or press Enter). The machine then comes up in a one-time tty

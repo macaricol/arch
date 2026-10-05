@@ -25,7 +25,6 @@ gum_cancelled() { (( $1 == 130 )) && die "Cancelled."; return 0; }
 
 valid_hostname() { [[ $1 =~ ^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$ ]]; }
 valid_username() { [[ $1 =~ ^[a-z_][a-z0-9_-]{0,31}$ ]]; }
-valid_password() { (( ${#1} >= 6 )); }
 
 # input VAR "Prompt:" [validator] [--secret]
 # Loops until a non-empty value passes the validator, then stores it in VAR.
@@ -58,7 +57,7 @@ input() {
 password() {
   local __var=$1 __prompt=$2 __p1 __p2
   while :; do
-    input __p1 "$__prompt" valid_password --secret
+    input __p1 "$__prompt" '' --secret
     input __p2 "Confirm password:" '' --secret
     [[ $__p1 == "$__p2" ]] && break
     warn "Passwords do not match"

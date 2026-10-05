@@ -17,9 +17,9 @@ phase_install() {
 
   step "Machine details"
   input HOST_NAME "Hostname:" valid_hostname
-  password ROOT_PASSWORD "Root password (min 6 chars):"
   input USER_NAME "Username:" valid_username
-  password USER_PASSWORD "User password (min 6 chars):"
+  # One password for both the user and root.
+  password PASSWORD "Password:"
 
   select_drive
 
@@ -193,7 +193,7 @@ configure_new_system() {
   # where arch-chroot never gets that far.
   trap 'rm -f /mnt/root/arch-setup/creds' EXIT
   install -m 600 /dev/null "$stage/creds"
-  printf '%s\n%s\n' "$ROOT_PASSWORD" "$USER_PASSWORD" > "$stage/creds"
+  printf '%s\n%s\n' "$PASSWORD" "$PASSWORD" > "$stage/creds"
 
   info "Entering chroot..."
   arch-chroot /mnt env HOST_NAME="$HOST_NAME" USER_NAME="$USER_NAME" VERBOSE="$VERBOSE" \
