@@ -3,9 +3,10 @@
 
 The style is the classic arcade title: chunky letters over a solid copy of
 themselves shifted up and left (the extrusion, in its own colour), set edge
-to edge so every letter covers the extrusion of the next. R, H, M and N are
-pixel art on a grid of 2 px units, drawn as a thick outline with a dark
-inside; the C is a solid Pac-Man with his eye cut out; the A's are the Arch
+to edge so every letter covers the extrusion of the next. H is pixel art on
+a grid of 2 px units, M and N blocks with a notch cut from the top, the R
+the original's outline with a dot inside; all are drawn as a thick outline
+with a dark inside; the C is a solid Pac-Man with his eye cut out; the A's are the Arch
 Linux logo's mark, kept solid, rasterised from the copy the filesystem
 package installs (/usr/share/pixmaps/archlinux-logo.svg), which needs
 rsvg-convert (librsvg) to run this.
@@ -39,6 +40,10 @@ ARCH_SVG = pathlib.Path("/usr/share/pixmaps/archlinux-logo.svg")
 WIDTH, HEIGHT = 158, 28        # pixels: 79 x 7 cells of 2 x 4 (the console has 80)
 CELL_W, CELL_H = 2, 4
 PUA = 0xE100                   # + the cell's bit pattern
+# At most this many distinct patterns, which is what the 256-glyph console
+# fonts have room for besides tools/make-console-fonts.py's other glyphs.
+# Beyond it, the rarest are drawn with their nearest neighbour instead.
+MAX_PATTERNS = 62
 
 # The two versions' proportions. Full: 2 px units, 24 px letters, a 3 px
 # extrusion, 2 px outlines. Plain (half the resolution) has no room for
@@ -103,22 +108,9 @@ def load_arch_mark(size=600):
 ARCH_MARK = load_arch_mark()
 
 
-# R and H: 12 units tall, 4-unit strokes, small counters, as in the arcade
-# original.
+# H: 12 units tall, 4-unit stems and a 6-unit bar, as in the arcade original.
 ART = {
-    "R": ["#########.",
-          "##########",
-          "####..####",
-          "####..####",
-          "##########",
-          "#########.",
-          "####.####.",
-          "####..####",
-          "####..####",
-          "####..####",
-          "####..####",
-          "####..####"],
-    "H": ["####..####"] * 4 + ["##########"] * 3 + ["####..####"] * 5,
+    "H": ["####..####"] * 3 + ["##########"] * 6 + ["####..####"] * 3,
 }
 
 
@@ -142,23 +134,55 @@ def in_triangle(u, v, a, b, c):
     return not ((d1 < 0 or d2 < 0 or d3 < 0) and (d1 > 0 or d2 > 0 or d3 > 0))
 
 
-def notched(w, h, *corners):
-    """M and N as in the arcade original: a w x h block with a triangle cut
-    from the top (corners as fractions of w and h), which the outline then
-    traces. Sampled per pixel, so the cut's sides step one pixel at a time."""
-    tri = [(x * w, y * h) for x, y in corners]
-    return sample(lambda u, v: 0 <= u < w and 0 <= v < h and not in_triangle(u, v, *tri), w, h)
+def notched(w, h, *triangles):
+    """M and N as in the arcade original: a w x h block with triangles cut
+    out (corners in fractions of w and h), which the outline then traces.
+    Sampled per pixel, so the cuts' sides step one pixel at a time."""
+    tris = [[(x * w, y * h) for x, y in t] for t in triangles]
+    return sample(lambda u, v: 0 <= u < w and 0 <= v < h
+                  and not any(in_triangle(u, v, *t) for t in tris), w, h)
+
+
+def letter_r(unit):
+    """The arcade R's outline: a full-height stem, the bowl's right side one
+    half-circle (a D) from the top down to the waist, and the leg's outer
+    edge running from the waist out to the bottom-right corner."""
+    w, h = 10 * unit, 12 * unit
+    bowl = 0.56 * h                                 # the waist's height
+    r = bowl / 2                                    # the D's radius
+    cx = w - r                                      # its centre's x (and where the leg starts)
+
+    def inside(u, v):
+        if not (0 <= u < w and 0 <= v < h):
+            return False
+        if v < bowl:                                # the bowl: square on the left, round on the right
+            return u <= cx or (u - cx) ** 2 + (v - r) ** 2 <= r * r
+        return u <= cx + (w - cx) * (v - bowl) / (h - bowl)        # the leg, widening to the corner
+    return sample(inside, w, h)
+
+
+def r_inside(unit):
+    """What's drawn over the R's dark inside: a dot in the bowl, as in the
+    arcade original, and a wedge of outline pushing into the dark at the
+    waist, so bowl and leg read as separate. (The original also traces bowl
+    and leg with a thin line; at this size it only cluttered.) Pixels, in
+    the letter's box."""
+    w, h = 10 * unit, 12 * unit
+    wedge = [(0.48 * w, 0.52 * h), (0.64 * w, 0.47 * h), (0.64 * w, 0.68 * h)]
+    grid = sample(lambda u, v: math.hypot(u - 0.45 * w, v - 0.24 * h) < 1.2
+                  or in_triangle(u, v, *wedge), w, h)
+    return [(x, y) for y in range(h) for x in range(w) if grid[y][x]]
 
 
 def letter_m(unit):
     """A V from the top, across the middle half, pointing 60% of the way down."""
-    return notched(11 * unit, 12 * unit, (0.25, -0.01), (0.75, -0.01), (0.5, 0.6))
+    return notched(11 * unit, 12 * unit, [(0.25, -0.01), (0.75, -0.01), (0.5, 0.6)])
 
 
 def letter_n(unit):
     """From the left stem's top corner down to the right stem, two thirds of
     the way down; the right stem stays full height."""
-    return notched(12 * unit, 12 * unit, (0.33, -0.01), (0.67, -0.01), (0.67, 0.67))
+    return notched(12 * unit, 12 * unit, [(0.33, -0.01), (0.67, -0.01), (0.67, 0.67)])
 
 
 def arch_a(w=20, h=24):
@@ -208,7 +232,7 @@ def compose(unit, top, shadow, outline, width, height):
     over it, inside a dark pixel of outline. R, H, M and N are drawn as an
     outline with a dark inside; Pac-Man and the A's are solid, Pac-Man with
     his eye cut out."""
-    letters = [("A", arch_a(10 * unit, 12 * unit), OUTLINE_A), ("R", from_art(ART["R"], unit), True),
+    letters = [("A", arch_a(10 * unit, 12 * unit), OUTLINE_A), ("R", letter_r(unit), True),
                ("C", pacman(12 * unit), False), ("H", from_art(ART["H"], unit), True),
                ("M", letter_m(unit), True), ("A", arch_a(10 * unit, 12 * unit), OUTLINE_A),
                ("N", letter_n(unit), True)]
@@ -244,11 +268,35 @@ def compose(unit, top, shadow, outline, width, height):
             for x in range(w):
                 if body[y][x]:
                     put(top + y, left + x, DARK if inner[y][x] else LETTER)
+        if name == "R" and outline:                           # the R's dot and waist
+            for x, y in r_inside(unit):
+                put(top + y, left + x, LETTER)
         if name == "C":                                       # Pac-Man's eye
             for y in range(round(2.5 * unit), round(4 * unit)):
                 for x in range(5 * unit, round(6.5 * unit)):
                     put(top + y, left + x, DARK)
     return canvas
+
+
+def limit_patterns(lines, named, bits):
+    """Merges the rarest private-use patterns into their nearest (fewest
+    pixels apart) remaining one until at most MAX_PATTERNS are left."""
+    def pattern(c):
+        return ord(c) - PUA if ord(c) >= PUA else next((b for b, n in named.items() if n == c), None)
+    counts = {}
+    for line in lines:
+        for c in line:
+            if ord(c) >= PUA:
+                counts[c] = counts.get(c, 0) + 1
+    while len(counts) > MAX_PATTERNS:
+        rare = min(counts, key=counts.get)
+        del counts[rare]
+        choices = list(counts) + [n for n in named.values() if n != " "]
+        near = min(choices, key=lambda c: bin(pattern(c) ^ pattern(rare)).count("1"))
+        lines = [line.replace(rare, near) for line in lines]
+        if near in counts:
+            counts[near] += 1
+    return lines
 
 
 def cells(canvas, cell_w, cell_h, named):
@@ -272,12 +320,12 @@ def cells(canvas, cell_w, cell_h, named):
             others = [c for c in px if c != fg]
             bg = max((DARK, SHADE), key=others.count) if others else DARK
             bits = sum(1 << i for i, c in enumerate(px) if c == fg)
-            if bits not in named:
-                used.add(bits)
             line += named.get(bits, chr(PUA + bits))
             attrs += str(fg * 3 + bg)
         lines.append(line)
         colours.append(attrs)
+    lines = limit_patterns(lines, named, cell_w * cell_h)
+    used = {ord(c) - PUA for line in lines for c in line if ord(c) >= PUA}
     while lines and not lines[0].strip():
         lines.pop(0), colours.pop(0)
     while lines and not lines[-1].strip():

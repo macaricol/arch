@@ -45,6 +45,7 @@ SPARE = (list("☺☻♀♂♪♫☼♥♦♣♠◘○◙►◄↕‼▬↨∟�
          + list("╔╗╚╝═║╠╣╦╩╬╒╓╕╖╘╙╛╜╞╟╡╢╤╥╧╨╪╫")
          + list("αΓπΣστΦΘδ∞φε∩≡≥≤⌠⌡≈√ⁿ░▒▓")
          + list("ƒ₧¢¥")                               # CP437 currency relics
+         + list("⌐¬½¼²÷")                             # and maths ones
          + [chr(c) for c in range(0x5D0, 0x5EB)]     # Hebrew and Arabic letters, in the
          + [chr(c) for c in range(0x600, 0x700)])    # 512-glyph font only
 

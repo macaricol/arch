@@ -190,8 +190,11 @@ Things that look odd but are deliberate:
   go no finer than half blocks, two pixels per cell, which is `logo.txt`.
   The style is the classic arcade title: pink letters over a blue copy of
   themselves shifted up and left (the extrusion), each inside a thin dark
-  outline that separates it from the extrusions, set edge to edge. R, H, M
-  and N are pixel art drawn as a thick outline with a dark inside; the C is
+  outline that separates it from the extrusions, set edge to edge. H is
+  pixel art and M and N solid blocks with a notch cut from the top (the
+  M's V, the N's diagonal); the R is the original's outline (a round
+  bowl, a waist, the leg out to the corner) with a dot inside. All are drawn as a thick outline with a
+  dark inside; the C is
   a solid Pac-Man with his eye cut out; the A's are the Arch Linux logo's
   mark, kept solid, rasterised from the copy in `/usr/share/pixmaps`
   (thickened a pixel, with its two slivers cut back in). A console cell
