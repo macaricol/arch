@@ -159,6 +159,17 @@ Things that look odd but are deliberate:
   redrawn as a block of 5×3 tiles (U+E000–U+E00E), 80% as tall as the
   password box beside it. No stock console font has any of these;
   `tools/make-console-fonts.py` rebuilds the copies.
+- **Fonts are loaded only after printing a visible character.** Arch's
+  kernel defers the framebuffer console's takeover until something is
+  printed (`CONFIG_FRAMEBUFFER_CONSOLE_DEFERRED_TAKEOVER`, for flicker-free
+  boots). After a quiet boot nothing has been, so the console is still the
+  placeholder `dummycon`, and every `setfont` fails with kbd's misleading
+  "Unable to load such font with such kernel version" (`ENOSYS`).
+  Escape sequences and spaces don't count: `dummycon` ignores both. So
+  `scale_console_font` and the USB's splash print a `.`, erase it, and retry
+  `setfont` until the takeover (asynchronous) has happened.
+  `journalctl -b -t arch-setup` logs which console was active (`fbcon` or
+  `dummy`) and how many of the fonts' added characters are mapped.
 - **The console gets a double-resolution logo.** Plain console characters
   go no finer than half blocks, two pixels per cell, which is `logo.txt`.
   The A's are the Arch Linux logo's mark, rasterised from the copy in
