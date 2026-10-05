@@ -285,9 +285,9 @@ LAYOUT_WIDTH=72
 udevadm settle --timeout=15 2>/dev/null
 # The quiet boot leaves the framebuffer console's takeover deferred until
 # something is printed, and until then setfont fails: print, then wait for
-# the takeover (asynchronous) to accept a font. A character, as escape
-# sequences alone don't trigger it.
-printf '\e[H \r'
+# the takeover (asynchronous) to accept a font. A visible character, as the
+# placeholder console ignores escape sequences and spaces: a dot, erased.
+printf '\e[H.\r\e[K'
 for _ in {1..20}; do
   setfont -f -C /dev/tty1 default8x16 2>/dev/null && break
   sleep 0.5

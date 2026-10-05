@@ -83,9 +83,10 @@ scale_console_font() {
   # (fbcon deferred takeover, for flicker-free boots), and until then every
   # font is refused, which kbd reports as "Unable to load such font with
   # such kernel version". So print something, then wait (up to 10 s) for
-  # the takeover, which happens asynchronously. It has to be a character:
-  # escape sequences alone (clearing the screen) don't trigger it.
-  printf '\e[H \r' > "$dev" 2>/dev/null || true
+  # the takeover, which happens asynchronously. It has to be a visible
+  # character: the placeholder console ignores escape sequences and spaces
+  # ("Ignore erases" in the kernel's dummycon_putc). A dot, erased at once.
+  printf '\e[H.\r\e[K' > "$dev" 2>/dev/null || true
   for i in {1..20}; do
     setfont -f -C "$dev" default8x16 2>/dev/null && break
     sleep 0.5
