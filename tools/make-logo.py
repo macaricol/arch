@@ -12,7 +12,7 @@ rsvg-convert (librsvg) to run this.
 
 The console's own characters can't go finer than logo.txt: half blocks, two
 pixels per character cell. logo-hd.txt holds 2 x 4 pixels a cell, so the
-logo is 156 x 28 pixels in 78 x 7 cells. Cells that are empty, full or a top
+logo is 158 x 28 pixels in 79 x 7 cells. Cells that are empty, full or a top
 or bottom half use those characters; any other pattern is the private-use
 character U+E100 + its bit pattern (bit 0 top-left, bit 1 top-right, then
 row by row), which tools/make-console-fonts.py draws into the console fonts.
@@ -36,7 +36,7 @@ import zlib
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 ARCH_SVG = pathlib.Path("/usr/share/pixmaps/archlinux-logo.svg")
-WIDTH, HEIGHT = 156, 28        # pixels: 78 x 7 cells of 2 x 4 (the console has 80)
+WIDTH, HEIGHT = 158, 28        # pixels: 79 x 7 cells of 2 x 4 (the console has 80)
 CELL_W, CELL_H = 2, 4
 PUA = 0xE100                   # + the cell's bit pattern
 
@@ -46,6 +46,8 @@ PUA = 0xE100                   # + the cell's bit pattern
 FULL = dict(unit=2, top=4, shadow=3, outline=2, width=WIDTH, height=HEIGHT)
 PLAIN = dict(unit=1, top=2, shadow=2, outline=0, width=WIDTH // 2, height=HEIGHT // 2)
 OUTLINE_A = False              # True: the A's outlined like the rest
+# Extra space before a letter, in units: H and M would touch without it.
+SPACE_BEFORE = {"M": 2}
 
 
 def near_segment(u, v, x0, y0, x1, y1, half):
@@ -101,9 +103,8 @@ def load_arch_mark(size=600):
 ARCH_MARK = load_arch_mark()
 
 
-# R, H and M: 12 units tall, 4-unit strokes, small counters, as in the
-# arcade original. N is generated: its diagonal has to be as thick as its
-# stems, or the outline leaves nothing of it.
+# R and H: 12 units tall, 4-unit strokes, small counters, as in the arcade
+# original.
 ART = {
     "R": ["#########.",
           "##########",
@@ -118,15 +119,8 @@ ART = {
           "####..####",
           "####..####"],
     "H": ["####..####"] * 4 + ["##########"] * 3 + ["####..####"] * 5,
-    "M": ["####...####",
-          "#####.#####",
-          "###########",
-          "###########",
-          "####.#.####",
-          "####...####"] + ["####...####"] * 6,
 }
-ART["N"] = ["".join("#" if c < 4 or c > 7 or round(r * 8 / 11) <= c < round(r * 8 / 11) + 4 else "."
-                    for c in range(12)) for r in range(12)]
+
 
 
 def from_art(rows, unit):
@@ -138,6 +132,33 @@ def sample(inside, w, h, coverage=0.5):
     """inside(u, v) as a w x h grid, a pixel on if enough of it is covered."""
     return [[sum(inside(x + (sx + 0.5) / 4, y + (sy + 0.5) / 4) for sy in range(4) for sx in range(4))
              >= 16 * coverage for x in range(w)] for y in range(h)]
+
+
+def in_triangle(u, v, a, b, c):
+    """(u, v) inside the triangle a b c."""
+    def side(p, q):
+        return (q[0] - p[0]) * (v - p[1]) - (q[1] - p[1]) * (u - p[0])
+    d1, d2, d3 = side(a, b), side(b, c), side(c, a)
+    return not ((d1 < 0 or d2 < 0 or d3 < 0) and (d1 > 0 or d2 > 0 or d3 > 0))
+
+
+def notched(w, h, *corners):
+    """M and N as in the arcade original: a w x h block with a triangle cut
+    from the top (corners as fractions of w and h), which the outline then
+    traces. Sampled per pixel, so the cut's sides step one pixel at a time."""
+    tri = [(x * w, y * h) for x, y in corners]
+    return sample(lambda u, v: 0 <= u < w and 0 <= v < h and not in_triangle(u, v, *tri), w, h)
+
+
+def letter_m(unit):
+    """A V from the top, across the middle half, pointing 60% of the way down."""
+    return notched(11 * unit, 12 * unit, (0.25, -0.01), (0.75, -0.01), (0.5, 0.6))
+
+
+def letter_n(unit):
+    """From the left stem's top corner down to the right stem, two thirds of
+    the way down; the right stem stays full height."""
+    return notched(12 * unit, 12 * unit, (0.33, -0.01), (0.67, -0.01), (0.67, 0.67))
 
 
 def arch_a(w=20, h=24):
@@ -184,14 +205,16 @@ DARK, LETTER, SHADE = 0, 1, 2
 
 def compose(unit, top, shadow, outline, width, height):
     """The logo as colours: every letter's extrusion first, then each letter
-    over it. R, H, M and N are outlined, with a dark inside; Pac-Man and the
-    A's are solid, Pac-Man with his eye cut out."""
+    over it, inside a dark pixel of outline. R, H, M and N are drawn as an
+    outline with a dark inside; Pac-Man and the A's are solid, Pac-Man with
+    his eye cut out."""
     letters = [("A", arch_a(10 * unit, 12 * unit), OUTLINE_A), ("R", from_art(ART["R"], unit), True),
                ("C", pacman(12 * unit), False), ("H", from_art(ART["H"], unit), True),
-               ("M", from_art(ART["M"], unit), True), ("A", arch_a(10 * unit, 12 * unit), OUTLINE_A),
-               ("N", from_art(ART["N"], unit), True)]
+               ("M", letter_m(unit), True), ("A", arch_a(10 * unit, 12 * unit), OUTLINE_A),
+               ("N", letter_n(unit), True)]
     placed, left = [], shadow
     for name, body, outlined in letters:
+        left += SPACE_BEFORE.get(name, 0) * unit
         placed.append((name, body, outlined, left))
         left += len(body[0])
     assert left <= width, f"logo is {left} px wide, the canvas {width}"
@@ -209,6 +232,14 @@ def compose(unit, top, shadow, outline, width, height):
     for name, body, outlined, left in placed:
         h, w = len(body), len(body[0])
         inner = erode(body, outline) if outlined and outline else [[False] * w for _ in range(h)]
+        # A dark pixel of outline round the letter, between it and the
+        # extrusions behind it.
+        for y in range(-1, h + 1):
+            for x in range(-1, w + 1):
+                if not (0 <= y < h and 0 <= x < w and body[y][x]) and any(
+                        0 <= y + dy < h and 0 <= x + dx < w and body[y + dy][x + dx]
+                        for dy in (-1, 0, 1) for dx in (-1, 0, 1)):
+                    put(top + y, left + x, DARK)
         for y in range(h):
             for x in range(w):
                 if body[y][x]:

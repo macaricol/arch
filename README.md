@@ -189,7 +189,8 @@ Things that look odd but are deliberate:
 - **The console gets a double-resolution logo.** Plain console characters
   go no finer than half blocks, two pixels per cell, which is `logo.txt`.
   The style is the classic arcade title: pink letters over a blue copy of
-  themselves shifted up and left (the extrusion), set edge to edge. R, H, M
+  themselves shifted up and left (the extrusion), each inside a thin dark
+  outline that separates it from the extrusions, set edge to edge. R, H, M
   and N are pixel art drawn as a thick outline with a dark inside; the C is
   a solid Pac-Man with his eye cut out; the A's are the Arch Linux logo's
   mark, kept solid, rasterised from the copy in `/usr/share/pixmaps`
@@ -202,7 +203,7 @@ Things that look odd but are deliberate:
   resolution there's no room for outlines.
   Doubling the console logo's resolution again would take about 150 cell
   glyphs, more than a 256-character console font has room for.
-  `tools/make-logo.py` draws the logo at 156×28 pixels instead, 2×4 per
+  `tools/make-logo.py` draws the logo at 158×28 pixels instead, 2×4 per
   cell, and writes `logo-hd.txt`: each cell that isn't empty, full or a
   half block is a private-use character (U+E100 + its pixel pattern), and
   `tools/make-console-fonts.py` draws those patterns into the fonts. It's

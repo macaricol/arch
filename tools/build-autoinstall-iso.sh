@@ -278,7 +278,7 @@ install -Dm644 -t "$work/airootfs/usr/local/share/archauto" "$repo_dir"/assets/c
     'source "$SETUP_DIR/config.sh"; source "$SETUP_DIR/lib/ui.sh"; logo_lines; printf "%s\n" "$LOGO_WIDTH" "${LOGO_LINES[@]}"')
   printf 'LOGO_WIDTH=%q\nLOGO=%q\n' "${logo%%$'\n'*}" "${logo#*$'\n'}"
   cat <<'EOF'
-LAYOUT_WIDTH=78
+LAYOUT_WIDTH=79
 
 # Font first, as lib/ui.sh's scale_console_font picks it (nearest ~48 rows
 # with 80+ columns) and from the same patched files, so the installer keeps

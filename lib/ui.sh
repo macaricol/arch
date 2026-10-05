@@ -18,7 +18,7 @@ TAG_COLS=2   # the tag and the space after it
 # ── Console look ───────────────────────────────────────────────────────
 # Everything is laid out in one centred column, LAYOUT_WIDTH wide (the width
 # of the logo); MARGIN is the indent that centres it on the current terminal.
-LAYOUT_WIDTH=78
+LAYOUT_WIDTH=79
 
 # stty reads the size from /dev/tty, as stdin may be the curl pipe.
 # The terminal to act on: standard input when it's a virtual console
