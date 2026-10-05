@@ -43,11 +43,11 @@ input() {
       __val=$(gum input "${__args[@]}") || { __status=$?; gum_cancelled "$__status"; continue; }
       # gum clears itself away; leave the answer on screen like read does.
       ask "$__prompt"
-      if [[ $__secret == --secret ]]; then echo '******'; else echo "$__val"; fi
+      if [[ $__secret == --secret ]]; then repeat "$(mask_char)" 6; echo; else echo "$__val"; fi
     else
       ask "$__prompt"
       # A failed read means stdin is gone (EOF); looping would spin forever.
-      if [[ $__secret == --secret ]]; then read -rs __val || die "Input closed"; echo; else read -r __val || die "Input closed"; fi
+      if [[ $__secret == --secret ]]; then read_secret __val; else read -r __val || die "Input closed"; fi
     fi
     echo
     __val=${__val##+([[:space:]])}; __val=${__val%%+([[:space:]])}
@@ -56,6 +56,31 @@ input() {
     printf -v "$__var" '%s' "$__val"
     return 0
   done
+}
+
+# The character a typed secret is masked with: the round dot from the
+# patched console fonts when one is loaded, else •.
+mask_char() {
+  if on_console && [[ ${PATCHED_FONT:-0} == 1 ]]; then printf '%s' "$DOT"; else printf '•'; fi
+}
+
+# read_secret VAR — reads a line without echoing it, but with a mask_char per
+# key typed (Backspace takes one back), like gum's password field. For when
+# gum isn't available.
+read_secret() {
+  local __var=$1 __s='' __k __rest __mask
+  __mask=$(mask_char)
+  while :; do
+    IFS= read -rsn1 __k || die "Input closed"
+    case $__k in
+      '')            break ;;
+      $'\x7f'|$'\b') [[ -n $__s ]] && { __s=${__s%?}; printf '\b \b'; } ;;
+      $'\e')         read -rsn5 -t 0.01 __rest || true ;;   # arrow keys etc.
+      *)             __s+=$__k; printf '%s' "$__mask" ;;
+    esac
+  done
+  echo
+  printf -v "$__var" '%s' "$__s"
 }
 
 # password VAR "Prompt" — asked twice; both entries must match.

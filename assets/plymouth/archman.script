@@ -1,4 +1,4 @@
-# PACMAN boot splash: Arch's logo and a spinner on black, sized from the
+# ARCHMAN boot splash: Arch's logo and a spinner on black, sized from the
 # screen height so they look the same at any resolution. The proportions
 # copy the stock bgrt theme on a 1280x800 screen, where the firmware logo
 # is about 196 px tall centred 38% down, and the 32 px spinner sits 70% down.

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Draws the PACMAN logo and writes logo-hd.txt and logo.txt.
+"""Draws the ARCHMAN logo and writes logo-hd.txt and logo.txt.
 
 The A's are the Arch Linux logo's mark, rasterised from the copy the
 filesystem package installs (/usr/share/pixmaps/archlinux-logo.svg), which
@@ -7,7 +7,7 @@ needs rsvg-convert (librsvg) to run this.
 
 The console's own characters can't go finer than logo.txt: half blocks, two
 pixels per character cell. Here every cell holds 2 x 4 pixels, so the logo is
-144 x 28 pixels in the same 72 x 7 cells. Cells that are empty, full or a
+156 x 28 pixels in 78 x 7 cells. Cells that are empty, full or a
 top or bottom half use those characters; any other pattern is the private-use
 character U+E100 + its bit pattern (bit 0 top-left, bit 1 top-right, then
 row by row), which tools/make-console-fonts.py draws into the console fonts.
@@ -28,13 +28,13 @@ import zlib
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 ARCH_SVG = pathlib.Path("/usr/share/pixmaps/archlinux-logo.svg")
-WIDTH, HEIGHT = 144, 28        # pixels: 72 x 7 cells of 2 x 4
+WIDTH, HEIGHT = 156, 28        # pixels: 78 x 7 cells of 2 x 4 (the console has 80)
 CELL_W, CELL_H = 2, 4
 PUA = 0xE100                   # + the cell's bit pattern
 
 STROKE = 4
 LETTER = 20                    # letters are 20 x 20, Pac-Man 24 x 24
-GAP = 4
+GAP = 2                        # seven letters only fit in 80 columns this tight
 TOP = (HEIGHT - LETTER) // 2   # letters' top row; Pac-Man is centred on them
 
 
@@ -113,6 +113,17 @@ def load_arch_mark(size=600):
 ARCH_MARK = load_arch_mark()
 
 
+def letter_r(u, v):
+    """The P, with a leg from the bowl down to the bottom right."""
+    return letter_p(u, v) or near_segment(u, v, 9, 11, 18, 19, 2.3)
+
+
+def letter_h(u, v):
+    stems = (0 <= u <= STROKE or 20 - STROKE <= u <= 20) and 0 <= v <= 20
+    bar = 0 <= u <= 20 and 8 <= v <= 8 + STROKE
+    return stems or bar
+
+
 def letter_a(u, v):
     """The Arch mark, stretched to the letter's square."""
     h, w = len(ARCH_MARK), len(ARCH_MARK[0])
@@ -158,7 +169,7 @@ CUTS = {letter_a: [(5.6, 6.6, 9.6, 8.6), (18.4, 15.6, 14.6, 13.8)]}
 def shape_at(x):
     """The shape whose box spans column x, with its box's left and top."""
     left = 0
-    for shape, size in ((letter_p, LETTER), (letter_a, LETTER), (pacman, 24),
+    for shape, size in ((letter_a, LETTER), (letter_r, LETTER), (pacman, 24), (letter_h, LETTER),
                         (letter_m, LETTER), (letter_a, LETTER), (letter_n, LETTER)):
         if left <= x < left + size:
             return shape, left, TOP - (size - LETTER) // 2, size

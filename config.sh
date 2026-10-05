@@ -12,7 +12,7 @@ ISO_MIRROR='https://geo.mirror.pkgbuild.com/iso/latest'
 
 # ── Installer look ─────────────────────────────────────────────────────
 # Shown under the logo (logo.txt) on every step.
-TAGLINE='PACMAN · KDE Plasma'
+TAGLINE='ARCHMAN · KDE Plasma'
 # The 16 console colours used while installing, in VT order. Built on the
 # palette 01050E near-black, 021742 navy, 033574 blue, A80440 crimson,
 # F3065E neon pink; the grey-white text, blue-grey hints, amber warnings and

@@ -69,7 +69,7 @@ configure_boot_splash() {
   fi
 
   if install_splash_theme; then
-    run plymouth-set-default-theme pacman
+    run plymouth-set-default-theme archman
   else
     warn "Splash theme missing from the installer — using the stock bgrt theme"
     run plymouth-set-default-theme bgrt
@@ -81,16 +81,16 @@ configure_boot_splash() {
   done
 }
 
-# The pacman theme (assets/plymouth): Arch's logo where firmware logos sit
-# and a spinner, both scaled to the screen height by pacman.script, so they
+# The archman theme (assets/plymouth): Arch's logo where firmware logos sit
+# and a spinner, both scaled to the screen height by archman.script, so they
 # keep their size relative to the screen at any resolution.
 install_splash_theme() {
-  local src=$SETUP_DIR/assets/plymouth dir=/usr/share/plymouth/themes/pacman f
-  for f in pacman.plymouth pacman.script logo.png spinner.png; do
+  local src=$SETUP_DIR/assets/plymouth dir=/usr/share/plymouth/themes/archman f
+  for f in archman.plymouth archman.script logo.png spinner.png; do
     [[ -f $src/$f ]] || return 1
   done
   rm -rf "$dir"
-  install -Dm644 -t "$dir" "$src"/{pacman.plymouth,pacman.script,logo.png,spinner.png}
+  install -Dm644 -t "$dir" "$src"/{archman.plymouth,archman.script,logo.png,spinner.png}
 }
 
 # A RAM-sized swap partition alone doesn't enable hibernation: the initramfs

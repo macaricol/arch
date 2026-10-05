@@ -177,8 +177,10 @@ Things that look odd but are deliberate:
   go no finer than half blocks, two pixels per cell, which is `logo.txt`.
   The A's are the Arch Linux logo's mark, rasterised from the copy in
   `/usr/share/pixmaps` (thickened a pixel, with its two slivers cut back
-  in, so it holds its own next to the other letters).
-  `tools/make-logo.py` draws the logo at 144×28 pixels instead, 2×4 per
+  in, so it holds its own next to the other letters). R, H, M and N are
+  arcade-style pixel art, drawn on a 10×10 grid and doubled, for even 45°
+  staircases and hard bevels.
+  `tools/make-logo.py` draws the logo at 156×28 pixels instead, 2×4 per
   cell, and writes `logo-hd.txt`: each cell that isn't empty, full or a
   half block is a private-use character (U+E100 + its pixel pattern), and
   `tools/make-console-fonts.py` draws those patterns into the fonts. It's
@@ -198,9 +200,9 @@ Things that look odd but are deliberate:
   erase the drive stays plain typed text on purpose.
 - **Boot is quiet, behind a Plymouth splash.** The chroot phase adds the
   `plymouth` hook right after `systemd`/`udev`, `quiet splash` to the kernel
-  options, and its own `pacman` theme (`assets/plymouth`): Arch's logo
+  options, and its own `archman` theme (`assets/plymouth`): Arch's logo
   where firmware logos sit and a spinner, on black. It's a Plymouth script
-  theme, so `pacman.script` can size both from the screen height: the logo
+  theme, so `archman.script` can size both from the screen height: the logo
   is 24.5% of it (196 px at 1280×800, the size of VirtualBox's firmware
   logo), and the images are rendered large enough for 4K and only scaled
   down. Press Esc during boot to see the
@@ -227,7 +229,7 @@ table is a description of those lists, not a second copy of them.
 | `nano` | Simple text editor, so the installed system is usable before a desktop exists |
 | `networkmanager` | Network management daemon (Wi-Fi, Ethernet, VPN) |
 | `sudo` | Lets the created user run commands as root |
-| `plymouth` | Boot splash (the `pacman` theme) instead of scrolling boot messages |
+| `plymouth` | Boot splash (the `archman` theme) instead of scrolling boot messages |
 | `pciutils` | `lspci`, for the GPU check that decides on Steam (the post phase runs in the chroot, on the new system's tools) |
 
 CPU microcode (`intel-ucode` / `amd-ucode`) is added here too, picked from the

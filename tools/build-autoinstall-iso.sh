@@ -275,7 +275,7 @@ install -Dm644 -t "$work/airootfs/usr/local/share/archauto" "$repo_dir"/assets/c
   declare -p REPO BRANCH BOOTSTRAP_URL TAGLINE CONSOLE_PALETTE
   printf 'LOGO=%q\n' "$(<"$repo_dir/logo-hd.txt")"
   cat <<'EOF'
-LAYOUT_WIDTH=72
+LAYOUT_WIDTH=78
 
 # Font first, as lib/ui.sh's scale_console_font picks it (nearest ~48 rows
 # with 80+ columns) and from the same patched files, so the installer keeps
