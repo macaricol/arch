@@ -254,11 +254,11 @@ draw_logo() {
 # The bar's filled and empty parts are the same █ in two colours, as not
 # every console font has the shade characters (░▒▓).
 draw_progress() {
-  (( STEP_TOTAL > 0 )) || return 0
+  # Before the first step (the questions), a blank line in its place, so
+  # the title doesn't move when the bar appears.
+  (( STEP_TOTAL > 0 && STEP > 0 )) || { echo; return 0; }
   local filled=$(( PROGRESS_WIDTH * STEP / STEP_TOTAL ))
-  local count="$STEP/$STEP_TOTAL"
-  center "${C_CYAN}$(repeat █ "$filled")${C_BLUE}$(repeat █ $((PROGRESS_WIDTH - filled)))${C_RESET}  $count" \
-    $((PROGRESS_WIDTH + 2 + ${#count}))
+  center "${C_CYAN}$(repeat █ "$filled")${C_BLUE}$(repeat █ $((PROGRESS_WIDTH - filled)))${C_RESET}" "$PROGRESS_WIDTH"
 }
 
 # header "Title" [colour] — clears the screen and draws logo, progress bar

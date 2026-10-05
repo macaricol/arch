@@ -13,11 +13,12 @@ phase_install() {
   require_uefi
   require_network
   install_gum
-  # The post phase runs from the chroot phase and carries on this progress
-  # bar, so the total includes its steps.
-  STEP_TOTAL=$(( 6 + $(grep -c '^  step ' "$SETUP_DIR/phases/post.sh") ))
+  # The progress bar counts the installing, not the questions before it: the
+  # three steps below from partitioning on, then the post phase's, which it
+  # runs from the chroot phase and which carries the bar on.
+  STEP_TOTAL=$(( 3 + $(grep -c '^  step ' "$SETUP_DIR/phases/post.sh") ))
 
-  step "Set up your account"
+  header "Set up your account"
   input HOST_NAME "Hostname" valid_hostname
   input USER_NAME "Username" valid_username
   # One password for both the user and root.
@@ -25,7 +26,7 @@ phase_install() {
 
   select_drive
 
-  step "Review & confirm"
+  header "Review & confirm"
   printf "$MARGIN %s\n" "Hostname:  $HOST_NAME" "Username:  $USER_NAME" "Drive:     $DRIVE" \
     "Timezone:  $TIMEZONE" "Keymap:    $KEYMAP"
   echo
@@ -106,7 +107,6 @@ select_drive() {
   (( ${#drives[@]} )) || die "No disks found"
 
   local cancel='── cancel ──'
-  (( ++STEP ))
   menu "Select the installation drive" "$cancel" "${drives[@]}" \
     || { clear; info "Cancelled."; exit 0; }
   [[ $MENU_CHOICE != "$cancel" ]] || { clear; info "Cancelled."; exit 0; }
