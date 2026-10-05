@@ -13,10 +13,10 @@ phase_install() {
   require_uefi
   require_network
   install_gum
-  # The progress bar counts the installing, not the questions before it: the
-  # three steps below from partitioning on, then the post phase's, which it
-  # runs from the chroot phase and which carries the bar on.
-  STEP_TOTAL=$(( 3 + $(grep -c '^  step ' "$SETUP_DIR/phases/post.sh") ))
+  # The progress bar covers the installing, not the questions before it: the
+  # steps below from partitioning on, then the post phase's, which the chroot
+  # phase runs and which carries the bar on. Weights: see lib/ui.sh's step.
+  PROGRESS_TOTAL=$(( $(step_weights "$SETUP_DIR/phases/install.sh") + $(step_weights "$SETUP_DIR/phases/post.sh") ))
 
   header "Set up your account"
   input HOST_NAME "Hostname" valid_hostname
@@ -33,14 +33,16 @@ phase_install() {
   warn "Everything on $DRIVE will be erased. This can't be undone."
   ask "Type YES to continue >"; cursor on; read -r ack; cursor off
   [[ $ack == YES ]] || { info "Nothing was changed. Run the installer again whenever you're ready."; exit 0; }
+  # Bash's own clock; it keeps running while arch-chroot and post work.
+  local started=$SECONDS
 
-  step "Preparing the drive"
+  step "Preparing the drive" 10
   partition_and_mount
 
-  step "Installing Arch Linux"
+  step "Installing Arch Linux" 150
   install_base
 
-  step "Setting up your system"
+  step "Setting up your system" 60
   configure_new_system
 
   # Unmount first so nothing on the new system is lost if the stick is
@@ -52,6 +54,8 @@ phase_install() {
   systemctl --version > /dev/null
 
   finish "All done! Remove the USB stick"
+  local took=$(( SECONDS - started ))
+  info "Archman installed in $(plural $(( took / 60 )) minute) and $(plural $(( took % 60 )) second)"
   wait_for_usb_removal
   info "Restarting..."
   sync
@@ -241,7 +245,8 @@ configure_new_system() {
   printf '%s\n%s\n' "$PASSWORD" "$PASSWORD" > "$stage/creds"
 
   arch-chroot /mnt env HOST_NAME="$HOST_NAME" USER_NAME="$USER_NAME" VERBOSE="$VERBOSE" \
-    STEP="$STEP" STEP_TOTAL="$STEP_TOTAL" PATCHED_FONT="${PATCHED_FONT:-0}" \
+    PROGRESS_DONE="$PROGRESS_DONE" PROGRESS_STEP="$PROGRESS_STEP" PROGRESS_TOTAL="$PROGRESS_TOTAL" \
+    PATCHED_FONT="${PATCHED_FONT:-0}" \
     bash /root/arch-setup/setup.sh chroot
 }
 

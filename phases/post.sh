@@ -16,45 +16,46 @@ phase_post() {
   # -n in the trap: if the ticket is somehow gone, fail quietly rather than
   # hang on a password prompt nobody can answer.
   trap 'kill '"$keepalive_pid"' 2>/dev/null; sudo -n rm -f "$SUDOERS_DROPIN" 2>/dev/null' EXIT
-  (( STEP_TOTAL )) || STEP_TOTAL=10   # unless carrying on the installer's bar
+  # Unless carrying on the installer's bar.
+  (( PROGRESS_TOTAL )) || PROGRESS_TOTAL=$(step_weights "$SETUP_DIR/phases/post.sh")
 
-  step "Updating the system"
+  step "Updating the system" 30
   info "Making sure everything is up to date..."
   require_network
   # gum: the prompt UI (lib/prompt.sh), for the reboot question at the end.
   run sudo pacman -Syu --noconfirm --needed gum
 
-  step "Installing the desktop"
+  step "Installing the desktop" 300
   info "Installing KDE Plasma, the desktop you'll log into. This is the big download."
   pkg_install "${KDE_PACKAGES[@]}"
 
-  step "Installing apps"
+  step "Installing apps" 120
   info "Adding apps: video player, code editor, remote desktop, fonts..."
   pkg_install "${EXTRA_PACKAGES[@]}"
 
-  step "Tuning the video player"
+  step "Tuning the video player" 2
   info "Scroll to seek, tilt the wheel for volume"
   configure_mpv
 
-  step "Setting up sound"
+  step "Setting up sound" 2
   configure_audio
 
-  step "Personalising"
+  step "Personalising" 30
   info "Setting up the login screen, wallpaper and keyboard layout..."
   configure_login_and_desktop
 
-  step "Setting up file sharing"
+  step "Setting up file sharing" 20
   info "Letting you share folders with other computers on your network"
   configure_samba
 
-  step "Installing games & extras"
+  step "Installing games & extras" 420
   install_gaming_and_aur
 
-  step "Preparing your first login"
+  step "Preparing your first login" 2
   info "Your desktop layout and theme will be applied the first time you log in"
   schedule_kde_init
 
-  step "Finishing up"
+  step "Finishing up" 5
   info "Turning on Bluetooth and the login screen..."
   enable_service --now bluetooth
   # No --now for SDDM: run by hand, it would take over tty1, where this phase

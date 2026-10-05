@@ -141,14 +141,15 @@ hand_over_to_user() {
 # a first boot: all of it works in the chroot, on the live system's network,
 # so the machine reboots once, straight into SDDM. A temporary sudo rule
 # stands in for the password the phase would otherwise ask for, and the
-# progress bar carries on from the install phase's (STEP, STEP_TOTAL).
+# progress bar carries on from the install phase's (PROGRESS_*).
 run_post_phase() {
   local home=/home/$USER_NAME rule=/etc/sudoers.d/90-arch-setup-install
   echo "$USER_NAME ALL=(ALL:ALL) NOPASSWD: ALL" > "$rule"
   chmod 440 "$rule"
   visudo -c -f "$rule" > /dev/null || die "Generated sudoers drop-in is invalid"
   trap 'rm -f '"$rule" EXIT
-  runuser -u "$USER_NAME" -- env TERM="$TERM" VERBOSE="$VERBOSE" STEP="$STEP" STEP_TOTAL="$STEP_TOTAL" \
+  runuser -u "$USER_NAME" -- env TERM="$TERM" VERBOSE="$VERBOSE" \
+    PROGRESS_DONE="$PROGRESS_DONE" PROGRESS_STEP="$PROGRESS_STEP" PROGRESS_TOTAL="$PROGRESS_TOTAL" \
     PATCHED_FONT="${PATCHED_FONT:-0}" IN_CHROOT=1 \
     bash "$home/.arch-setup/setup.sh" post
   rm -f "$rule"

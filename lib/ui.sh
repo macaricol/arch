@@ -155,6 +155,9 @@ wrap() {
   WRAPPED+=("$line")
 }
 
+# plural N WORD — "1 minute", "3 minutes".
+plural() { (( $1 == 1 )) && echo "$1 $2" || echo "$1 ${2}s"; }
+
 # message TAG COLOUR TEXT END — "ᗧ TEXT" kept inside the layout column:
 # wrapped lines are indented to start under the text, not the tag.
 message() {
@@ -188,14 +191,27 @@ center() {
   printf '%s%*s%s\n' "$MARGIN" "$pad" '' "$1"
 }
 
-# ── Step header ────────────────────────────────────────────────────────
-# Numbered steps. Phases set STEP_TOTAL once; the counter does the rest, so
-# inserting a step never means renumbering the others.
-# Both may come from the environment: the post phase, run from the
-# installer, carries on the install phase's progress bar.
-STEP=${STEP:-0}
-STEP_TOTAL=${STEP_TOTAL:-0}
+# ── Step header and progress ───────────────────────────────────────────
+# Each step has a weight, roughly the seconds it takes (step "Title" 120), so
+# a long step moves the bar further than a quick one. PROGRESS_DONE is the
+# weight of the steps finished, PROGRESS_STEP the current one's, and
+# PROGRESS_TOTAL them all (step_weights). All three may come from the
+# environment: the post phase, run from the installer, carries on the
+# install phase's bar. Within a step the bar keeps moving: see
+# update_progress.
+PROGRESS_DONE=${PROGRESS_DONE:-0}
+PROGRESS_STEP=${PROGRESS_STEP:-0}
+PROGRESS_TOTAL=${PROGRESS_TOTAL:-0}
+PROGRESS_PERMILLE=0      # of the current step
+PROGRESS_FILLED=-1       # cells drawn, so the bar is only redrawn on a change
+STEP_START=0             # µs
+BAR_ROW=0                # the bar's screen row, once a header has drawn it
 PROGRESS_WIDTH=40
+
+# step_weights FILE — the sum of the weights of FILE's step lines.
+step_weights() {
+  awk '/^  step "[^"]*" [0-9]+/ { sum += $NF } END { print sum + 0 }' "$1"
+}
 
 # The logo, then TAGLINE (config.sh) underneath.
 # logo_lines — the logo (logo_file) as printable lines in LOGO_LINES, its
@@ -256,9 +272,38 @@ draw_logo() {
 draw_progress() {
   # Before the first step (the questions), a blank line in its place, so
   # the title doesn't move when the bar appears.
-  (( STEP_TOTAL > 0 && STEP > 0 )) || { echo; return 0; }
-  local filled=$(( PROGRESS_WIDTH * STEP / STEP_TOTAL ))
+  (( PROGRESS_TOTAL > 0 && PROGRESS_DONE + PROGRESS_STEP > 0 )) || { echo; return 0; }
+  local filled=$(( PROGRESS_WIDTH * (PROGRESS_DONE * 1000 + PROGRESS_STEP * PROGRESS_PERMILLE)
+                   / (PROGRESS_TOTAL * 1000) ))
+  (( filled > PROGRESS_WIDTH )) && filled=$PROGRESS_WIDTH
+  PROGRESS_FILLED=$filled
   center "${C_CYAN}$(repeat █ "$filled")${C_BLUE}$(repeat █ $((PROGRESS_WIDTH - filled)))${C_RESET}" "$PROGRESS_WIDTH"
+}
+
+# update_progress [OUTPUT] — moves the bar within the current step, called
+# by run()'s spinner. Two estimates, the further along wins: time, on a
+# curve that's quick at first and slows as the step's weight in seconds
+# goes by, reaching only 95% (the step's end is the next step()); and, from
+# the running command's OUTPUT, pacman's "(n/N) installing" count. Only the
+# bar's line is redrawn, and only when a cell changes.
+update_progress() {
+  (( BAR_ROW > 0 && PROGRESS_STEP > 0 )) || return 0
+  local elapsed=$(( (${EPOCHREALTIME//[!0-9]/} - STEP_START) / 1000 ))     # ms
+  local permille=$(( 950 * elapsed / (elapsed + PROGRESS_STEP * 500) )) count
+  if [[ -n ${1:-} ]]; then
+    count=$(tail -c 2000 "$1" 2>/dev/null | grep -oE '\(\s*[0-9]+/[0-9]+\) (installing|upgrading|reinstalling)' | tail -1) || true
+    if [[ $count =~ ([0-9]+)/([0-9]+) ]] && (( BASH_REMATCH[2] > 0 )); then
+      count=$(( 950 * BASH_REMATCH[1] / BASH_REMATCH[2] ))
+      (( count > permille )) && permille=$count
+    fi
+  fi
+  (( permille > PROGRESS_PERMILLE )) && PROGRESS_PERMILLE=$permille
+  local filled=$(( PROGRESS_WIDTH * (PROGRESS_DONE * 1000 + PROGRESS_STEP * PROGRESS_PERMILLE)
+                   / (PROGRESS_TOTAL * 1000) ))
+  (( filled != PROGRESS_FILLED )) || return 0
+  printf '\e7\e[%d;1H\e[2K' "$BAR_ROW"
+  draw_progress
+  printf '\e8'
 }
 
 # header "Title" [colour] — clears the screen and draws logo, progress bar
@@ -267,16 +312,28 @@ header() {
   clear
   update_margin
   draw_logo
+  # The bar's row: two blank lines, the logo, a blank, the tagline, a blank.
+  BAR_ROW=$(( ${#LOGO_LINES[@]} ? ${#LOGO_LINES[@]} + 6 : 0 ))
   draw_progress
   echo
   center "${C_BOLD}${2:-$C_WHITE}$1${C_RESET}" "${#1}"
-  echo
+  echo; echo
 }
 
-step() { (( ++STEP )); header "$1"; }
+# step "Title" WEIGHT — the previous step is done; this one starts, worth
+# WEIGHT (roughly its seconds) of the bar.
+step() {
+  PROGRESS_DONE=$(( PROGRESS_DONE + PROGRESS_STEP ))
+  PROGRESS_STEP=${2:-1} PROGRESS_PERMILLE=0
+  STEP_START=${EPOCHREALTIME//[!0-9]/}
+  header "$1"
+}
 
 # finish "Title" — the closing screen of a phase: full bar, title in green.
-finish() { STEP=$STEP_TOTAL; header "$1" "$C_GREEN"; }
+finish() {
+  PROGRESS_DONE=$PROGRESS_TOTAL PROGRESS_STEP=0
+  header "$1" "$C_GREEN"
+}
 
 # Runs a command. Its output always goes to LOG_FILE; the terminal shows a
 # spinner (or the live output with VERBOSE=1). On failure the output is also
@@ -298,6 +355,7 @@ run() {
   printf '\e[?25l'   # no cursor blinking after the pellets
   while kill -0 "$pid" 2>/dev/null; do
     printf '\r%s%s' "$MARGIN" "${frames[i++ % 2]}"
+    update_progress "$out"
     sleep 0.2
   done
   printf '\r\e[K'
