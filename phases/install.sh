@@ -30,7 +30,7 @@ phase_install() {
     "Timezone:  $TIMEZONE" "Keymap:    $KEYMAP"
   echo
   warn "This will ERASE ALL DATA on $DRIVE. This cannot be undone."
-  ask "Type YES to continue >"; read -r ack
+  ask "Type YES to continue >"; cursor on; read -r ack; cursor off
   [[ $ack == YES ]] || { info "Aborted."; exit 0; }
 
   step "Partitioning & formatting"
@@ -78,7 +78,7 @@ wait_for_usb_removal() {
   else
     info "Remove the installation media, then press Enter to reboot."
   fi
-  printf '\e[?25l'
+  cursor off
   while :; do
     [[ -n $usb && ! -b $usb ]] && { info "USB removed."; return; }
     read -rs -t 1 key && return

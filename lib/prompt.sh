@@ -40,14 +40,18 @@ input() {
         --cursor.foreground 14 --placeholder '' --no-show-help
         --width $((LAYOUT_WIDTH - TAG_COLS - 2)) --padding "0 0 0 $(( ${#MARGIN} + TAG_COLS ))")
       [[ $__secret == --secret ]] && __args+=(--password)
-      __val=$(gum input "${__args[@]}") || { __status=$?; gum_cancelled "$__status"; continue; }
+      # gum hides the cursor while it runs and shows it again on exit.
+      __val=$(gum input "${__args[@]}") || { __status=$?; cursor off; gum_cancelled "$__status"; continue; }
+      cursor off
       # gum clears itself away; leave the answer on screen like read does.
       ask "$__prompt"
       if [[ $__secret == --secret ]]; then repeat "$(mask_char)" 6; echo; else echo "$__val"; fi
     else
       ask "$__prompt"
       # A failed read means stdin is gone (EOF); looping would spin forever.
+      cursor on
       if [[ $__secret == --secret ]]; then read_secret __val; else read -r __val || die "Input closed"; fi
+      cursor off
     fi
     echo
     __val=${__val##+([[:space:]])}; __val=${__val%%+([[:space:]])}
@@ -102,12 +106,14 @@ confirm() {
     [[ $default == y ]] && hint=true || hint=false
     gum confirm --default="$hint" --padding "$(gum_padding)" --prompt.foreground 15 \
       --selected.foreground 0 --selected.background 6 \
-      --unselected.foreground 15 --unselected.background 4 "$1" && return 0
-    status=$?; gum_cancelled "$status"; return 1
+      --unselected.foreground 15 --unselected.background 4 "$1" && { cursor off; return 0; }
+    status=$?; cursor off; gum_cancelled "$status"; return 1
   fi
   [[ $default == y ]] && hint='Y/n' || hint='y/N'
   ask "$1 [$hint]"
+  cursor on
   read -r reply
+  cursor off
   reply=${reply:-$default}
   [[ $reply =~ ^[Yy] ]]
 }
@@ -122,8 +128,8 @@ menu() {
     header "$title"
     MENU_CHOICE=$(gum choose --header '' --height $(( total < 10 ? total : 10 )) \
       --cursor '> ' --cursor.foreground 14 --selected.foreground 14 \
-      --padding "$(gum_padding)" -- "${items[@]}") && return 0
-    status=$?; gum_cancelled "$status"; return 1
+      --padding "$(gum_padding)" -- "${items[@]}") && { cursor off; return 0; }
+    status=$?; cursor off; gum_cancelled "$status"; return 1
   fi
   while :; do
     header "$title"
@@ -190,7 +196,7 @@ unlock_screen() {
 
   # The field: the box's middle row, one space in from its left border.
   local __row=$(( __top + ${#__logo[@]} + 5 )) __col=$(( __pad + 5 + 1 + 1 + 2 ))
-  printf '\e[?25h'
+  cursor on
   while :; do
     __shown=$(( ${#__pw} < __box - 2 ? ${#__pw} : __box - 2 ))
     printf '\e[%d;%dH%s%s%*s\e[%d;%dH' "$__row" "$__col" "$C_WHITE" "$(repeat "$DOT" "$__shown")$C_RESET" \
@@ -204,6 +210,6 @@ unlock_screen() {
       *)             __pw+=$__key ;;
     esac
   done
-  printf '\e[?25l'
+  cursor off
   printf -v "$__var" '%s' "$__pw"
 }

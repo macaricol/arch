@@ -117,14 +117,20 @@ logo_file() {
   fi
 }
 
+# cursor on|off — on the console, the cursor is hidden except while
+# something is being typed (lib/prompt.sh turns it on for that), so it never
+# blinks at the left edge between steps. Left alone in a terminal emulator,
+# where it would stay hidden after the script ends.
+cursor() {
+  on_console || return 0
+  if [[ $1 == on ]]; then printf '\e[?25h'; else printf '\e[?25l'; fi
+}
+
 # Called first thing by each interactive phase.
-# The ISO's quiet boot (vt.global_cursor_default=0) hides the cursor; the
-# typed prompts need it back.
 setup_console() {
   scale_console_font
   set_console_palette
-  on_console && printf '\e[?25h'
-  return 0
+  cursor off
 }
 
 # ── Messages ───────────────────────────────────────────────────────────
@@ -258,7 +264,8 @@ run() {
     printf '\r%s%s' "$MARGIN" "${frames[i++ % 2]}"
     sleep 0.2
   done
-  printf '\r\e[K\e[?25h'
+  printf '\r\e[K'
+  on_console || printf '\e[?25h'   # see cursor()
   local status=0
   wait "$pid" || status=$?
   cat "$out" >> "$LOG_FILE"
