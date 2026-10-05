@@ -8,11 +8,12 @@ LOGO_FILE=$SETUP_DIR/logo.txt
 C_RESET=$'\e[0m' C_BOLD=$'\e[1m' C_REVERSE=$'\e[7m'
 C_CYAN=$'\e[96m' C_GREEN=$'\e[92m' C_YELLOW=$'\e[93m' C_RED=$'\e[91m'
 C_MAGENTA=$'\e[35m' C_WHITE=$'\e[97m' C_GREY=$'\e[90m'
+C_BLUE=$'\e[34m' C_PINK=$'\e[95m'
 TAG="${C_CYAN}${C_BOLD}[ Ω ]${C_RESET}"
 
 # ── Console look ───────────────────────────────────────────────────────
 # Everything is laid out in one centred column, LAYOUT_WIDTH wide (the width
-# of box()); MARGIN is the indent that centres it on the current terminal.
+# of the logo); MARGIN is the indent that centres it on the current terminal.
 LAYOUT_WIDTH=70
 
 # stty reads the size from /dev/tty, as stdin may be the curl pipe.
@@ -73,15 +74,48 @@ setup_console() {
 }
 
 # ── Messages ───────────────────────────────────────────────────────────
+# wrap TEXT WIDTH — word-wraps TEXT into the WRAPPED array, lines at most
+# WIDTH characters (a single longer word gets a line of its own).
+wrap() {
+  # ${#} counts bytes, not characters, unless the locale is UTF-8.
+  local LC_ALL=C.UTF-8 width=$2 word line=''
+  local -a words
+  read -ra words <<< "$1"
+  WRAPPED=()
+  for word in "${words[@]}"; do
+    if [[ -z $line ]]; then
+      line=$word
+    elif (( ${#line} + 1 + ${#word} <= width )); then
+      line+=" $word"
+    else
+      WRAPPED+=("$line")
+      line=$word
+    fi
+  done
+  WRAPPED+=("$line")
+}
+
+# message TAG COLOUR TEXT END — "[ Ω ] TEXT" kept inside the layout column:
+# wrapped lines are indented to start under the text, not the tag (which is
+# 5 columns plus a space).
+message() {
+  local tag=$1 colour=$2 end=$4 i
+  wrap "$3" $((LAYOUT_WIDTH - 6))
+  for i in "${!WRAPPED[@]}"; do
+    if (( i )); then printf '\n%s      ' "$MARGIN"; else printf '%s%s ' "$MARGIN" "$tag"; fi
+    printf '%s%s%s' "$colour" "${WRAPPED[i]}" "$C_RESET"
+  done
+  printf '%s' "$end"
+}
+
 # Warnings also go to the log: the next step header clears the screen.
-info()      { printf '%s%s %s%s%s\n\n' "$MARGIN" "$TAG" "$C_WHITE" "$*" "$C_RESET"; }
-warn()      {
-  printf '%s%s%s[ Ω ] %s%s\n' "$MARGIN" "$C_YELLOW" "$C_BOLD" "$*" "$C_RESET" >&2
+info() { message "$TAG" "$C_WHITE" "$*" $'\n\n'; }
+warn() {
+  message "$C_YELLOW$C_BOLD[ Ω ]$C_RESET" "$C_YELLOW$C_BOLD" "$*" $'\n\n' >&2
   printf '[warn] %s\n' "$*" >> "$LOG_FILE" 2>/dev/null || true
 }
-die()       { printf '%s%s%s[ Ω ] %s%s\n' "$MARGIN" "$C_RED" "$C_BOLD" "$*" "$C_RESET" >&2; exit 1; }
-ask()       { printf '%s%s %s%s%s ' "$MARGIN" "$TAG" "$C_WHITE" "$1" "$C_RESET"; }
-step_done() { printf '%s%s%s[ ✓ ] DONE%s\n\n' "$MARGIN" "$C_GREEN" "$C_BOLD" "$C_RESET"; }
+die()  { message "$C_RED$C_BOLD[ Ω ]$C_RESET" "$C_RED$C_BOLD" "$*" $'\n' >&2; exit 1; }
+ask()  { message "$TAG" "$C_WHITE" "$1" ' '; }
 
 # repeat CHAR COUNT — multibyte-safe (tr is not)
 repeat() { local s; printf -v s '%*s' "$2" ''; printf '%s' "${s// /$1}"; }
@@ -93,20 +127,6 @@ center() {
   local pad=$(( (LAYOUT_WIDTH - len) / 2 ))
   (( pad < 0 )) && pad=0
   printf '%s%*s%s\n' "$MARGIN" "$pad" '' "$1"
-}
-
-# box "title" [width] [char] — a centred title inside a horizontal rule
-box() {
-  local title=" $1 " width=${2:-70} ch=${3:-Ω}
-  local left=$(( (width - 2 - ${#title}) / 2 ))
-  local right=$(( width - 2 - ${#title} - left ))
-  (( left < 0 )) && left=0
-  (( right < 0 )) && right=0
-  local rule; rule=$(repeat "$ch" "$width")
-  printf '\n%s%s%s\n%s%s%s%s%s%s%s\n%s%s%s%s\n\n' \
-    "$MARGIN" "$C_MAGENTA" "$rule" \
-    "$MARGIN" "$(repeat "$ch" $((left + 1)))" "$C_CYAN" "$title" "$C_MAGENTA" "$(repeat "$ch" $((right + 1)))" "$C_RESET" \
-    "$MARGIN" "$C_MAGENTA" "$rule" "$C_RESET"
 }
 
 # ── Step header ────────────────────────────────────────────────────────
@@ -124,12 +144,12 @@ draw_logo() {
   local LC_ALL=C.UTF-8 line width
   IFS= read -r line < "$LOGO_FILE"
   width=${#line}
-  echo
+  printf '\n\n'
   while IFS= read -r line; do
     center "${C_CYAN}${line}${C_RESET}" "$width"
   done < "$LOGO_FILE"
   echo
-  center "${C_GREY}${TAGLINE}${C_RESET}" "${#TAGLINE}"
+  center "${C_PINK}${TAGLINE}${C_RESET}" "${#TAGLINE}"
   echo
 }
 
@@ -139,23 +159,26 @@ draw_progress() {
   (( STEP_TOTAL > 0 )) || return 0
   local filled=$(( PROGRESS_WIDTH * STEP / STEP_TOTAL ))
   local count="$STEP/$STEP_TOTAL"
-  center "${C_CYAN}$(repeat █ "$filled")${C_GREY}$(repeat █ $((PROGRESS_WIDTH - filled)))${C_RESET}  $count" \
+  center "${C_CYAN}$(repeat █ "$filled")${C_BLUE}$(repeat █ $((PROGRESS_WIDTH - filled)))${C_RESET}  $count" \
     $((PROGRESS_WIDTH + 2 + ${#count}))
 }
 
-# header "Title" — clears the screen and draws logo, progress bar and title
-# for the current step. menu() redraws it on every keypress.
+# header "Title" [colour] — clears the screen and draws logo, progress bar
+# and title for the current step. menu() redraws it on every keypress.
 header() {
   clear
   update_margin
   draw_logo
   draw_progress
   echo
-  center "${C_BOLD}${C_WHITE}$1${C_RESET}" "${#1}"
+  center "${C_BOLD}${2:-$C_WHITE}$1${C_RESET}" "${#1}"
   echo
 }
 
 step() { (( ++STEP )); header "$1"; }
+
+# finish "Title" — the closing screen of a phase: full bar, title in green.
+finish() { STEP=$STEP_TOTAL; header "$1" "$C_GREEN"; }
 
 # Runs a command. Its output always goes to LOG_FILE; the terminal shows a
 # spinner (or the live output with VERBOSE=1). On failure the output is also

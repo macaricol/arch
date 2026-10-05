@@ -73,7 +73,7 @@ confirm() {
     [[ $default == y ]] && hint=true || hint=false
     gum confirm --default="$hint" --padding "$(gum_padding)" --prompt.foreground 15 \
       --selected.foreground 0 --selected.background 6 \
-      --unselected.foreground 7 --unselected.background 8 "$1" && return 0
+      --unselected.foreground 15 --unselected.background 4 "$1" && return 0
     status=$?; gum_cancelled "$status"; return 1
   fi
   [[ $default == y ]] && hint='Y/n' || hint='y/N'

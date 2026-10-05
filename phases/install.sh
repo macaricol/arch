@@ -20,10 +20,8 @@ phase_install() {
   password ROOT_PASSWORD "Root password (min 6 chars):"
   input USER_NAME "Username:" valid_username
   password USER_PASSWORD "User password (min 6 chars):"
-  step_done
 
   select_drive
-  step_done
 
   step "Review & confirm"
   printf "$MARGIN %s\n" "Hostname:  $HOST_NAME" "Username:  $USER_NAME" "Drive:     $DRIVE" \
@@ -32,19 +30,15 @@ phase_install() {
   warn "This will ERASE ALL DATA on $DRIVE. This cannot be undone."
   ask "Type YES to continue:"; read -r ack
   [[ $ack == YES ]] || { info "Aborted."; exit 0; }
-  step_done
 
   step "Partitioning & formatting"
   partition_and_mount
-  step_done
 
   step "Installing the base system"
   install_base
-  step_done
 
   step "Configuring the new system"
   configure_new_system
-  step_done
 
   # Unmount first so nothing on the new system is lost if the stick is
   # pulled; and the live ISO may be running from that stick, so `reboot`
@@ -54,7 +48,7 @@ phase_install() {
   umount -R /mnt || warn "Couldn't unmount /mnt — leave the USB in until the reboot starts"
   systemctl --version > /dev/null
 
-  box "DONE! Remove the installation USB"
+  finish "Installed! Remove the installation USB"
   wait_for_usb_removal
   info "Rebooting..."
   sync

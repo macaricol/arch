@@ -23,25 +23,23 @@ phase_post() {
   step "Updating the system"
   # gum: the prompt UI (lib/prompt.sh), for the reboot question at the end.
   run sudo pacman -Syu --noconfirm --needed gum
-  step_done
 
-  step "Installing KDE Plasma";            pkg_install "${KDE_PACKAGES[@]}";   step_done
-  step "Installing extra applications";    pkg_install "${EXTRA_PACKAGES[@]}"; step_done
-  step "Setting mpv wheel controls";       configure_mpv;                step_done
-  step "Configuring surround audio";       configure_audio;              step_done
-  step "Login screen, wallpaper, keyboard"; configure_login_and_desktop; step_done
-  step "Setting up Samba file sharing";    configure_samba;              step_done
-  step "Installing Steam & AUR packages";  install_gaming_and_aur;       step_done
-  step "Scheduling Plasma first-login setup"; schedule_kde_init;         step_done
+  step "Installing KDE Plasma";            pkg_install "${KDE_PACKAGES[@]}"
+  step "Installing extra applications";    pkg_install "${EXTRA_PACKAGES[@]}"
+  step "Setting mpv wheel controls";       configure_mpv
+  step "Configuring surround audio";       configure_audio
+  step "Login screen, wallpaper, keyboard"; configure_login_and_desktop
+  step "Setting up Samba file sharing";    configure_samba
+  step "Installing Steam & AUR packages";  install_gaming_and_aur
+  step "Scheduling Plasma first-login setup"; schedule_kde_init
 
   step "Enabling services"
   enable_service --now bluetooth
   # No --now for SDDM: its unit conflicts with getty@tty1, so starting it here
   # would SIGHUP this very session before the prompt below. The reboot does it.
   enable_service sddm
-  step_done
 
-  box "DONE! Reboot to see your new setup"
+  finish "All done! Reboot to see your new setup"
   if confirm "Reboot now?"; then
     info "Rebooting..."
     sleep 2

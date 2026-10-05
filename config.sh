@@ -13,12 +13,18 @@ ISO_MIRROR='https://geo.mirror.pkgbuild.com/iso/latest'
 # ── Installer look ─────────────────────────────────────────────────────
 # Shown under the logo (logo.txt) on every step.
 TAGLINE='ARCHΩN · KDE Plasma'
-# The 16 console colours used while installing (Tokyo Night), in VT order:
-# black red green yellow blue magenta cyan white, then their bright variants.
+# The 16 console colours used while installing, in VT order. Built on the
+# palette 070F34 Oxford blue, 0313A6 zaffre, 9201CB violet, F715AB cerise,
+# 34EDF3 cyan; the off-white text, lavender hints and error red are tints
+# added for roles it has no colour for. How lib/ui.sh uses them:
+#   0 background · 4 empty progress bar, unselected buttons · 8 hints
+#   9 errors · 10 closing title · 11 warnings · 13 tagline
+#   14 logo, tags, progress, spinner · 15 text
 # Only applies on a real console (TERM=linux), not in a terminal emulator.
 CONSOLE_PALETTE=(
-  1a1b26 f7768e 9ece6a e0af68 7aa2f7 bb9af7 7dcfff a9b1d6
-  414868 f7768e 9ece6a e0af68 7aa2f7 bb9af7 7dcfff c0caf5
+  # black  red    green  yellow blue   magenta cyan   white
+  070F34 FF3D6E 34EDF3 F715AB 0313A6 9201CB 34EDF3 B8C0E0
+  6B74B8 FF3D6E 34EDF3 F715AB 3A4BFF F715AB 34EDF3 E8F1FF
 )
 
 # ── Locale ─────────────────────────────────────────────────────────────
