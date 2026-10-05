@@ -27,7 +27,12 @@ To install from a different branch: `curl ... | BRANCH=clauding bash`.
 ### No-typing USB
 
 `tools/build-autoinstall-iso.sh` adds an "Automated Install" entry to an
-official ISO's boot menu that runs the command above by itself:
+official ISO's boot menu that runs the command above by itself. That entry
+boots quietly: no kernel or systemd messages and no login text, just the
+firmware logo, then the installer's logo with "Waiting for network…" /
+"Fetching the installer…" until the installer takes over. If either fails,
+it says so and leaves a root shell on tty1. The ISO's own entries are
+unchanged.
 
     sudo pacman -S --needed xorriso squashfs-tools
     sudo tools/build-autoinstall-iso.sh
@@ -51,6 +56,7 @@ mirror is `ISO_MIRROR` in `config.sh`.
     config.sh             every tunable value: locale, disk, package lists, theme
     logo.txt              the logo drawn above every step
     assets/plymouth/      the boot splash theme: script, logo, spinner
+    assets/consolefonts/  the console fonts, with Pac-Man added (tools/make-console-fonts.py)
     lib/ui.sh             console font/palette, centred step screens, run() spinner + setup.log
     lib/prompt.sh         validated input, passwords, confirm, arrow-key menu
     lib/system.sh         checks, CPU/GPU detection, pacman/AUR/service helpers
@@ -134,7 +140,12 @@ Things that look odd but are deliberate:
 - **The installer restyles the console** while it runs (on a real tty only,
   `TERM=linux`): it picks the largest of three stock kbd fonts that keeps
   about 48 rows and 80 columns, so text isn't tiny on high-resolution
-  screens, and swaps the 16 VGA colours for `CONSOLE_PALETTE`. Each step
+  screens, and swaps the 16 VGA colours for `CONSOLE_PALETTE`. The fonts
+  are copies from `assets/consolefonts` with two unused glyphs redrawn as
+  Pac-Man: `ᗧ`, the tag on every message, and `⬤`, its closed mouth, which
+  the spinner alternates with it while eating a row of pellets. No stock
+  console font has either character; `tools/make-console-fonts.py`
+  rebuilds the copies. Each step
   then clears the screen and redraws the logo, a progress bar and the step
   title in one centred column; earlier output stays in the log, which is
   why `warn` writes there too. None of this persists after a reboot.

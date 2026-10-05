@@ -9,7 +9,11 @@ C_RESET=$'\e[0m' C_BOLD=$'\e[1m' C_REVERSE=$'\e[7m'
 C_CYAN=$'\e[96m' C_GREEN=$'\e[92m' C_YELLOW=$'\e[93m' C_RED=$'\e[91m'
 C_MAGENTA=$'\e[35m' C_WHITE=$'\e[97m' C_GREY=$'\e[90m'
 C_BLUE=$'\e[34m' C_PINK=$'\e[95m'
-TAG="${C_CYAN}${C_BOLD}[ Ω ]${C_RESET}"
+# ᗧ and ⬤ are Pac-Man, open and closed. On the console they come from the
+# fonts in assets/consolefonts (tools/make-console-fonts.py); in a terminal
+# emulator, from its own font.
+TAG="${C_CYAN}${C_BOLD}ᗧ${C_RESET}"
+TAG_COLS=2   # the tag and the space after it
 
 # ── Console look ───────────────────────────────────────────────────────
 # Everything is laid out in one centred column, LAYOUT_WIDTH wide (the width
@@ -52,11 +56,14 @@ set_console_palette() {
 # On a high-resolution screen the default 8x16 font is tiny. Try each font,
 # read back the size the console actually ends up with, and keep the one
 # nearest ~48 rows that still leaves 80 columns. All three ship with kbd; on
-# an already low-resolution console this settles on the default.
+# an already low-resolution console this settles on the default. Each is
+# loaded from assets/consolefonts, the same fonts with Pac-Man added, and
+# from kbd if that copy is missing.
 scale_console_font() {
   on_console && command -v setfont &>/dev/null || return 0
   local target=48 best='' best_diff=99999 font rows cols diff
   for font in default8x16 sun12x22 latarcyrheb-sun32; do
+    [[ -f $SETUP_DIR/assets/consolefonts/$font.psfu.gz ]] && font=$SETUP_DIR/assets/consolefonts/$font.psfu.gz
     setfont "$font" 2>/dev/null || continue
     rows=$(term_rows) cols=$(term_cols)
     (( cols >= 80 )) || continue
@@ -68,9 +75,13 @@ scale_console_font() {
 }
 
 # Called first thing by each interactive phase.
+# The ISO's quiet boot (vt.global_cursor_default=0) hides the cursor; the
+# typed prompts need it back.
 setup_console() {
   scale_console_font
   set_console_palette
+  on_console && printf '\e[?25h'
+  return 0
 }
 
 # ── Messages ───────────────────────────────────────────────────────────
@@ -95,14 +106,13 @@ wrap() {
   WRAPPED+=("$line")
 }
 
-# message TAG COLOUR TEXT END — "[ Ω ] TEXT" kept inside the layout column:
-# wrapped lines are indented to start under the text, not the tag (which is
-# 5 columns plus a space).
+# message TAG COLOUR TEXT END — "ᗧ TEXT" kept inside the layout column:
+# wrapped lines are indented to start under the text, not the tag.
 message() {
   local tag=$1 colour=$2 end=$4 i
-  wrap "$3" $((LAYOUT_WIDTH - 6))
+  wrap "$3" $((LAYOUT_WIDTH - TAG_COLS))
   for i in "${!WRAPPED[@]}"; do
-    if (( i )); then printf '\n%s      ' "$MARGIN"; else printf '%s%s ' "$MARGIN" "$tag"; fi
+    if (( i )); then printf '\n%s%*s' "$MARGIN" "$TAG_COLS" ''; else printf '%s%s ' "$MARGIN" "$tag"; fi
     printf '%s%s%s' "$colour" "${WRAPPED[i]}" "$C_RESET"
   done
   printf '%s' "$end"
@@ -111,10 +121,10 @@ message() {
 # Warnings also go to the log: the next step header clears the screen.
 info() { message "$TAG" "$C_WHITE" "$*" $'\n\n'; }
 warn() {
-  message "$C_YELLOW$C_BOLD[ Ω ]$C_RESET" "$C_YELLOW$C_BOLD" "$*" $'\n\n' >&2
+  message "$C_YELLOW${C_BOLD}ᗧ$C_RESET" "$C_YELLOW$C_BOLD" "$*" $'\n\n' >&2
   printf '[warn] %s\n' "$*" >> "$LOG_FILE" 2>/dev/null || true
 }
-die()  { message "$C_RED$C_BOLD[ Ω ]$C_RESET" "$C_RED$C_BOLD" "$*" $'\n' >&2; exit 1; }
+die()  { message "$C_RED${C_BOLD}ᗧ$C_RESET" "$C_RED$C_BOLD" "$*" $'\n' >&2; exit 1; }
 ask()  { message "$TAG" "$C_WHITE" "$1" ' '; }
 
 # repeat CHAR COUNT — multibyte-safe (tr is not)
@@ -192,10 +202,14 @@ run() {
   fi
   local out; out=$(mktemp)
   "$@" &>"$out" &
-  local pid=$! spin='|/-\' i=0
+  # Pac-Man chomping a row of pellets: closed with the pellets a step away,
+  # then open with each moved one step closer, the first at its mouth.
+  local pid=$! i=0
+  local -a frames=("${C_BOLD}${C_CYAN}⬤${C_RESET}${C_WHITE} · · ·${C_RESET}"
+                   "${C_BOLD}${C_CYAN}ᗧ${C_RESET}${C_WHITE}· · · ${C_RESET}")
   while kill -0 "$pid" 2>/dev/null; do
-    printf '\r%s%s[%s]%s' "$MARGIN" "$C_CYAN" "${spin:i++%4:1}" "$C_RESET"
-    sleep 0.1
+    printf '\r%s%s' "$MARGIN" "${frames[i++ % 2]}"
+    sleep 0.2
   done
   printf '\r\e[K'
   local status=0

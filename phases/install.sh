@@ -15,11 +15,11 @@ phase_install() {
   install_gum
   STEP_TOTAL=6
 
-  step "Machine details"
-  input HOST_NAME "Hostname:" valid_hostname
-  input USER_NAME "Username:" valid_username
+  step "Set up your account"
+  input HOST_NAME "Hostname" valid_hostname
+  input USER_NAME "Username" valid_username
   # One password for both the user and root.
-  password PASSWORD "Password:"
+  password PASSWORD "Password"
 
   select_drive
 
@@ -28,7 +28,7 @@ phase_install() {
     "Timezone:  $TIMEZONE" "Keymap:    $KEYMAP"
   echo
   warn "This will ERASE ALL DATA on $DRIVE. This cannot be undone."
-  ask "Type YES to continue:"; read -r ack
+  ask "Type YES to continue >"; read -r ack
   [[ $ack == YES ]] || { info "Aborted."; exit 0; }
 
   step "Partitioning & formatting"

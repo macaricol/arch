@@ -26,15 +26,19 @@ gum_cancelled() { (( $1 == 130 )) && die "Cancelled."; return 0; }
 valid_hostname() { [[ $1 =~ ^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$ ]]; }
 valid_username() { [[ $1 =~ ^[a-z_][a-z0-9_-]{0,31}$ ]]; }
 
-# input VAR "Prompt:" [validator] [--secret]
-# Loops until a non-empty value passes the validator, then stores it in VAR.
+# input VAR "Prompt" [validator] [--secret]
+# Asks on one line, "ᗧ Prompt > answer", followed by a blank line. Loops
+# until a non-empty value passes the validator, then stores it in VAR.
 input() {
-  local __var=$1 __prompt=$2 __validator=${3:-} __secret=${4:-} __val __status
+  local __var=$1 __prompt="$2 >" __validator=${3:-} __secret=${4:-} __val __status
   while :; do
     if have_gum; then
-      local -a __args=(--header "$__prompt" --header.foreground 15 --prompt '> '
-        --prompt.foreground 14 --cursor.foreground 14 --placeholder ''
-        --width $((LAYOUT_WIDTH - 4)) --padding "$(gum_padding)")
+      # gum strips colour codes from its prompt, so the tag can't be part of
+      # it: gum is indented by the tag's columns instead, and the answer
+      # line printed afterwards adds the tag without moving the text.
+      local -a __args=(--prompt "$__prompt " --prompt.foreground 15
+        --cursor.foreground 14 --placeholder '' --no-show-help
+        --width $((LAYOUT_WIDTH - TAG_COLS - 2)) --padding "0 0 0 $(( ${#MARGIN} + TAG_COLS ))")
       [[ $__secret == --secret ]] && __args+=(--password)
       __val=$(gum input "${__args[@]}") || { __status=$?; gum_cancelled "$__status"; continue; }
       # gum clears itself away; leave the answer on screen like read does.
@@ -45,6 +49,7 @@ input() {
       # A failed read means stdin is gone (EOF); looping would spin forever.
       if [[ $__secret == --secret ]]; then read -rs __val || die "Input closed"; echo; else read -r __val || die "Input closed"; fi
     fi
+    echo
     __val=${__val##+([[:space:]])}; __val=${__val%%+([[:space:]])}
     [[ -n $__val ]] || { warn "Cannot be empty"; continue; }
     if [[ -n $__validator ]] && ! "$__validator" "$__val"; then warn "Invalid value"; continue; fi
@@ -53,12 +58,12 @@ input() {
   done
 }
 
-# password VAR "Prompt:" — asked twice; both entries must match.
+# password VAR "Prompt" — asked twice; both entries must match.
 password() {
   local __var=$1 __prompt=$2 __p1 __p2
   while :; do
     input __p1 "$__prompt" '' --secret
-    input __p2 "Confirm password:" '' --secret
+    input __p2 "Confirm password" '' --secret
     [[ $__p1 == "$__p2" ]] && break
     warn "Passwords do not match"
   done
