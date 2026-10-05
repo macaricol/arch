@@ -82,9 +82,10 @@ scale_console_font() {
   # defers the framebuffer console's takeover until something is printed
   # (fbcon deferred takeover, for flicker-free boots), and until then every
   # font is refused, which kbd reports as "Unable to load such font with
-  # such kernel version". So print something (clearing the screen), then
-  # wait (up to 10 s) for the takeover, which happens asynchronously.
-  printf '\e[H\e[2J' > "$dev" 2>/dev/null || true
+  # such kernel version". So print something, then wait (up to 10 s) for
+  # the takeover, which happens asynchronously. It has to be a character:
+  # escape sequences alone (clearing the screen) don't trigger it.
+  printf '\e[H \r' > "$dev" 2>/dev/null || true
   for i in {1..20}; do
     setfont -f -C "$dev" default8x16 2>/dev/null && break
     sleep 0.5
@@ -114,7 +115,9 @@ scale_console_font() {
 log_console_font() {
   local mapped
   mapped=$(getunimap -C "$(console_dev)" 2>/dev/null | grep -ci '^0x[0-9a-f]*[[:space:]]*U+E[01]') || true
-  logger -t arch-setup "$1: uid $EUID, console $(console_dev), font ${best_font:-none}, patched ${PATCHED_FONT:-0}, private-use chars mapped: ${mapped:-?}" 2>/dev/null || true
+  local driver=dummy
+  grep -qs 'frame buffer' /sys/class/vtconsole/vtcon*/name && driver=fbcon
+  logger -t arch-setup "$1: uid $EUID, console $(console_dev) ($driver), font ${best_font:-none}, patched ${PATCHED_FONT:-0}, private-use chars mapped: ${mapped:-?}" 2>/dev/null || true
 }
 
 # The double-resolution logo is drawn with glyphs only the patched fonts
