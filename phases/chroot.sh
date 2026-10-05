@@ -144,6 +144,7 @@ PAMName=login
 WorkingDirectory=$home
 Environment=TERM=linux
 ExecStartPre=-+/usr/bin/plymouth quit
+ExecStartPre=-+/bin/bash $home/.arch-setup/setup.sh console
 ExecStart=/bin/bash $home/.arch-setup/setup.sh post
 ExecStopPost=+/usr/bin/systemctl --no-block start getty@tty1.service
 StandardInput=tty

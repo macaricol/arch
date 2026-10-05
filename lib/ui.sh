@@ -59,8 +59,12 @@ set_console_palette() {
 # an already low-resolution console this settles on the default. Each is
 # loaded from assets/consolefonts, the same fonts with Pac-Man added, and
 # from kbd if that copy is missing.
+#
+# Root only: as a regular user, setfont can't install the font's Unicode
+# table, so the added glyphs would show as boxes. The first-boot service
+# runs `setup.sh console` as root before the post phase for this reason.
 scale_console_font() {
-  on_console && command -v setfont &>/dev/null || return 0
+  on_console && (( EUID == 0 )) && command -v setfont &>/dev/null || return 0
   local target=48 best='' best_diff=99999 font rows cols diff
   for font in default8x16 sun12x22 latarcyrheb-sun32; do
     [[ -f $SETUP_DIR/assets/consolefonts/$font.psfu.gz ]] && font=$SETUP_DIR/assets/consolefonts/$font.psfu.gz
@@ -207,11 +211,12 @@ run() {
   local pid=$! i=0
   local -a frames=("${C_BOLD}${C_CYAN}⬤${C_RESET}${C_WHITE} · · ·${C_RESET}"
                    "${C_BOLD}${C_CYAN}ᗧ${C_RESET}${C_WHITE}· · · ${C_RESET}")
+  printf '\e[?25l'   # no cursor blinking after the pellets
   while kill -0 "$pid" 2>/dev/null; do
     printf '\r%s%s' "$MARGIN" "${frames[i++ % 2]}"
     sleep 0.2
   done
-  printf '\r\e[K'
+  printf '\r\e[K\e[?25h'
   local status=0
   wait "$pid" || status=$?
   cat "$out" >> "$LOG_FILE"
