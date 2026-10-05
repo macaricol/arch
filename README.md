@@ -54,8 +54,8 @@ mirror is `ISO_MIRROR` in `config.sh`.
     bootstrap.sh          fetches the repo tarball to /tmp, runs setup.sh install
     setup.sh <phase>      single entry point; loads config + lib, runs one phase
     config.sh             every tunable value: locale, disk, package lists, theme
-    logo.txt              the logo drawn above every step
-    logo-hd.txt           the same at double resolution, for the console (tools/make-logo.py)
+    logo.txt              the logo drawn above every step (tools/make-logo.py)
+    logo-hd.txt           the same at double resolution, for the console
     assets/plymouth/      the boot splash theme: script, logo, spinner
     assets/consolefonts/  the console fonts, with Pac-Man and a padlock added (tools/make-console-fonts.py)
     lib/ui.sh             console font/palette, centred step screens, run() spinner + setup.log
@@ -161,6 +161,9 @@ Things that look odd but are deliberate:
   `tools/make-console-fonts.py` rebuilds the copies.
 - **The console gets a double-resolution logo.** Plain console characters
   go no finer than half blocks, two pixels per cell, which is `logo.txt`.
+  The A's are the Arch Linux logo's mark, rasterised from the copy in
+  `/usr/share/pixmaps` (thickened a pixel, with its two slivers cut back
+  in, so it holds its own next to the other letters).
   `tools/make-logo.py` draws the logo at 144×28 pixels instead, 2×4 per
   cell, and writes `logo-hd.txt`: each cell that isn't empty, full or a
   half block is a private-use character (U+E100 + its pixel pattern), and
