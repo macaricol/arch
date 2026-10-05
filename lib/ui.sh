@@ -7,7 +7,7 @@ LOGO_FILE=$SETUP_DIR/logo.txt
 
 C_RESET=$'\e[0m' C_BOLD=$'\e[1m' C_REVERSE=$'\e[7m'
 C_CYAN=$'\e[96m' C_GREEN=$'\e[92m' C_YELLOW=$'\e[93m' C_RED=$'\e[91m'
-C_MAGENTA=$'\e[35m' C_WHITE=$'\e[97m' C_GREY=$'\e[90m'
+C_WHITE=$'\e[97m' C_GREY=$'\e[90m'
 C_BLUE=$'\e[34m' C_PINK=$'\e[95m'
 # ᗧ and ⬤ are Pac-Man, open and closed. On the console they come from the
 # fonts in assets/consolefonts (tools/make-console-fonts.py); in a terminal
@@ -25,8 +25,6 @@ LAYOUT_WIDTH=78
 # (/dev/ttyN), which is how the installer runs,
 # else the controlling terminal. Named explicitly because setfont, left to
 # find a console itself, can settle on another one (or none) in a service.
-# (setfont also gets -f, to load the font's Unicode table unconditionally:
-# without it, the added characters show as boxes.)
 console_dev() {
   local dev
   dev=$(tty 2>/dev/null) || dev=
@@ -87,36 +85,24 @@ scale_console_font() {
   # ("Ignore erases" in the kernel's dummycon_putc). A dot, erased at once.
   printf '\e[H.\r\e[K' > "$dev" 2>/dev/null || true
   for i in {1..20}; do
-    setfont -f -C "$dev" default8x16 2>/dev/null && break
+    setfont -C "$dev" default8x16 2>/dev/null && break
     sleep 0.5
   done
   for font in default8x16 sun12x22 latarcyrheb-sun32; do
     [[ -f $SETUP_DIR/assets/consolefonts/$font.psfu.gz ]] && font=$SETUP_DIR/assets/consolefonts/$font.psfu.gz
-    setfont -f -C "$dev" "$font" 2>>"$errors" || continue
+    setfont -C "$dev" "$font" 2>>"$errors" || continue
     rows=$(term_rows) cols=$(term_cols)
     (( cols >= 80 )) || continue
     diff=$(( rows > target ? rows - target : target - rows ))
     (( diff < best_diff )) && { best=$font; best_diff=$diff; }
   done
-  best_font=${best:-default8x16}
-  if setfont -f -C "$dev" "${best:-default8x16}" 2>>"$errors" && [[ $best == "$SETUP_DIR"/* ]]; then
+  if setfont -C "$dev" "${best:-default8x16}" 2>>"$errors" && [[ $best == "$SETUP_DIR"/* ]]; then
     PATCHED_FONT=1
   fi
-  # setfont's complaints, if any, for the journal (see log_console_font)
+  # setfont's complaints, if any, for the journal: journalctl -t arch-setup
   [[ -s $errors ]] && logger -t arch-setup "setfont on $dev: $(sort -u "$errors" | tr '\n' ' ')" 2>/dev/null
   rm -f "$errors"
   update_margin
-}
-
-# log_console_font WHERE — notes in the journal (tag arch-setup) how many of
-# the patched fonts' private-use characters the console currently maps, and
-# which font scale_console_font picked. 0 means boxes on screen.
-log_console_font() {
-  local mapped
-  mapped=$(getunimap -C "$(console_dev)" 2>/dev/null | grep -ci '^0x[0-9a-f]*[[:space:]]*U+E[01]') || true
-  local driver=dummy
-  grep -qs 'frame buffer' /sys/class/vtconsole/vtcon*/name && driver=fbcon
-  logger -t arch-setup "$1: uid $EUID, console $(console_dev) ($driver), font ${best_font:-none}, patched ${PATCHED_FONT:-0}, private-use chars mapped: ${mapped:-?}" 2>/dev/null || true
 }
 
 # The double-resolution logo is drawn with glyphs only the patched fonts
@@ -133,11 +119,8 @@ logo_file() {
 
 # Called first thing by each interactive phase.
 # The ISO's quiet boot (vt.global_cursor_default=0) hides the cursor; the
-# typed prompts need it back. Waits for udev first: when the graphics driver
-# takes over the console, udev re-runs systemd-vconsole-setup, which loads
-# the stock font over ours, and that can land seconds into boot.
+# typed prompts need it back.
 setup_console() {
-  (( EUID == 0 )) && on_console && udevadm settle --timeout=15 2>/dev/null
   scale_console_font
   set_console_palette
   on_console && printf '\e[?25h'

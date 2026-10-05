@@ -6,7 +6,6 @@ SUDOERS_DROPIN=/etc/sudoers.d/99-arch-setup-temp
 phase_post() {
   require_user
   setup_console
-  log_console_font "post phase start"
 
   # One password prompt up front (none when run from the installer, which
   # allows sudo without one); a background loop then keeps the ticket alive
@@ -20,7 +19,7 @@ phase_post() {
   (( STEP_TOTAL )) || STEP_TOTAL=10   # unless carrying on the installer's bar
 
   step "Updating the system"
-  wait_for_network
+  require_network
   # gum: the prompt UI (lib/prompt.sh), for the reboot question at the end.
   run sudo pacman -Syu --noconfirm --needed gum
 
@@ -108,11 +107,28 @@ EOF
 }
 
 configure_login_and_desktop() {
+  # The astronaut theme first: the wallpapers below come from it.
+  local astronaut=/usr/share/sddm/themes/$ASTRONAUT_THEME
+  sudo rm -rf "$astronaut"
+  run sudo git clone --depth 1 "$ASTRONAUT_REPO" "$astronaut"
+  sudo cp -r "$astronaut"/Fonts/* /usr/share/fonts/
+  run sudo fc-cache -f
+
+  # The login screen itself: the unlock screen's look (assets/sddm/archman).
   local theme_dir=/usr/share/sddm/themes/$SDDM_THEME
   sudo rm -rf "$theme_dir"
-  run sudo git clone --depth 1 "$SDDM_THEME_REPO" "$theme_dir"
-  sudo cp -r "$theme_dir"/Fonts/* /usr/share/fonts/
-  run sudo fc-cache -f
+  sudo install -Dm644 -t "$theme_dir" "$SETUP_DIR/assets/sddm/archman"/*
+
+  # SDDM's greeter runs on X11 and ignores Plasma's keyboard setting (kxkbrc
+  # below): without this, the password is typed on a US layout.
+  sudo mkdir -p /etc/X11/xorg.conf.d
+  sudo tee /etc/X11/xorg.conf.d/00-keyboard.conf > /dev/null <<EOF
+Section "InputClass"
+    Identifier "system-keyboard"
+    MatchIsKeyboard "on"
+    Option "XkbLayout" "$X11_LAYOUT"
+EndSection
+EOF
 
   local conf=/etc/sddm.conf.d/kde_settings.conf
   sudo mkdir -p /etc/sddm.conf.d

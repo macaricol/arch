@@ -6,17 +6,6 @@ require_user()    { (( EUID != 0 )) || die "Run this as your regular user (it us
 require_uefi()    { [[ -d /sys/firmware/efi ]] || die "Not booted in UEFI mode"; }
 require_network() { ping -c1 -W3 archlinux.org &>/dev/null || die "No network connectivity"; }
 
-# Like require_network, but gives a connection that's still coming up (at
-# boot, NetworkManager) 30 seconds first.
-wait_for_network() {
-  local i
-  for i in {1..30}; do
-    ping -c1 -W1 archlinux.org &>/dev/null && return 0
-    sleep 1
-  done
-  die "No network connectivity"
-}
-
 # Runs a command as root: directly when already root, through sudo otherwise.
 as_root() { if (( EUID == 0 )); then "$@"; else sudo "$@"; fi; }
 

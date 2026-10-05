@@ -279,29 +279,26 @@ LAYOUT_WIDTH=78
 
 # Font first, as lib/ui.sh's scale_console_font picks it (nearest ~48 rows
 # with 80+ columns) and from the same patched files, so the installer keeps
-# it and nothing jumps. After udev has settled: when the graphics driver
-# takes over the console, udev re-runs systemd-vconsole-setup, which puts
-# the stock font back, and that can land seconds into boot.
-udevadm settle --timeout=15 2>/dev/null
+# it and nothing jumps.
 # The quiet boot leaves the framebuffer console's takeover deferred until
 # something is printed, and until then setfont fails: print, then wait for
 # the takeover (asynchronous) to accept a font. A visible character, as the
 # placeholder console ignores escape sequences and spaces: a dot, erased.
 printf '\e[H.\r\e[K'
 for _ in {1..20}; do
-  setfont -f -C /dev/tty1 default8x16 2>/dev/null && break
+  setfont -C /dev/tty1 default8x16 2>/dev/null && break
   sleep 0.5
 done
 best='' best_diff=99999
 for font in default8x16 sun12x22 latarcyrheb-sun32; do
   font=/usr/local/share/archauto/$font.psfu.gz
-  setfont -f -C /dev/tty1 "$font" 2>/dev/null || continue
+  setfont -C /dev/tty1 "$font" 2>/dev/null || continue
   read -r rows cols < <(stty size < /dev/tty)
   (( cols >= 80 )) || continue
   diff=$(( rows > 48 ? rows - 48 : 48 - rows ))
   (( diff < best_diff )) && { best=$font; best_diff=$diff; }
 done
-setfont -f -C /dev/tty1 "${best:-default8x16}" 2>/dev/null
+setfont -C /dev/tty1 "${best:-default8x16}" 2>/dev/null
 
 for i in "${!CONSOLE_PALETTE[@]}"; do printf '\e]P%X%s' "$i" "${CONSOLE_PALETTE[i]}"; done
 printf '\e[0m\e[?25l'

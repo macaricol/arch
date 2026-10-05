@@ -56,6 +56,7 @@ mirror is `ISO_MIRROR` in `config.sh`.
     logo.txt              the logo drawn above every step (tools/make-logo.py)
     logo-hd.txt           the same at double resolution, for the console
     assets/plymouth/      the boot splash theme: script, logo, spinner
+    assets/sddm/archman/  the login screen: the unlock screen as an SDDM theme (tools/make-sddm-theme.py)
     assets/consolefonts/  the console fonts, with Pac-Man and a padlock added (tools/make-console-fonts.py)
     lib/ui.sh             console font/palette, centred step screens, run() spinner + setup.log
     lib/prompt.sh         validated input, passwords, confirm, arrow-key menu
@@ -142,6 +143,18 @@ Things that look odd but are deliberate:
   the new system is unmounted and synced: nothing on the ISO needs a clean
   shutdown, and one was screens of status lines and a 90 s wait for the
   Wi-Fi daemon, which ignores SIGTERM. The double force reboots at once.
+- **The login screen is the unlock screen, as an SDDM theme.**
+  `assets/sddm/archman` recreates `unlock_screen`'s look in QML: the logo,
+  padlock and password dots are images rendered with the patched console
+  font (`tools/make-sddm-theme.py`), shown at a whole-number scale with
+  smoothing off, and colours and tagline come from `config.sh`. Rerun the
+  tool after changing the logo, fonts, palette or tagline. It logs in the
+  last user, or on the first login the only one, into the default session.
+  The astronaut theme is still installed: the wallpapers come from it, and
+  it can be picked in System Settings. SDDM's greeter runs on X11 and
+  ignores Plasma's keyboard setting, so `X11_LAYOUT` is also written to
+  `/etc/X11/xorg.conf.d/00-keyboard.conf`, or the password would be typed
+  on a US layout.
 - **The post phase enables SDDM without `--now`.** Run by hand, it would
   take over tty1, where the phase is still running. The reboot starts it.
 - **Passwordless `sudo pacman`** exists only during the AUR step (makepkg's
@@ -171,8 +184,7 @@ Things that look odd but are deliberate:
   Escape sequences and spaces don't count: `dummycon` ignores both. So
   `scale_console_font` and the USB's splash print a `.`, erase it, and retry
   `setfont` until the takeover (asynchronous) has happened.
-  `journalctl -b -t arch-setup` logs which console was active (`fbcon` or
-  `dummy`) and how many of the fonts' added characters are mapped.
+  If loading still fails, setfont's error is in `journalctl -b -t arch-setup`.
 - **The console gets a double-resolution logo.** Plain console characters
   go no finer than half blocks, two pixels per cell, which is `logo.txt`.
   The A's are the Arch Linux logo's mark, rasterised from the copy in

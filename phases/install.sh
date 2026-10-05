@@ -6,7 +6,6 @@ phase_install() {
   exec < /dev/tty
   loadkeys "$KEYMAP" 2>/dev/null || warn "Couldn't load keymap $KEYMAP"
   setup_console
-  log_console_font "install phase start"
 
   header "Arch Linux installer"
   info "Running pre-flight checks..."

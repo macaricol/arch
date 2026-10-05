@@ -78,7 +78,8 @@ GPU_PACKAGES_AMD=(mesa lib32-mesa vulkan-radeon lib32-vulkan-radeon radeontop)
 GPU_PACKAGES_NVIDIA=(nvidia-open nvidia-utils lib32-nvidia-utils nvidia-settings opencl-nvidia)
 # VMs and unknown hardware. Deliberately no software Vulkan: a 64-bit Vulkan
 # device (vulkan-swrast) makes the SDDM theme's video background render blank
-# under VirtualBox, and lib32-vulkan-swrast can't be installed without it.
+# under VirtualBox (in the astronaut SDDM theme), and lib32-vulkan-swrast
+# can't be installed without it.
 GPU_PACKAGES_FALLBACK=(mesa lib32-mesa)
 
 # ── Audio ──────────────────────────────────────────────────────────────
@@ -93,9 +94,14 @@ UPMIX_FC_CUTOFF=12000     # Hz and below go to the centre speaker
 UPMIX_REAR_DELAY=12.0     # ms of Haas delay on the rears, so they stay behind you
 
 # ── Look & feel ────────────────────────────────────────────────────────
-SDDM_THEME_REPO='https://github.com/macaricol/sddm-astronaut-theme.git'
-SDDM_THEME='sddm-astronaut-theme'
-WALLPAPER="/usr/share/sddm/themes/$SDDM_THEME/Wallpapers/cyberpunk2077.jpg"
+# The login screen: the archman theme (assets/sddm/archman), the installer's
+# unlock screen as an SDDM theme (rebuild with tools/make-sddm-theme.py).
+SDDM_THEME='archman'
+# Installed too: the wallpapers come from it, and it stays available as an
+# alternative login theme in System Settings.
+ASTRONAUT_REPO='https://github.com/macaricol/sddm-astronaut-theme.git'
+ASTRONAUT_THEME='sddm-astronaut-theme'
+WALLPAPER="/usr/share/sddm/themes/$ASTRONAUT_THEME/Wallpapers/cyberpunk2077.jpg"
 ICON_THEME_REPO='https://github.com/L4ki/Breeze-Chameleon-Icons.git'
 ICON_THEME='Breeze Chameleon Dark'   # a directory inside that repo
 PLASMOID_REPOS=(                     # each repo must contain a package/ directory
