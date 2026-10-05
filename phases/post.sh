@@ -6,6 +6,7 @@ SUDOERS_DROPIN=/etc/sudoers.d/99-arch-setup-temp
 phase_post() {
   require_user
   setup_console
+  log_console_font "post phase start"
 
   # One password prompt up front; a background loop then keeps the ticket
   # alive so no later step stalls on a second prompt under a spinner.

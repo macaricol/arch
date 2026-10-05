@@ -74,11 +74,21 @@ scale_console_font() {
     diff=$(( rows > target ? rows - target : target - rows ))
     (( diff < best_diff )) && { best=$font; best_diff=$diff; }
   done
+  best_font=${best:-default8x16}
   if setfont "${best:-default8x16}" 2>/dev/null && [[ $best == "$SETUP_DIR"/* ]]; then
     PATCHED_FONT=1
     : > "$PATCHED_FONT_MARK" 2>/dev/null || true
   fi
   update_margin
+}
+
+# log_console_font WHERE — notes in the journal (tag arch-setup) how many of
+# the patched fonts' private-use characters the console currently maps, and
+# which font scale_console_font picked. 0 means boxes on screen.
+log_console_font() {
+  local mapped
+  mapped=$(getunimap 2>/dev/null | grep -ci '^0x[0-9a-f]*[[:space:]]*U+E[01]') || true
+  logger -t arch-setup "$1: uid $EUID, tty $(tty 2>/dev/null), font ${best_font:-none}, private-use chars mapped: ${mapped:-?}" 2>/dev/null || true
 }
 
 # The double-resolution logo is drawn with glyphs only the patched fonts
@@ -96,8 +106,11 @@ logo_file() {
 
 # Called first thing by each interactive phase.
 # The ISO's quiet boot (vt.global_cursor_default=0) hides the cursor; the
-# typed prompts need it back.
+# typed prompts need it back. Waits for udev first: when the graphics driver
+# takes over the console, udev re-runs systemd-vconsole-setup, which loads
+# the stock font over ours, and that can land seconds into boot.
 setup_console() {
+  (( EUID == 0 )) && on_console && udevadm settle --timeout=15 2>/dev/null
   scale_console_font
   set_console_palette
   on_console && printf '\e[?25h'

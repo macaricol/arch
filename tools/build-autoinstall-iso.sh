@@ -279,7 +279,10 @@ LAYOUT_WIDTH=72
 
 # Font first, as lib/ui.sh's scale_console_font picks it (nearest ~48 rows
 # with 80+ columns) and from the same patched files, so the installer keeps
-# it and nothing jumps.
+# it and nothing jumps. After udev has settled: when the graphics driver
+# takes over the console, udev re-runs systemd-vconsole-setup, which puts
+# the stock font back, and that can land seconds into boot.
+udevadm settle --timeout=15 2>/dev/null
 best='' best_diff=99999
 for font in default8x16 sun12x22 latarcyrheb-sun32; do
   font=/usr/local/share/archauto/$font.psfu.gz

@@ -25,7 +25,7 @@ case $phase in
   # Internal, run as root by the first-boot service just before the post
   # phase: loads the console font and palette, which only root can do fully
   # (lib/ui.sh's scale_console_font).
-  console) setup_console; exit 0 ;;
+  console) setup_console; log_console_font "first boot, root step"; exit 0 ;;
   *) echo "Usage: $0 <install|chroot|post|kde-init>" >&2; exit 1 ;;
 esac
 
