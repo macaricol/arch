@@ -5,15 +5,16 @@ phase_install() {
   # Piped in via curl | bash, fd 0 is the script itself, not the keyboard.
   exec < /dev/tty
   loadkeys "$KEYMAP" 2>/dev/null || warn "Couldn't load keymap $KEYMAP"
+  setup_console
 
-  clear
+  header "Arch Linux installer"
   info "Running pre-flight checks..."
   require_root
   require_uefi
   require_network
+  install_gum
   STEP_TOTAL=6
 
-  clear
   step "Machine details"
   input HOST_NAME "Hostname:" valid_hostname
   password ROOT_PASSWORD "Root password (min 6 chars):"
@@ -24,10 +25,10 @@ phase_install() {
   select_drive
   step_done
 
-  clear
   step "Review & confirm"
-  printf ' Hostname:  %s\n Username:  %s\n Drive:     %s\n Timezone:  %s\n Keymap:    %s\n\n' \
-    "$HOST_NAME" "$USER_NAME" "$DRIVE" "$TIMEZONE" "$KEYMAP"
+  printf "$MARGIN %s\n" "Hostname:  $HOST_NAME" "Username:  $USER_NAME" "Drive:     $DRIVE" \
+    "Timezone:  $TIMEZONE" "Keymap:    $KEYMAP"
+  echo
   warn "This will ERASE ALL DATA on $DRIVE. This cannot be undone."
   ask "Type YES to continue:"; read -r ack
   [[ $ack == YES ]] || { info "Aborted."; exit 0; }
@@ -78,6 +79,14 @@ wait_for_usb_removal() {
   done
 }
 
+# gum draws the prompts (lib/prompt.sh). The live ISO's root is a RAM
+# overlay, so this costs a few MB of RAM and nothing on the target disk.
+install_gum() {
+  command -v gum &>/dev/null && return 0
+  info "Fetching the prompt UI (gum)..."
+  run pacman -Sy --noconfirm --needed gum || warn "Couldn't install gum — using plain prompts"
+}
+
 # Arrow-key menu over the machine's disks, minus the live USB we booted from.
 select_drive() {
   local live_disk=''
@@ -91,13 +100,14 @@ select_drive() {
   (( ${#drives[@]} )) || die "No disks found"
 
   local cancel='── cancel ──'
-  menu "[$((++STEP))/$STEP_TOTAL] Select the installation drive" "$cancel" "${drives[@]}" \
+  (( ++STEP ))
+  menu "Select the installation drive" "$cancel" "${drives[@]}" \
     || { clear; info "Cancelled."; exit 0; }
   [[ $MENU_CHOICE != "$cancel" ]] || { clear; info "Cancelled."; exit 0; }
 
   DRIVE=${MENU_CHOICE%% *}
   [[ -b $DRIVE ]] || die "Not a block device: $DRIVE"
-  clear
+  echo
   info "Selected $DRIVE"
 }
 

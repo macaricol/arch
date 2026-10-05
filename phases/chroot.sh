@@ -10,6 +10,7 @@ phase_chroot() {
 
   configure_locale
   configure_accounts "$root_password" "$user_password"
+  configure_boot_splash
   configure_hibernation
   install_bootloader
   configure_first_login
@@ -44,6 +45,34 @@ configure_accounts() {
   visudo -c -f /etc/sudoers.d/10-wheel > /dev/null || die "Generated sudoers drop-in is invalid"
 
   run systemctl enable NetworkManager
+}
+
+# Plymouth splash instead of scrolling boot messages (Esc still shows them).
+# The stock bgrt theme shows the firmware's own logo with a spinner, or just
+# the spinner where there is none (VMs). Must run before
+# configure_hibernation, whose mkinitcpio -P builds the hook in, and before
+# install_bootloader, which writes the kernel options into grub.cfg.
+configure_boot_splash() {
+  info "Configuring the boot splash..."
+  # Right after the systemd (or udev) hook, so it starts as early as it can.
+  grep -q '^HOOKS=.*plymouth' /etc/mkinitcpio.conf \
+    || sed -i -E 's/^(HOOKS=\(.*\b(systemd|udev))\b/\1 plymouth/' /etc/mkinitcpio.conf
+  grep -q '^HOOKS=.*plymouth' /etc/mkinitcpio.conf || warn "Couldn't add the plymouth hook — no splash"
+
+  # NVIDIA's driver has to be in the initramfs (early KMS), or the splash
+  # only appears late or falls back to text. Intel/AMD get theirs from the
+  # stock kms hook.
+  if pacman -Q nvidia-open &>/dev/null && ! grep -q '^MODULES=.*nvidia' /etc/mkinitcpio.conf; then
+    sed -i -E -e 's/^MODULES=\((.*)\)/MODULES=(\1 nvidia nvidia_modeset nvidia_uvm nvidia_drm)/' \
+      -e 's/^MODULES=\( /MODULES=(/' /etc/mkinitcpio.conf
+  fi
+
+  run plymouth-set-default-theme bgrt
+  local opt
+  for opt in quiet splash; do
+    grep -qE "^GRUB_CMDLINE_LINUX_DEFAULT=\".*\b$opt\b" /etc/default/grub \
+      || sed -i "s|^\(GRUB_CMDLINE_LINUX_DEFAULT=\".*\)\"|\1 $opt\"|" /etc/default/grub
+  done
 }
 
 # A RAM-sized swap partition alone doesn't enable hibernation: the initramfs

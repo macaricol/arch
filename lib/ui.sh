@@ -1,22 +1,99 @@
 #!/usr/bin/env bash
-# Terminal output: messages, section headers, and the run() spinner.
+# Terminal output: console look, messages, step headers, and the run() spinner.
 
 VERBOSE=${VERBOSE:-0}
 LOG_FILE=${LOG_FILE:-$SETUP_DIR/setup.log}
+LOGO_FILE=$SETUP_DIR/logo.txt
 
 C_RESET=$'\e[0m' C_BOLD=$'\e[1m' C_REVERSE=$'\e[7m'
 C_CYAN=$'\e[96m' C_GREEN=$'\e[92m' C_YELLOW=$'\e[93m' C_RED=$'\e[91m'
-C_MAGENTA=$'\e[35m' C_WHITE=$'\e[97m'
+C_MAGENTA=$'\e[35m' C_WHITE=$'\e[97m' C_GREY=$'\e[90m'
 TAG="${C_CYAN}${C_BOLD}[ Ω ]${C_RESET}"
 
-info()      { printf '%s %s%s%s\n\n' "$TAG" "$C_WHITE" "$*" "$C_RESET"; }
-warn()      { printf '%s%s[ Ω ] %s%s\n' "$C_YELLOW" "$C_BOLD" "$*" "$C_RESET" >&2; }
-die()       { printf '%s%s[ Ω ] %s%s\n' "$C_RED" "$C_BOLD" "$*" "$C_RESET" >&2; exit 1; }
-ask()       { printf '%s %s%s%s ' "$TAG" "$C_WHITE" "$1" "$C_RESET"; }
-step_done() { printf '%s%s[ ✓ ] DONE%s\n\n' "$C_GREEN" "$C_BOLD" "$C_RESET"; }
+# ── Console look ───────────────────────────────────────────────────────
+# Everything is laid out in one centred column, LAYOUT_WIDTH wide (the width
+# of box()); MARGIN is the indent that centres it on the current terminal.
+LAYOUT_WIDTH=70
+
+# stty reads the size from /dev/tty, as stdin may be the curl pipe.
+term_cols() {
+  local size
+  size=$(stty size 2>/dev/null < /dev/tty) && echo "${size#* }" || echo "${COLUMNS:-80}"
+}
+term_rows() {
+  local size
+  size=$(stty size 2>/dev/null < /dev/tty) && echo "${size% *}" || echo "${LINES:-24}"
+}
+update_margin() {
+  local pad=$(( ($(term_cols) - LAYOUT_WIDTH) / 2 ))
+  (( pad < 0 )) && pad=0
+  printf -v MARGIN '%*s' "$pad" ''
+}
+update_margin
+
+# True on a real Linux virtual console (the ISO, the first-login tty), not in
+# a terminal emulator, which has its own font and colours.
+on_console() { [[ $TERM == linux ]]; }
+
+# The kernel's default console colours are harsh VGA ones; swap all 16 for
+# CONSOLE_PALETTE (config.sh). Only cells drawn afterwards pick up the new
+# background, hence the clear.
+set_console_palette() {
+  on_console || return 0
+  local i
+  for i in "${!CONSOLE_PALETTE[@]}"; do
+    printf '\e]P%X%s' "$i" "${CONSOLE_PALETTE[i]#\#}"
+  done
+  printf '%s' "$C_RESET"
+  clear
+}
+
+# On a high-resolution screen the default 8x16 font is tiny. Try each font,
+# read back the size the console actually ends up with, and keep the one
+# nearest ~48 rows that still leaves 80 columns. All three ship with kbd; on
+# an already low-resolution console this settles on the default.
+scale_console_font() {
+  on_console && command -v setfont &>/dev/null || return 0
+  local target=48 best='' best_diff=99999 font rows cols diff
+  for font in default8x16 sun12x22 latarcyrheb-sun32; do
+    setfont "$font" 2>/dev/null || continue
+    rows=$(term_rows) cols=$(term_cols)
+    (( cols >= 80 )) || continue
+    diff=$(( rows > target ? rows - target : target - rows ))
+    (( diff < best_diff )) && { best=$font; best_diff=$diff; }
+  done
+  setfont "${best:-default8x16}" 2>/dev/null || true
+  update_margin
+}
+
+# Called first thing by each interactive phase.
+setup_console() {
+  scale_console_font
+  set_console_palette
+}
+
+# ── Messages ───────────────────────────────────────────────────────────
+# Warnings also go to the log: the next step header clears the screen.
+info()      { printf '%s%s %s%s%s\n\n' "$MARGIN" "$TAG" "$C_WHITE" "$*" "$C_RESET"; }
+warn()      {
+  printf '%s%s%s[ Ω ] %s%s\n' "$MARGIN" "$C_YELLOW" "$C_BOLD" "$*" "$C_RESET" >&2
+  printf '[warn] %s\n' "$*" >> "$LOG_FILE" 2>/dev/null || true
+}
+die()       { printf '%s%s%s[ Ω ] %s%s\n' "$MARGIN" "$C_RED" "$C_BOLD" "$*" "$C_RESET" >&2; exit 1; }
+ask()       { printf '%s%s %s%s%s ' "$MARGIN" "$TAG" "$C_WHITE" "$1" "$C_RESET"; }
+step_done() { printf '%s%s%s[ ✓ ] DONE%s\n\n' "$MARGIN" "$C_GREEN" "$C_BOLD" "$C_RESET"; }
 
 # repeat CHAR COUNT — multibyte-safe (tr is not)
 repeat() { local s; printf -v s '%*s' "$2" ''; printf '%s' "${s// /$1}"; }
+
+# center TEXT [VISIBLE_LENGTH] — prints TEXT centred in the layout column.
+# Pass the length when TEXT contains colour codes.
+center() {
+  local len=${2:-${#1}}
+  local pad=$(( (LAYOUT_WIDTH - len) / 2 ))
+  (( pad < 0 )) && pad=0
+  printf '%s%*s%s\n' "$MARGIN" "$pad" '' "$1"
+}
 
 # box "title" [width] [char] — a centred title inside a horizontal rule
 box() {
@@ -26,17 +103,59 @@ box() {
   (( left < 0 )) && left=0
   (( right < 0 )) && right=0
   local rule; rule=$(repeat "$ch" "$width")
-  printf '\n%s%s\n%s%s%s%s%s%s\n%s%s%s\n\n' \
-    "$C_MAGENTA" "$rule" \
-    "$(repeat "$ch" $((left + 1)))" "$C_CYAN" "$title" "$C_MAGENTA" "$(repeat "$ch" $((right + 1)))" "$C_RESET" \
-    "$C_MAGENTA" "$rule" "$C_RESET"
+  printf '\n%s%s%s\n%s%s%s%s%s%s%s\n%s%s%s%s\n\n' \
+    "$MARGIN" "$C_MAGENTA" "$rule" \
+    "$MARGIN" "$(repeat "$ch" $((left + 1)))" "$C_CYAN" "$title" "$C_MAGENTA" "$(repeat "$ch" $((right + 1)))" "$C_RESET" \
+    "$MARGIN" "$C_MAGENTA" "$rule" "$C_RESET"
 }
 
-# Numbered section header. Phases set STEP_TOTAL once; the counter does the
-# rest, so inserting a step never means renumbering the others.
+# ── Step header ────────────────────────────────────────────────────────
+# Numbered steps. Phases set STEP_TOTAL once; the counter does the rest, so
+# inserting a step never means renumbering the others.
 STEP=0
 STEP_TOTAL=${STEP_TOTAL:-0}
-step() { box "[$((++STEP))/$STEP_TOTAL] $1"; }
+PROGRESS_WIDTH=40
+
+# The logo, then TAGLINE (config.sh) underneath.
+draw_logo() {
+  [[ -r $LOGO_FILE ]] || return 0
+  # All lines are padded to one width, so measuring the first is enough.
+  # ${#line} counts bytes, not █s, unless the locale is UTF-8.
+  local LC_ALL=C.UTF-8 line width
+  IFS= read -r line < "$LOGO_FILE"
+  width=${#line}
+  echo
+  while IFS= read -r line; do
+    center "${C_CYAN}${line}${C_RESET}" "$width"
+  done < "$LOGO_FILE"
+  echo
+  center "${C_GREY}${TAGLINE}${C_RESET}" "${#TAGLINE}"
+  echo
+}
+
+# The bar's filled and empty parts are the same █ in two colours, as not
+# every console font has the shade characters (░▒▓).
+draw_progress() {
+  (( STEP_TOTAL > 0 )) || return 0
+  local filled=$(( PROGRESS_WIDTH * STEP / STEP_TOTAL ))
+  local count="$STEP/$STEP_TOTAL"
+  center "${C_CYAN}$(repeat █ "$filled")${C_GREY}$(repeat █ $((PROGRESS_WIDTH - filled)))${C_RESET}  $count" \
+    $((PROGRESS_WIDTH + 2 + ${#count}))
+}
+
+# header "Title" — clears the screen and draws logo, progress bar and title
+# for the current step. menu() redraws it on every keypress.
+header() {
+  clear
+  update_margin
+  draw_logo
+  draw_progress
+  echo
+  center "${C_BOLD}${C_WHITE}$1${C_RESET}" "${#1}"
+  echo
+}
+
+step() { (( ++STEP )); header "$1"; }
 
 # Runs a command. Its output always goes to LOG_FILE; the terminal shows a
 # spinner (or the live output with VERBOSE=1). On failure the output is also
@@ -52,7 +171,7 @@ run() {
   "$@" &>"$out" &
   local pid=$! spin='|/-\' i=0
   while kill -0 "$pid" 2>/dev/null; do
-    printf '\r%s[%s]%s' "$C_CYAN" "${spin:i++%4:1}" "$C_RESET"
+    printf '\r%s%s[%s]%s' "$MARGIN" "$C_CYAN" "${spin:i++%4:1}" "$C_RESET"
     sleep 0.1
   done
   printf '\r\e[K'

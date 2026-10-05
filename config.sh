@@ -10,6 +10,17 @@ BRANCH=${BRANCH:-main}
 # Any Arch mirror works; this is the project's own geo-balanced one.
 ISO_MIRROR='https://geo.mirror.pkgbuild.com/iso/latest'
 
+# ── Installer look ─────────────────────────────────────────────────────
+# Shown under the logo (logo.txt) on every step.
+TAGLINE='ARCHΩN · KDE Plasma'
+# The 16 console colours used while installing (Tokyo Night), in VT order:
+# black red green yellow blue magenta cyan white, then their bright variants.
+# Only applies on a real console (TERM=linux), not in a terminal emulator.
+CONSOLE_PALETTE=(
+  1a1b26 f7768e 9ece6a e0af68 7aa2f7 bb9af7 7dcfff a9b1d6
+  414868 f7768e 9ece6a e0af68 7aa2f7 bb9af7 7dcfff c0caf5
+)
+
 # ── Locale ─────────────────────────────────────────────────────────────
 TIMEZONE='Europe/Lisbon'
 KEYMAP='pt-latin9'                   # console keymap: live ISO and installed system
@@ -26,7 +37,7 @@ EFI_SIZE='512M'
 BTRFS_MOUNT_OPTS='noatime,compress=zstd:1'
 
 # ── Packages ───────────────────────────────────────────────────────────
-BASE_PACKAGES=(base linux linux-firmware btrfs-progs grub efibootmgr nano networkmanager sudo)
+BASE_PACKAGES=(base linux linux-firmware btrfs-progs grub efibootmgr nano networkmanager sudo plymouth)
 
 KDE_PACKAGES=(
   plasma-desktop sddm sddm-kcm kscreen plasma-pa plasma-nm plasma-systemmonitor

@@ -6,6 +6,8 @@ SUDOERS_DROPIN=/etc/sudoers.d/99-arch-setup-temp
 phase_post() {
   require_user
   require_network
+  setup_console
+  header "Desktop setup"
 
   # One password prompt up front; a background loop then keeps the ticket
   # alive so no later step stalls on a second prompt under a spinner.
@@ -18,9 +20,9 @@ phase_post() {
   trap 'kill '"$keepalive_pid"' 2>/dev/null; sudo -n rm -f "$SUDOERS_DROPIN" 2>/dev/null' EXIT
   STEP_TOTAL=10
 
-  clear
   step "Updating the system"
-  run sudo pacman -Syu --noconfirm
+  # gum: the prompt UI (lib/prompt.sh), for the reboot question at the end.
+  run sudo pacman -Syu --noconfirm --needed gum
   step_done
 
   step "Installing KDE Plasma";            pkg_install "${KDE_PACKAGES[@]}";   step_done

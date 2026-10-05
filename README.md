@@ -48,7 +48,8 @@ mirror is `ISO_MIRROR` in `config.sh`.
     bootstrap.sh          fetches the repo tarball to /tmp, runs setup.sh install
     setup.sh <phase>      single entry point; loads config + lib, runs one phase
     config.sh             every tunable value: locale, disk, package lists, theme
-    lib/ui.sh             messages, step counter, run() spinner + setup.log
+    logo.txt              the logo drawn above every step
+    lib/ui.sh             console font/palette, centred step screens, run() spinner + setup.log
     lib/prompt.sh         validated input, passwords, confirm, arrow-key menu
     lib/system.sh         checks, CPU/GPU detection, pacman/AUR/service helpers
     phases/install.sh     live ISO: partition, format, pacstrap (+ CPU/GPU drivers), hand off to chroot
@@ -77,7 +78,8 @@ copy cleans itself up.
 
 ## Configuration
 
-Everything lives in `config.sh`: timezone, keymaps, locales, mirror
+Everything lives in `config.sh`: the installer's tagline and console
+palette (`TAGLINE`, `CONSOLE_PALETTE`), timezone, keymaps, locales, mirror
 countries, EFI size, Btrfs mount options, the package lists (`BASE_`,
 `KDE_`, `EXTRA_`, `GAMING_`, `AUR_PACKAGES`, per-vendor `GPU_PACKAGES_*`),
 the surround-upmix settings (`UPMIX_*`), the SDDM theme and wallpaper, icon
@@ -127,6 +129,26 @@ Things that look odd but are deliberate:
   several of the config files it edits during its own startup. The
   containment and applet IDs it uses come from Plasma's stock first-session
   layout.
+- **The installer restyles the console** while it runs (on a real tty only,
+  `TERM=linux`): it picks the largest of three stock kbd fonts that keeps
+  about 48 rows and 80 columns, so text isn't tiny on high-resolution
+  screens, and swaps the 16 VGA colours for `CONSOLE_PALETTE`. Each step
+  then clears the screen and redraws the logo, a progress bar and the step
+  title in one centred column; earlier output stays in the log, which is
+  why `warn` writes there too. None of this persists after a reboot.
+- **Prompts use [gum](https://github.com/charmbracelet/gum) when it runs.**
+  The install phase fetches it onto the live ISO (`pacman -Sy gum`, a few
+  MB of RAM) and the post phase installs it on the new system. That first
+  install is a partial upgrade, so gum is only used after `gum --version`
+  succeeds; if it can't be fetched or won't start, the plain prompts in
+  `lib/prompt.sh` take over. Esc asks again, Ctrl+C aborts. Typing `YES` to
+  erase the drive stays plain typed text on purpose.
+- **Boot is quiet, behind a Plymouth splash.** The chroot phase adds the
+  `plymouth` hook right after `systemd`/`udev`, `quiet splash` to the kernel
+  options, and the stock `bgrt` theme: the firmware's own logo with a
+  spinner (just the spinner in VMs). Press Esc during boot to see the
+  messages. On NVIDIA the driver modules go into the initramfs too, so the
+  splash has a display that early.
 - The live USB is filtered out of the drive menu, and `udevadm settle`
   runs after partitioning so the new device nodes exist before they're used.
 
@@ -148,6 +170,7 @@ table is a description of those lists, not a second copy of them.
 | `nano` | Simple text editor, so the installed system is usable before a desktop exists |
 | `networkmanager` | Network management daemon (Wi-Fi, Ethernet, VPN) |
 | `sudo` | Lets the created user run commands as root |
+| `plymouth` | Boot splash (stock `bgrt` theme) instead of scrolling boot messages |
 
 CPU microcode (`intel-ucode` / `amd-ucode`) is added here too, picked from the
 detected vendor — see the design note on why it goes in at this stage.
