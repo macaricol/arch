@@ -2,7 +2,7 @@
 # Interactive prompts: validated text input, passwords, yes/no, arrow-key menu.
 #
 # gum (https://github.com/charmbracelet/gum) draws them when it's available:
-# the install phase fetches it onto the live ISO and the post phase installs
+# the install phase fetches it onto the live ISO and the desktop phase installs
 # it on the new system. Without it, the plain prompts below take over.
 
 shopt -s extglob  # for the +([[:space:]]) trim patterns below
@@ -164,6 +164,15 @@ menu() {
         esac ;;
     esac
   done
+}
+
+# choose_look — asks which look the desktop gets, into LOOK: archman (the
+# installer's theming) or plain (KDE as it comes). Esc asks again.
+choose_look() {
+  local archman="ARCHMAN: dark theme, login screen, wallpaper, icons, top panel, clock"
+  local plain="Plain KDE Plasma: KDE's own look, as it comes"
+  until menu "Choose your desktop's look" "$archman" "$plain"; do :; done
+  if [[ $MENU_CHOICE == "$plain" ]]; then LOOK=plain; else LOOK=archman; fi
 }
 
 # unlock_screen VAR "Hint" ["Error"] — a full-screen password prompt in the

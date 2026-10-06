@@ -14,9 +14,9 @@ phase_install() {
   require_network
   install_gum
   # The progress bar covers the installing, not the questions before it: the
-  # steps below from partitioning on, then the post phase's, which the chroot
+  # steps below from partitioning on, then the desktop phase's, which the chroot
   # phase runs and which carries the bar on. Weights: see lib/ui.sh's step.
-  PROGRESS_TOTAL=$(( $(step_weights "$SETUP_DIR/phases/install.sh") + $(step_weights "$SETUP_DIR/phases/post.sh") ))
+  PROGRESS_TOTAL=$(( $(step_weights "$SETUP_DIR/phases/install.sh") + $(step_weights "$SETUP_DIR/phases/desktop.sh") ))
 
   header "Set up your account"
   input HOST_NAME "Hostname" valid_hostname
@@ -33,28 +33,34 @@ phase_install() {
   warn "Everything on $DRIVE will be erased. This can't be undone."
   ask "Type YES to continue >"; cursor on; read -r ack; cursor off
   [[ $ack == YES ]] || { info "Nothing was changed. Run the installer again whenever you're ready."; exit 0; }
-  # Bash's own clock; it keeps running while arch-chroot and post work.
+  # Bash's own clock; it keeps running through arch-chroot and the desktop
+  # phase.
   local started=$SECONDS
 
-  step "Preparing the drive" 10
+  step "Preparing the drive" 3
   partition_and_mount
 
-  step "Installing Arch Linux" 150
+  step "Installing Arch Linux" 53
   install_base
 
-  step "Setting up your system" 60
+  step "Setting up your system" 13
   configure_new_system
+  # The time it took, before the question below waits on you.
+  local took=$(( SECONDS - started ))
+
+  choose_look
+  info "Applying the look..."
+  arch-chroot /mnt env LOOK="$LOOK" bash "/home/$USER_NAME/.arch-setup/setup.sh" look
 
   # Unmount first so nothing on the new system is lost if the stick is
   # pulled; and the live ISO may be running from that stick, so `reboot`
   # gets loaded into memory now while it can still be read. If it can't be
   # run anyway, sysrq reboots directly — safe, as the target is unmounted.
   swapoff -a 2>/dev/null || true
-  umount -R /mnt || warn "Couldn't unmount /mnt — leave the USB in until the reboot starts"
+  umount -R /mnt || warn "Couldn't unmount /mnt, leave the USB in until the reboot starts"
   systemctl --version > /dev/null
 
   finish "All done! Remove the USB stick"
-  local took=$(( SECONDS - started ))
   info "Archman installed in $(plural $(( took / 60 )) minute) and $(plural $(( took % 60 )) second)"
   wait_for_usb_removal
   info "Restarting..."
@@ -215,7 +221,7 @@ install_base() {
   case $(cpu_vendor) in
     intel) packages+=(intel-ucode) ;;
     amd)   packages+=(amd-ucode) ;;
-    *)     warn "Unknown CPU vendor — skipping microcode" ;;
+    *)     warn "Unknown CPU vendor, skipping microcode" ;;
   esac
   mapfile -t vendors < <(gpu_vendors)
   if (( ${#vendors[@]} )); then
@@ -259,12 +265,15 @@ configure_new_system() {
   install -m 600 /dev/null "$stage/creds"
   printf '%s\n' "$PASSWORD" > "$stage/creds"
 
-  # The bar carries on in the chroot phase, and from there in the post phase.
+  # The bar carries on in the chroot phase, and from there in the desktop phase.
   local -a progress
   mapfile -t progress < <(progress_env)
   arch-chroot /mnt env HOST_NAME="$HOST_NAME" USER_NAME="$USER_NAME" VERBOSE="$VERBOSE" \
     PATCHED_FONT="${PATCHED_FONT:-0}" "${progress[@]}" \
     bash /root/arch-setup/setup.sh chroot
+  # The desktop phase has done every step, and logged the last one's time: the
+  # screens that follow show the bar full.
+  PROGRESS_DONE=$PROGRESS_TOTAL PROGRESS_STEP=0 PROGRESS_SHOWN=-1 PROGRESS_TITLE=''
 }
 
 # Prints the disk the live ISO booted from (/dev/sdX), if it's still mounted.

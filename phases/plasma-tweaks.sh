@@ -1,15 +1,20 @@
 #!/usr/bin/env bash
 # Phase 4 — first Plasma session, as the user. Desktop look & layout, then
-# self-cleanup. Autostarted by the post phase; runs once.
+# self-cleanup. Autostarted by the desktop phase; runs once. The look's tweaks
+# only with the ARCHMAN look (phases/look.sh leaves the choice in
+# $SETUP_DIR/look; without it, as when run by hand, ARCHMAN).
 
-phase_kde_init() {
+phase_plasma_tweaks() {
   require_user
   # Cleanup runs even if a tweak fails: better one missed setting (it's in
   # the log) than the autostart entry firing again on every login.
   trap cleanup EXIT
-  local tweak
-  for tweak in configure_kwin configure_dolphin apply_dark_theme install_plasmoids \
-               configure_desktop_layout install_icon_theme; do
+  local look tweak
+  look=$(cat "$SETUP_DIR/look" 2>/dev/null) || look=archman
+  local -a tweaks=(configure_kwin configure_dolphin)
+  [[ $look == archman ]] && tweaks+=(apply_dark_theme set_lock_screen_wallpaper install_plasmoids
+                                     configure_desktop_layout install_icon_theme)
+  for tweak in "${tweaks[@]}"; do
     tweak "$tweak"
   done
   systemctl --user restart plasma-plasmashell.service
@@ -48,6 +53,12 @@ apply_dark_theme() {
   plasma-apply-desktoptheme breeze-dark
   plasma-apply-lookandfeel -a org.kde.breezedark.desktop
   kwriteconfig6 --file kdeglobals --group General --key accentColorFromWallpaper true
+}
+
+# The desktop's wallpaper comes from the system-wide default (phases/look.sh).
+set_lock_screen_wallpaper() {
+  kwriteconfig6 --file kscreenlockerrc --group Greeter --group Wallpaper \
+    --group org.kde.image --group General --key Image "file://$WALLPAPER"
 }
 
 # Installs each repo's package/ directory as a Plasma applet (into
@@ -113,7 +124,7 @@ install_icon_theme() {
 # user's home, the installer itself — keeping only the log. A manual run from
 # a git checkout is left alone.
 cleanup() {
-  rm -f "$HOME/.config/autostart/arch-kde-init.desktop"
+  rm -f "$HOME/.config/autostart/arch-plasma-tweaks.desktop"
   if [[ $SETUP_DIR == "$HOME/.arch-setup" ]]; then
     mv -f "$LOG_FILE" "$HOME/arch-setup.log" 2>/dev/null || true
     rm -rf "$SETUP_DIR"

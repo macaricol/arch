@@ -18,10 +18,13 @@ Boot the official Arch ISO, connect to the network, and run:
 Answer three prompts (hostname, username, and one password used for both
 your user and root),
 pick the drive from an arrow-key menu, type `YES`, and walk away. The
-installer sets up everything, desktop included, then asks you to remove the
-USB and reboots as soon as you unplug it (or press Enter): straight into
-SDDM, where the first Plasma session applies the desktop tweaks. One reboot,
-and no prompts after the first screens.
+installer sets up everything, desktop included, then asks one last thing:
+the ARCHMAN look (dark theme, its own login screen, wallpaper, icons, a top
+panel and a clock widget) or plain KDE Plasma, as it comes. Then it asks
+you to remove the USB and reboots as soon as you unplug it (or press
+Enter): straight into SDDM, where the first Plasma session applies the
+desktop tweaks. One reboot, and no prompts between the first screens and
+that last question.
 
 To install from a different branch: `curl ... | BRANCH=clauding bash`.
 
@@ -56,25 +59,26 @@ mirror is `ISO_MIRROR` in `config.sh`.
 
 ## How it fits together
 
-    bootstrap.sh          fetches the repo tarball to /tmp, runs setup.sh install
-    setup.sh <phase>      single entry point; loads config + lib, runs one phase
-    config.sh             every tunable value: locale, disk, package lists, theme
-    assets/logo/          the logo drawn above every step (tools/make-logo.py): logo.txt,
-                          logo-hd.txt at double resolution for the console, their .colors,
-                          and banner.png for this README (tools/make-sddm-theme.py)
-    assets/plymouth/      the boot splash theme: script, logo, spinner
-    assets/sddm/archman/  the login screen: the unlock screen as an SDDM theme (tools/make-sddm-theme.py)
-    assets/consolefonts/  the console fonts, with Pac-Man, a padlock and the bar's eighths added (tools/make-console-fonts.py)
-    lib/ui.sh             console font/palette, centred step screens, run() spinner + setup.log
-    lib/prompt.sh         validated input, passwords, confirm, arrow-key menu
-    lib/system.sh         checks, CPU/GPU detection, pacman/AUR/service helpers
-    phases/install.sh     live ISO: partition, format, pacstrap (+ CPU/GPU drivers), hand off to chroot
-    phases/chroot.sh      locale, accounts, sudo, hibernation, GRUB, then runs post.sh as the user
-    phases/post.sh        the desktop: Plasma, theming, Samba, Steam, AUR
-    phases/kde-init.sh    first Plasma session: kwin, theme, widgets, panel, icons
+    bootstrap.sh             fetches the repo tarball to /tmp, runs setup.sh install
+    setup.sh <phase>         single entry point; loads config + lib, runs one phase
+    config.sh                every tunable value: locale, disk, package lists, theme
+    assets/logo/             the logo drawn above every step (tools/make-logo.py): logo.txt,
+                             logo-hd.txt at double resolution for the console, their .colors,
+                             and banner.png for this README (tools/make-sddm-theme.py)
+    assets/plymouth/         the boot splash theme: script, logo, spinner
+    assets/sddm/archman/     the login screen: the unlock screen as an SDDM theme (tools/make-sddm-theme.py)
+    assets/consolefonts/     the console fonts, with Pac-Man, a padlock and the bar's eighths added (tools/make-console-fonts.py)
+    lib/ui.sh                console font/palette, centred step screens, run() spinner + setup.log
+    lib/prompt.sh            validated input, passwords, confirm, arrow-key menu
+    lib/system.sh            checks, CPU/GPU detection, pacman/AUR/service helpers
+    phases/install.sh        live ISO: partition, format, pacstrap (+ CPU/GPU drivers), hand off to chroot
+    phases/chroot.sh         locale, accounts, sudo, hibernation, GRUB, then runs desktop.sh as the user
+    phases/desktop.sh        the desktop: Plasma, theming, Samba, Steam, AUR
+    phases/look.sh           the chosen look, system-wide: login screen, default wallpaper
+    phases/plasma-tweaks.sh  first Plasma session: kwin, theme, widgets, panel, icons
 
 The installer directory travels with the install: `/tmp/arch-setup` on the
-ISO → `/root/arch-setup` in the chroot → `~/.arch-setup` for the post
+ISO → `/root/arch-setup` in the chroot → `~/.arch-setup` for the desktop
 phase (still in the chroot) and the Plasma first-login step, which then
 deletes it, leaving only `~/arch-setup.log`.
 
@@ -87,8 +91,8 @@ streams everything live instead.
 From a local checkout, phases can be run directly — useful for re-applying
 the desktop setup or iterating on it:
 
-    ./setup.sh post        # as your user; idempotent (--needed everywhere); asks for your password
-    ./setup.sh kde-init    # as your user, inside a Plasma session
+    ./setup.sh desktop          # as your user; idempotent (--needed everywhere); asks for your password
+    ./setup.sh plasma-tweaks    # as your user, inside a Plasma session
 
 Running from a checkout never deletes it; only the staged `~/.arch-setup`
 copy cleans itself up.
@@ -147,7 +151,7 @@ Things that look odd but are deliberate:
   drivers) enabled before `pacstrap`: the install phase turns it on in the
   live ISO's `pacman.conf`, which `pacstrap` reads, and `pacstrap -P` copies
   that config into the new system.
-- **The post phase runs inside the chroot, not on a first boot.** Nothing
+- **The desktop phase runs inside the chroot, not on a first boot.** Nothing
   it does needs the new system running: packages install from the live
   system's network, services are enabled without being started (`--now`
   is dropped in a chroot), and AUR builds run as the user (`runuser`), on
@@ -173,12 +177,21 @@ Things that look odd but are deliberate:
   ignores Plasma's keyboard setting, so `X11_LAYOUT` is also written to
   `/etc/X11/xorg.conf.d/00-keyboard.conf`, or the password would be typed
   on a US layout.
-- **The post phase enables SDDM without `--now`.** Run by hand, it would
+- **The desktop phase enables SDDM without `--now`.** Run by hand, it would
   take over tty1, where the phase is still running. The reboot starts it.
 - **Passwordless `sudo pacman`** exists only during the AUR step (makepkg's
   own sudo calls don't see the cached ticket) and is removed right after,
   with the EXIT trap as backstop.
-- **kde-init is autostarted, not run from post.sh**, because Plasma writes
+- **The look is chosen at the very end**, after everything is installed,
+  so the install itself stays unattended, and its time doesn't count the
+  wait for an answer. Both looks' files are installed either way (they stay
+  available in System Settings); the choice only decides what's switched
+  on: the login screen and default wallpaper right away (`phases/look.sh`,
+  as root through arch-chroot), the dark theme, lock screen, widgets, panel
+  and icons in the first Plasma session (plasma-tweaks reads the choice from
+  `look` in the installer's directory). Hot corners, Dolphin's previews,
+  the keyboard layout and the boot splash are the same with both.
+- **plasma-tweaks is autostarted, not run from desktop.sh**, because Plasma writes
   several of the config files it edits during its own startup. The
   containment and applet IDs it uses come from Plasma's stock first-session
   layout. Each tweak runs on its own: one that fails is logged and skipped,
@@ -229,37 +242,39 @@ Things that look odd but are deliberate:
   half block is a private-use character (U+E100 + its pixel pattern), and
   `tools/make-console-fonts.py` draws those patterns into the fonts. It's
   shown only once a patched font is loaded (by the install phase, as root;
-  it tells the chroot and post phases through `PATCHED_FONT`), and
+  it tells the chroot and desktop phases through `PATCHED_FONT`), and
   `logo.txt` everywhere else, such as in a terminal emulator. Each step
   then clears the screen and redraws the logo, a progress bar and the step
   title in one centred column; earlier output stays in the log, which is
   why `warn` writes there too. None of this persists after a reboot.
 - **The progress bar is weighted and keeps moving.** Each step carries a
-  weight, roughly its seconds (`step "Installing the desktop" 300`), so long
-  steps take their share of the bar. While a step's commands run, the bar
-  also moves within that share: on a time curve that slows as the weight
-  goes by and stops at 95% (the next step completes it), or faster when
-  pacman's real progress says so: its download, measured as the growth of
-  its package cache against the `Total Download Size` it announces (so the
-  bar keeps your connection's pace), then its `(n/N) installing` count.
-  The download counts for 70% of a pacman run; `git clone` reports its
-  own percentage too. A step running several long commands splits into
-  shares, one per command (`share 150 450`), each moving through its own
-  part of the step, so the first to finish can't fill the step and leave
-  the bar standing through the rest. The chroot and post phases carry on
-  the bar exactly where the install phase left it (`progress_env`). The bar
-  doesn't jump to a new estimate but glides there, 20 frames a second,
-  covering a tenth of the remaining distance each frame
-  (`animate_progress`). Each step's real duration goes into the log next
-  to its weight, for tuning the weights: `grep '\[time\]' setup.log`. It moves an eighth of a
-  cell at a time, its edge one of `▏▎▍▌▋▊▉`: a pixel at a time in the
-  8-pixel-wide console font. The patched fonts add those characters; with
-  a stock console font the bar moves a whole cell at a time. Only the bar's
-  line is redrawn. Adding a step means giving it a weight; the totals add
-  themselves up (`step_weights`).
+  weight, roughly its seconds (`step "Installing the desktop" 53`), so long
+  steps take their share of the bar. The weights are one full run's times on
+  a fast connection; a slower one stretches the download steps, but pacman's
+  measured progress (below) keeps those moving. While a step's commands run,
+  the bar also moves within that share: on a time curve that slows as the
+  weight goes by and stops at 95% (the next step completes it), or faster
+  when pacman's real progress says so: its download, measured as the growth
+  of its package cache against the `Total Download Size` it announces (so
+  the bar keeps your connection's pace), then its `(n/N) installing` count.
+  The download counts for 70% of a pacman run; `git clone` reports its own
+  percentage too. A step running several long commands splits into shares,
+  one per command (`share 150 450`), each moving through its own part of the
+  step, so the first to finish can't fill the step and leave the bar
+  standing through the rest. The chroot and desktop phases carry on the bar
+  exactly where the install phase left it (`progress_env`). The bar doesn't
+  jump to a new estimate but glides there, 20 frames a second, covering a
+  tenth of the remaining distance each frame (`animate_progress`). It moves
+  an eighth of a cell at a time, its edge one of `▏▎▍▌▋▊▉`: a pixel at a
+  time in the 8-pixel-wide console font. The patched fonts add those
+  characters; with a stock console font the bar moves a whole cell at a
+  time. Only the bar's line is redrawn. Adding a step means giving it a
+  weight; the totals add themselves up (`step_weights`). Each step's real
+  duration goes into the log next to its weight, and a split step's shares
+  too, for tuning: `grep '\[time\]' setup.log`.
 - **Prompts use [gum](https://github.com/charmbracelet/gum) when it runs.**
   The install phase fetches it onto the live ISO (`pacman -Sy gum`, a few
-  MB of RAM) and the post phase installs it on the new system, for runs by
+  MB of RAM) and the desktop phase installs it on the new system, for runs by
   hand. That first
   install is a partial upgrade, so gum is only used after `gum --version`
   succeeds; if it can't be fetched or won't start, the plain prompts in
@@ -297,7 +312,7 @@ table is a description of those lists, not a second copy of them.
 | `networkmanager` | Network management daemon (Wi-Fi, Ethernet, VPN) |
 | `sudo` | Lets the created user run commands as root |
 | `plymouth` | Boot splash (the `archman` theme) instead of scrolling boot messages |
-| `pciutils` | `lspci`, for the GPU check that decides on Steam (the post phase runs in the chroot, on the new system's tools) |
+| `pciutils` | `lspci`, for the GPU check that decides on Steam (the desktop phase runs in the chroot, on the new system's tools) |
 
 CPU microcode (`intel-ucode` / `amd-ucode`) is added here too, picked from the
 detected vendor — see the design note on why it goes in at this stage.

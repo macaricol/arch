@@ -67,7 +67,7 @@ set_console_palette() {
 # loaded from assets/consolefonts, the same fonts with Pac-Man added, and
 # from kbd if that copy is missing.
 #
-# Root only: the post phase, run as the user from the installer, keeps the
+# Root only: the desktop phase, run as the user from the installer, keeps the
 # font the install phase loaded.
 scale_console_font() {
   on_console && (( EUID == 0 )) && command -v setfont &>/dev/null || return 0
@@ -106,7 +106,7 @@ scale_console_font() {
 # The double-resolution logo is drawn with glyphs only the patched fonts
 # have, so it's used only once one of them is loaded: by scale_console_font,
 # in this process or in the install phase that started it (which passes
-# PATCHED_FONT down through the chroot phase to the post phase).
+# PATCHED_FONT down through the chroot phase to the desktop phase).
 logo_file() {
   if on_console && [[ ${PATCHED_FONT:-0} == 1 && -f $SETUP_DIR/assets/logo/logo-hd.txt ]]; then
     echo "$SETUP_DIR/assets/logo/logo-hd.txt"
@@ -195,14 +195,14 @@ center() {
 }
 
 # ── Step header and progress ───────────────────────────────────────────
-# Each step has a weight, roughly the seconds it takes (step "Title" 120), so
+# Each step has a weight, roughly the seconds it takes (step "Title" 53), so
 # a long step moves the bar further than a quick one. PROGRESS_DONE is the
 # weight of the steps finished, PROGRESS_STEP the current one's, and
 # PROGRESS_TOTAL them all (step_weights). A step with several long commands
 # splits into shares, one per command (see share). Within a step the bar
 # keeps moving, and glides rather than jumps: see update_progress and
 # animate_progress. All of this state comes from the environment when set:
-# the chroot and post phases carry on the install phase's bar where it is
+# the chroot and desktop phases carry on the install phase's bar where it is
 # (progress_env), on screen and in time.
 PROGRESS_DONE=${PROGRESS_DONE:-0}
 PROGRESS_STEP=${PROGRESS_STEP:-0}
@@ -299,7 +299,7 @@ draw_progress() {
   # the title doesn't move when the bar appears.
   (( PROGRESS_TOTAL > 0 && PROGRESS_DONE + PROGRESS_STEP > 0 )) || { echo; return 0; }
   # Drawn where the animation has got to; a process that hasn't drawn it
-  # yet (the post phase, carrying on the installer's bar) starts where it
+  # yet (the desktop phase, carrying on the installer's bar) starts where it
   # should be.
   progress_eighths
   (( PROGRESS_SHOWN >= 0 && PROGRESS_SHOWN <= PROGRESS_TARGET )) || PROGRESS_SHOWN=$PROGRESS_TARGET
@@ -422,6 +422,7 @@ header() {
 # WEIGHT (roughly its seconds) of the bar.
 step() {
   log_step_time
+  PROGRESS_TITLE=''
   PROGRESS_DONE=$(( PROGRESS_DONE + PROGRESS_STEP ))
   PROGRESS_STEP=${2:-1} PROGRESS_PERMILLE=0
   PROGRESS_TITLE=$1 PROGRESS_STARTED=${EPOCHREALTIME//[!0-9]/}
@@ -435,16 +436,26 @@ step() {
 # the bar through its own share instead of the whole step, where the first
 # to finish would fill it and leave it standing through the rest.
 share() {
+  log_share_time
   PROGRESS_FROM=$1 PROGRESS_TO=$2 PROGRESS_SINCE=${EPOCHREALTIME//[!0-9]/}
   if (( PROGRESS_PERMILLE < $1 )); then PROGRESS_PERMILLE=$1; fi
 }
 
 # Logs how long the step that just ended took against its weight, for
-# tuning the weights: grep '\[time\]' setup.log
+# tuning the weights: grep '\[time\]' setup.log. A step split into shares
+# logs each share's time first, for tuning those (the share's own end: the
+# next share, or the step's).
 log_step_time() {
   [[ -n $PROGRESS_TITLE ]] || return 0
+  log_share_time
   printf '[time] %s: %ds (weight %d)\n' "$PROGRESS_TITLE" \
     $(( (${EPOCHREALTIME//[!0-9]/} - PROGRESS_STARTED) / 1000000 )) "$PROGRESS_STEP" >> "$LOG_FILE" 2>/dev/null || true
+}
+log_share_time() {
+  [[ -n $PROGRESS_TITLE ]] && (( PROGRESS_FROM > 0 || PROGRESS_TO < 1000 )) || return 0
+  printf '[time]   share %d-%d: %ds\n' "$PROGRESS_FROM" "$PROGRESS_TO" \
+    $(( (${EPOCHREALTIME//[!0-9]/} - PROGRESS_SINCE) / 1000000 )) >> "$LOG_FILE" 2>/dev/null || true
+  PROGRESS_FROM=0 PROGRESS_TO=1000   # logged once
 }
 
 # finish "Title" — the closing screen of a phase: full bar, title in green.

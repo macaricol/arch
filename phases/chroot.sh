@@ -15,7 +15,7 @@ phase_chroot() {
   configure_hibernation
   install_bootloader
   hand_over_to_user
-  run_post_phase
+  run_desktop_phase
 }
 
 configure_locale() {
@@ -41,7 +41,7 @@ configure_accounts() {
   # chpasswd reads stdin, so the passwords never appear in argv or env.
   printf 'root:%s\n%s:%s\n' "$1" "$USER_NAME" "$1" | chpasswd
 
-  # No lecture on first use: when the post phase is run by hand, its first
+  # No lecture on first use: when the desktop phase is run by hand, its first
   # sudo is the unlock screen, which is the prompt.
   write_sudoers /etc/sudoers.d/10-wheel '%wheel ALL=(ALL:ALL) ALL' 'Defaults lecture = never'
 
@@ -132,7 +132,7 @@ install_bootloader() {
   regenerate_grub
 }
 
-# Moves this installer into the new user's home, for the post phase and the
+# Moves this installer into the new user's home, for the desktop phase and the
 # Plasma first-login step. Nothing in this phase logs after it, since the log
 # file lives in the directory being moved.
 hand_over_to_user() {
@@ -142,12 +142,12 @@ hand_over_to_user() {
   chown -R "$USER_NAME:$USER_NAME" "$dest"
 }
 
-# The desktop setup (phases/post.sh), run here as the new user rather than on
+# The desktop setup (phases/desktop.sh), run here as the new user rather than on
 # a first boot: all of it works in the chroot, on the live system's network,
 # so the machine reboots once, straight into SDDM. A temporary sudo rule
 # stands in for the password the phase would otherwise ask for, and the
 # progress bar carries on from the install phase's (lib/ui.sh's progress_env).
-run_post_phase() {
+run_desktop_phase() {
   local home=/home/$USER_NAME rule=/etc/sudoers.d/90-arch-setup-install
   write_sudoers "$rule" "$USER_NAME ALL=(ALL:ALL) NOPASSWD: ALL"
   trap 'rm -f '"$rule" EXIT
@@ -155,6 +155,6 @@ run_post_phase() {
   mapfile -t progress < <(progress_env)
   runuser -u "$USER_NAME" -- env TERM="$TERM" VERBOSE="$VERBOSE" \
     PATCHED_FONT="${PATCHED_FONT:-0}" IN_CHROOT=1 "${progress[@]}" \
-    bash "$home/.arch-setup/setup.sh" post
+    bash "$home/.arch-setup/setup.sh" desktop
   rm -f "$rule"
 }

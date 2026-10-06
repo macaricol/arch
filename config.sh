@@ -62,7 +62,7 @@ EXTRA_PACKAGES=(
   ntfs-3g exfatprogs dosfstools   # format/repair NTFS, exFAT, FAT32 (mounting needs nothing extra)
 )
 
-GAMING_PACKAGES=(steam)  # only installed when a supported GPU was detected, see post phase
+GAMING_PACKAGES=(steam)  # only installed when a supported GPU was detected, see desktop phase
 AUR_PACKAGES=(zen-browser-bin qview)   # built with makepkg: dependencies must be in the official repos
 
 # The lib32-* packages are what Steam needs. Installing the right ones up
@@ -73,7 +73,7 @@ GPU_PACKAGES_INTEL=(mesa lib32-mesa vulkan-intel lib32-vulkan-intel intel-media-
 GPU_PACKAGES_AMD=(mesa lib32-mesa vulkan-radeon lib32-vulkan-radeon radeontop)
 # nvidia-open, not nvidia: the proprietary kernel modules are gone from the
 # repos (nvidia-open declares Replaces: nvidia<=580.119.02-2), so the old name
-# is simply "target not found" and aborts the whole post phase. The non-dkms
+# is simply "target not found" and aborts the whole desktop phase. The non-dkms
 # build is the right one here because BASE_PACKAGES installs the stock `linux`
 # kernel, which it's prebuilt against. Note this only drives Turing (RTX 20xx)
 # and newer — NVIDIA's 615 branch dropped Maxwell/Pascal/Volta, and with the
