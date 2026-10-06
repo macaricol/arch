@@ -180,24 +180,27 @@ mirror_countries() {
 
 # Ranks the mirrors pacstrap downloads from: the fastest in our country;
 # worldwide when it isn't known or has no HTTPS mirrors reflector can find
-# (it then leaves no Server lines).
+# (it then leaves no Server lines). Only mirrors that run at most 4 hours
+# behind Arch (--delay; --age isn't enough, a mirror can sync often from a
+# stale source): pacman takes the package lists from the first mirror alone,
+# and a fast but stale one (glua.ua.pt, days behind) lists versions every
+# current mirror has since deleted, so every download 404s.
 rank_mirrors() {
   local countries mirrorlist=/etc/pacman.d/mirrorlist
   countries=$(mirror_countries)
   if [[ -n $countries ]]; then
     info "Finding the fastest download servers near you ($countries)..."
-    run reflector --country "$countries" --latest 8 --protocol https \
+    run reflector --country "$countries" --delay 4 --latest 8 --protocol https \
       --sort rate --number 6 --save "$mirrorlist" || true
   fi
   if [[ -z $countries ]] || ! grep -q '^Server' "$mirrorlist"; then
     info "Finding the fastest download servers worldwide..."
-    run reflector --latest 20 --protocol https --sort rate --number 6 --save "$mirrorlist" \
+    run reflector --delay 4 --latest 20 --protocol https --sort rate --number 6 --save "$mirrorlist" \
       || warn "Couldn't rank download servers, using the default ones"
   fi
-  # Last resort, for files the mirrors above don't have: pacman tries the
-  # servers in order, and a mirror's package list can name a file it hasn't
-  # synced yet (404). Arch's own CDN is always current. It goes into the new
-  # system's mirrorlist too.
+  # Last resort, for a file the mirrors above haven't synced yet: pacman
+  # tries the servers in order for each package. Arch's own CDN is always
+  # current. It goes into the new system's mirrorlist too.
   echo 'Server = https://geo.mirror.pkgbuild.com/$repo/os/$arch' >> "$mirrorlist"
 }
 

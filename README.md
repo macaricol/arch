@@ -134,9 +134,12 @@ Things that look odd but are deliberate:
   IP at ipinfo.io (just its two-letter code) and has reflector rank that
   country's HTTPS mirrors; if the lookup fails or the country has none, it
   ranks mirrors worldwide. A list such as `'PT,ES'` pins the countries.
-  Arch's own CDN (`geo.mirror.pkgbuild.com`) always comes last: a mirror's
-  package list can name a file it hasn't synced yet, and with only a
-  country's few mirrors in the list, one such 404 would stop the install.
+  Only mirrors at most 4 hours behind Arch are used (`--delay 4`): pacman
+  reads the package lists from the first mirror alone, and a fast but stale
+  one lists versions the others have already deleted, so every download
+  404s. `--age` doesn't catch that, as a mirror can sync often from a stale
+  source. Arch's own CDN (`geo.mirror.pkgbuild.com`) always comes last, for
+  a file the mirrors above haven't synced yet.
 - **Microcode and GPU drivers go in with `pacstrap`**, so the first
   initramfs and `grub.cfg` already include them and nothing needs
   regenerating later; an NVIDIA machine runs `nvidia-open` from its very
