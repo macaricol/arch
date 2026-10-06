@@ -39,10 +39,10 @@ phase_install() {
   # phase.
   local started=$SECONDS
 
-  step "Preparing the drive" 3
+  step "Preparing the drive" 6
   partition_and_mount
 
-  step "Installing Arch Linux" 53
+  step "Installing Arch Linux" 58
   install_base
 
   step "Setting up your system" 13

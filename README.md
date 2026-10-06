@@ -269,7 +269,7 @@ Things that look odd but are deliberate:
   title in one centred column; earlier output stays in the log, which is
   why `warn` writes there too. None of this persists after a reboot.
 - **The progress bar is weighted and keeps moving.** Each step carries a
-  weight, roughly its seconds (`step "Installing the desktop and apps" 75`), so long
+  weight, roughly its seconds (`step "Installing the desktop and apps" 80`), so long
   steps take their share of the bar. The weights are one full run's times on
   a fast connection; a slower one stretches the download steps, but pacman's
   measured progress keeps those moving. A step running several long commands

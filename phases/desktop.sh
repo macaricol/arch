@@ -22,8 +22,8 @@ phase_desktop() {
   (( PROGRESS_TOTAL )) || PROGRESS_TOTAL=$(( $(step_weights "$SETUP_DIR/phases/desktop.sh")
                                              + $(aur_weight "$SETUP_DIR/packages") ))
 
-  # Weight: the four steps it replaced, less the update, measured on a VM.
-  step "Installing the desktop and apps" 75
+  # Weight: measured on a VM (81 s, once merged).
+  step "Installing the desktop and apps" 80
   info "Installing KDE Plasma, the desktop you'll log into, and your apps. This is the big download."
   require_network
   install_desktop_packages
