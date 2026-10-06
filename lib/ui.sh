@@ -200,13 +200,13 @@ center() {
 # weight of the steps finished, PROGRESS_STEP the current one's, and
 # PROGRESS_TOTAL them all (step_weights). All three may come from the
 # environment: the post phase, run from the installer, carries on the
-# install phase's bar. Within a step the bar keeps moving: see
-# update_progress.
+# install phase's bar. Within a step the bar keeps moving, and glides
+# rather than jumps: see update_progress and animate_progress.
 PROGRESS_DONE=${PROGRESS_DONE:-0}
 PROGRESS_STEP=${PROGRESS_STEP:-0}
 PROGRESS_TOTAL=${PROGRESS_TOTAL:-0}
 PROGRESS_PERMILLE=0      # of the current step
-PROGRESS_FILLED=-1       # eighths drawn, so the bar is only redrawn on a change
+PROGRESS_SHOWN=-1        # eighths drawn (see animate_progress); -1: none yet
 STEP_START=0             # µs
 BAR_ROW=0                # the bar's screen row, once a header has drawn it
 PROGRESS_WIDTH=40
@@ -281,28 +281,33 @@ draw_progress() {
   # Before the first step (the questions), a blank line in its place, so
   # the title doesn't move when the bar appears.
   (( PROGRESS_TOTAL > 0 && PROGRESS_DONE + PROGRESS_STEP > 0 )) || { echo; return 0; }
-  local eighths; eighths=$(progress_eighths)
-  PROGRESS_FILLED=$eighths
+  # Drawn where the animation has got to; a process that hasn't drawn it
+  # yet (the post phase, carrying on the installer's bar) starts where it
+  # should be.
+  progress_eighths
+  (( PROGRESS_SHOWN >= 0 && PROGRESS_SHOWN <= PROGRESS_TARGET )) || PROGRESS_SHOWN=$PROGRESS_TARGET
+  local eighths=$PROGRESS_SHOWN
   local full=$(( eighths / 8 )) part=$(( eighths % 8 )) edge=''
   on_console && [[ ${PATCHED_FONT:-0} != 1 ]] && part=0
   (( part )) && edge=$'\e[44m'"${C_CYAN}${EIGHTHS[part]}${C_RESET}"
   center "${C_CYAN}$(repeat █ "$full")${C_RESET}${edge}${C_BLUE}$(repeat █ $((PROGRESS_WIDTH - full - (part > 0))))${C_RESET}" "$PROGRESS_WIDTH"
 }
 
-# The bar's filled length in eighths of a cell: the steps done, plus the
-# current one's permille.
+# Where the bar should be, in PROGRESS_TARGET, in eighths of a cell: the
+# steps done, plus the current one's permille. (A variable, not output: the
+# animation asks 20 times a second, and $(...) would fork each time.)
 progress_eighths() {
   local max=$(( PROGRESS_WIDTH * 8 ))
-  local filled=$(( max * (PROGRESS_DONE * 1000 + PROGRESS_STEP * PROGRESS_PERMILLE) / (PROGRESS_TOTAL * 1000) ))
-  echo $(( filled < max ? filled : max ))
+  PROGRESS_TARGET=$(( max * (PROGRESS_DONE * 1000 + PROGRESS_STEP * PROGRESS_PERMILLE) / (PROGRESS_TOTAL * 1000) ))
+  (( PROGRESS_TARGET <= max )) || PROGRESS_TARGET=$max
 }
 
-# update_progress [OUTPUT] — moves the bar within the current step, called
-# by run()'s spinner. Two estimates, the further along wins: time, on a
-# curve that's quick at first and slows as the step's weight in seconds
-# goes by, reaching only 95% (the step's end is the next step()); and, when
-# the running command is pacman, its real progress (pacman_progress). Only
-# the bar's line is redrawn, and only when it has moved.
+# update_progress [OUTPUT] — how far into the current step we are, in
+# PROGRESS_PERMILLE; run()'s spinner asks 5 times a second. Two estimates,
+# the further along wins: time, on a curve that's quick at first and slows
+# as the step's weight in seconds goes by, reaching only 95% (the step's end
+# is the next step()); and, when the running command is pacman, its real
+# progress (pacman_progress). animate_progress moves the bar there.
 update_progress() {
   (( BAR_ROW > 0 && PROGRESS_STEP > 0 )) || return 0
   local elapsed=$(( (${EPOCHREALTIME//[!0-9]/} - STEP_START) / 1000 ))     # ms
@@ -312,7 +317,20 @@ update_progress() {
     (( PACMAN_PERMILLE > permille )) && permille=$PACMAN_PERMILLE
   fi
   (( permille > PROGRESS_PERMILLE )) && PROGRESS_PERMILLE=$permille
-  (( $(progress_eighths) != PROGRESS_FILLED )) || return 0
+  return 0
+}
+
+# animate_progress — one frame of the bar easing towards where it should
+# be: a tenth of the way each frame, at least an eighth of a cell, so a
+# jump in the estimate (a step ending early, a big package landing) plays
+# out over a second or two instead of at once. run()'s spinner calls it 20
+# times a second. Only the bar's line is redrawn, and only when it moves.
+animate_progress() {
+  (( BAR_ROW > 0 && PROGRESS_TOTAL > 0 && PROGRESS_SHOWN >= 0 )) || return 0
+  progress_eighths
+  (( PROGRESS_SHOWN < PROGRESS_TARGET )) || return 0
+  local gap=$(( PROGRESS_TARGET - PROGRESS_SHOWN ))
+  PROGRESS_SHOWN=$(( PROGRESS_SHOWN + (gap > 10 ? gap / 10 : 1) ))
   printf '\e7\e[%d;1H\e[2K' "$BAR_ROW"
   draw_progress
   printf '\e8'
@@ -383,7 +401,8 @@ step() {
 
 # finish "Title" — the closing screen of a phase: full bar, title in green.
 finish() {
-  PROGRESS_DONE=$PROGRESS_TOTAL PROGRESS_STEP=0
+  # Full at once: nothing runs after it to animate the bar there.
+  PROGRESS_DONE=$PROGRESS_TOTAL PROGRESS_STEP=0 PROGRESS_SHOWN=-1
   header "$1" "$C_GREEN"
 }
 
@@ -402,14 +421,20 @@ run() {
   "$@" &>"$out" &
   # Pac-Man chomping a row of pellets: closed with the pellets a step away,
   # then open with each moved one step closer, the first at its mouth.
-  local pid=$! i=0
+  # Frames at 20 a second, for the bar's animation; Pac-Man chomps, and the
+  # progress (which starts processes) is measured, every 4th.
+  local pid=$! tick=0
   local -a frames=("${C_BOLD}${C_CYAN}⬤${C_RESET}${C_WHITE} · · ·${C_RESET}"
                    "${C_BOLD}${C_CYAN}ᗧ${C_RESET}${C_WHITE}· · · ${C_RESET}")
   printf '\e[?25l'   # no cursor blinking after the pellets
   while kill -0 "$pid" 2>/dev/null; do
-    printf '\r%s%s' "$MARGIN" "${frames[i++ % 2]}"
-    update_progress "$out"
-    sleep 0.2
+    if (( tick % 4 == 0 )); then
+      printf '\r%s%s' "$MARGIN" "${frames[tick / 4 % 2]}"
+      update_progress "$out"
+    fi
+    animate_progress
+    tick=$(( tick + 1 ))
+    sleep 0.05
   done
   printf '\r\e[K'
   on_console || printf '\e[?25h'   # see cursor()
