@@ -10,6 +10,9 @@ from, each with two glyphs redrawn as Pac-Man.
                  fonts' own • ranges from a square to a diamond)
   U+E100 + n     the cells of assets/logo/logo-hd.txt (tools/make-logo.py): each a 2 x 4
                  grid of blocks, bit n set for each one filled
+  ▏▎▍▌▋▊▉        left eighths of a cell, for the progress bar's leading edge
+                 (lib/ui.sh's draw_progress); the fonts that already have
+                 one (▌) keep theirs
 
 The console can't show emoji or colour glyphs, and no stock console font has
 any of them, so they take over the slots of glyphs the installer never
@@ -37,6 +40,7 @@ PACMAN, CLOSED = "ᗧ", "⬤"
 LOCK_COLS, LOCK_ROWS = 5, 3
 LOCK = [chr(0xE000 + i) for i in range(LOCK_COLS * LOCK_ROWS)]   # row by row
 DOT = "\ue010"
+EIGHTHS = "▏▎▍▌▋▊▉"   # 1/8 to 7/8 of a cell, filled from the left
 MOUTH_DEGREES = 38   # half the opening, measured from the horizontal
 # Slots to give up, in order of preference.
 LOGO = pathlib.Path(__file__).resolve().parent.parent / "assets" / "logo" / "logo-hd.txt"
@@ -145,6 +149,17 @@ def draw_dot(font):
     return glyph
 
 
+def draw_eighth(font, k):
+    """The left k/8 of the cell, full height: one pixel column an eighth in
+    the 8-wide font, as near as whole pixels go in the others."""
+    w, h, row = font["width"], font["height"], (font["width"] + 7) // 8
+    glyph = bytearray(font["size"])
+    for y in range(h):
+        for x in range(round(w * k / 8)):
+            glyph[y * row + x // 8] |= 0x80 >> (x % 8)
+    return glyph
+
+
 def draw_cell(font, bits):
     """A logo cell: the glyph split into 2 columns and 4 rows of blocks, on
     the same boundaries as the font's own ▌▐ and ▀▄, filled where bits says."""
@@ -195,6 +210,8 @@ def main():
         glyphs += list(zip(LOCK, draw_lock(font))) + [(DOT, draw_dot(font))]
         cells = sorted({c for c in LOGO.read_text() if ord(c) >= 0xE100})
         glyphs += [(c, draw_cell(font, ord(c) - 0xE100)) for c in cells]
+        have = set("".join(chars_of(t) for t in font["table"]))
+        glyphs += [(c, draw_eighth(font, k)) for k, c in enumerate(EIGHTHS, 1) if c not in have]
         assert len(spare) >= len(glyphs), f"{name}: not enough spare glyph slots"
         for slot, (char, glyph) in zip(spare, glyphs):
             font["glyphs"][slot] = glyph

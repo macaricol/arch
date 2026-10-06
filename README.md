@@ -64,7 +64,7 @@ mirror is `ISO_MIRROR` in `config.sh`.
                           and banner.png for this README (tools/make-sddm-theme.py)
     assets/plymouth/      the boot splash theme: script, logo, spinner
     assets/sddm/archman/  the login screen: the unlock screen as an SDDM theme (tools/make-sddm-theme.py)
-    assets/consolefonts/  the console fonts, with Pac-Man and a padlock added (tools/make-console-fonts.py)
+    assets/consolefonts/  the console fonts, with Pac-Man, a padlock and the bar's eighths added (tools/make-console-fonts.py)
     lib/ui.sh             console font/palette, centred step screens, run() spinner + setup.log
     lib/prompt.sh         validated input, passwords, confirm, arrow-key menu
     lib/system.sh         checks, CPU/GPU detection, pacman/AUR/service helpers
@@ -239,8 +239,11 @@ Things that look odd but are deliberate:
   steps take their share of the bar. While a step's commands run, the bar
   also moves within that share: on a time curve that slows as the weight
   goes by and stops at 95% (the next step completes it), or faster when
-  pacman's own `(n/N) installing` count says so. Only the bar's line is
-  redrawn. Adding a step means giving it a weight; the totals add
+  pacman's own `(n/N) installing` count says so. It moves an eighth of a
+  cell at a time, its edge one of `▏▎▍▌▋▊▉`: a pixel at a time in the
+  8-pixel-wide console font. The patched fonts add those characters; with
+  a stock console font the bar moves a whole cell at a time. Only the bar's
+  line is redrawn. Adding a step means giving it a weight; the totals add
   themselves up (`step_weights`).
 - **Prompts use [gum](https://github.com/charmbracelet/gum) when it runs.**
   The install phase fetches it onto the live ISO (`pacman -Sy gum`, a few

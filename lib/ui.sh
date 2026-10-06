@@ -206,7 +206,7 @@ PROGRESS_DONE=${PROGRESS_DONE:-0}
 PROGRESS_STEP=${PROGRESS_STEP:-0}
 PROGRESS_TOTAL=${PROGRESS_TOTAL:-0}
 PROGRESS_PERMILLE=0      # of the current step
-PROGRESS_FILLED=-1       # cells drawn, so the bar is only redrawn on a change
+PROGRESS_FILLED=-1       # eighths drawn, so the bar is only redrawn on a change
 STEP_START=0             # µs
 BAR_ROW=0                # the bar's screen row, once a header has drawn it
 PROGRESS_WIDTH=40
@@ -271,21 +271,30 @@ draw_logo() {
 }
 
 # The bar's filled and empty parts are the same █ in two colours, as not
-# every console font has the shade characters (░▒▓).
+# every console font has the shade characters (░▒▓). It moves an eighth of a
+# cell at a time: the cell at its edge is one of ▏▎▍▌▋▊▉, filled colour on
+# the empty colour, a pixel column each in the 8-wide console font. The
+# stock console fonts lack those, so without a patched one (PATCHED_FONT)
+# it moves a whole cell at a time.
+EIGHTHS=('' ▏ ▎ ▍ ▌ ▋ ▊ ▉)
 draw_progress() {
   # Before the first step (the questions), a blank line in its place, so
   # the title doesn't move when the bar appears.
   (( PROGRESS_TOTAL > 0 && PROGRESS_DONE + PROGRESS_STEP > 0 )) || { echo; return 0; }
-  local filled; filled=$(progress_cells)
-  PROGRESS_FILLED=$filled
-  center "${C_CYAN}$(repeat █ "$filled")${C_BLUE}$(repeat █ $((PROGRESS_WIDTH - filled)))${C_RESET}" "$PROGRESS_WIDTH"
+  local eighths; eighths=$(progress_eighths)
+  PROGRESS_FILLED=$eighths
+  local full=$(( eighths / 8 )) part=$(( eighths % 8 )) edge=''
+  on_console && [[ ${PATCHED_FONT:-0} != 1 ]] && part=0
+  (( part )) && edge=$'\e[44m'"${C_CYAN}${EIGHTHS[part]}${C_RESET}"
+  center "${C_CYAN}$(repeat █ "$full")${C_RESET}${edge}${C_BLUE}$(repeat █ $((PROGRESS_WIDTH - full - (part > 0))))${C_RESET}" "$PROGRESS_WIDTH"
 }
 
-# The bar's filled cells: the steps done, plus the current one's permille.
-progress_cells() {
-  local filled=$(( PROGRESS_WIDTH * (PROGRESS_DONE * 1000 + PROGRESS_STEP * PROGRESS_PERMILLE)
-                   / (PROGRESS_TOTAL * 1000) ))
-  echo $(( filled < PROGRESS_WIDTH ? filled : PROGRESS_WIDTH ))
+# The bar's filled length in eighths of a cell: the steps done, plus the
+# current one's permille.
+progress_eighths() {
+  local max=$(( PROGRESS_WIDTH * 8 ))
+  local filled=$(( max * (PROGRESS_DONE * 1000 + PROGRESS_STEP * PROGRESS_PERMILLE) / (PROGRESS_TOTAL * 1000) ))
+  echo $(( filled < max ? filled : max ))
 }
 
 # update_progress [OUTPUT] — moves the bar within the current step, called
@@ -293,7 +302,7 @@ progress_cells() {
 # curve that's quick at first and slows as the step's weight in seconds
 # goes by, reaching only 95% (the step's end is the next step()); and, from
 # the running command's OUTPUT, pacman's "(n/N) installing" count. Only the
-# bar's line is redrawn, and only when a cell changes.
+# bar's line is redrawn, and only when it has moved.
 update_progress() {
   (( BAR_ROW > 0 && PROGRESS_STEP > 0 )) || return 0
   local elapsed=$(( (${EPOCHREALTIME//[!0-9]/} - STEP_START) / 1000 ))     # ms
@@ -306,7 +315,7 @@ update_progress() {
     fi
   fi
   (( permille > PROGRESS_PERMILLE )) && PROGRESS_PERMILLE=$permille
-  (( $(progress_cells) != PROGRESS_FILLED )) || return 0
+  (( $(progress_eighths) != PROGRESS_FILLED )) || return 0
   printf '\e7\e[%d;1H\e[2K' "$BAR_ROW"
   draw_progress
   printf '\e8'
