@@ -43,6 +43,9 @@ MESSAGES_LOCALE='en_US.UTF-8'        # terminal and log messages
 # Mirrors are ranked in this machine's country, looked up from its public IP
 # (auto), or in the countries listed here, e.g. 'PT,ES'.
 MIRROR_COUNTRIES='auto'
+# Files pacman downloads at once, during the install and on the new system
+# (pacman's own default is 5).
+PARALLEL_DOWNLOADS=10
 EFI_SIZE='512M'
 BTRFS_MOUNT_OPTS='noatime,compress=zstd:1'
 

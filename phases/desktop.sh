@@ -19,21 +19,14 @@ phase_desktop() {
   # hang on a password prompt nobody can answer.
   trap 'kill '"$keepalive_pid"' 2>/dev/null; sudo -n rm -f "$SUDOERS_DROPIN" 2>/dev/null' EXIT
   # Unless carrying on the installer's bar.
-  (( PROGRESS_TOTAL )) || PROGRESS_TOTAL=$(step_weights "$SETUP_DIR/phases/desktop.sh")
+  (( PROGRESS_TOTAL )) || PROGRESS_TOTAL=$(( $(step_weights "$SETUP_DIR/phases/desktop.sh")
+                                             + $(aur_weight "$SETUP_DIR/packages") ))
 
-  step "Updating the system" 8
-  info "Making sure everything is up to date..."
+  # Weight: the four steps it replaced, less the update, measured on a VM.
+  step "Installing the desktop and apps" 75
+  info "Installing KDE Plasma, the desktop you'll log into, and your apps. This is the big download."
   require_network
-  # gum: the prompt UI (lib/prompt.sh), for the reboot question at the end.
-  run sudo pacman -Syu --noconfirm --needed gum
-
-  step "Installing the desktop" 53
-  info "Installing KDE Plasma, the desktop you'll log into. This is the big download."
-  pkg_install "${KDE_PACKAGES[@]}"
-
-  step "Installing apps" 17
-  info "Adding apps: video player, code editor, remote desktop, fonts..."
-  pkg_install "${EXTRA_PACKAGES[@]}"
+  install_desktop_packages
 
   step "Tuning the video player" 1
   info "Scroll to seek, tilt the wheel for volume"
@@ -52,8 +45,10 @@ phase_desktop() {
   info "Letting you share folders with other computers on your network"
   configure_samba
 
-  step "Installing games & extras" 203
-  install_gaming_and_aur
+  # Weight: by whether the USB brought them prebuilt (aur_weight); not a
+  # number here, so step_weights leaves it to the totals' callers.
+  step "Installing extras from the Arch community" "$(aur_weight "$SETUP_DIR/packages")"
+  install_aur_packages
 
   step "Preparing your first login" 1
   info "Your desktop layout and theme will be applied the first time you log in"
@@ -212,33 +207,42 @@ EOF
   enable_service --now smb nmb
 }
 
-install_gaming_and_aur() {
-  info "Adding Steam and a few extras from the Arch community..."
-  # The step's bar shares (lib/ui.sh's share): build tools, Steam, then the
-  # AUR packages, each by its kind: one built from source (several minutes
-  # on a slow machine) counts 6 times one that only downloads (-bin).
-  share 0 50
-  pkg_install base-devel
-  share 50 250
+# Everything from the official repos in one pacman transaction: the
+# package lists in config.sh, plus gum (the prompt UI, lib/prompt.sh, for
+# runs by hand) and base-devel (for the AUR builds). One transaction, not
+# one per list: pacman's checks and post-install hooks (font, icon, desktop
+# caches...) then run once. From the installer, the package lists are the
+# ones pacstrap synced moments ago, so nothing needs updating: -S. Run by
+# hand, the system is brought up to date with them: -Syu.
+install_desktop_packages() {
+  local -a packages=(gum "${KDE_PACKAGES[@]}" "${EXTRA_PACKAGES[@]}" base-devel)
   if [[ -n $(gpu_vendors) ]]; then
-    pkg_install "${GAMING_PACKAGES[@]}"
+    packages+=("${GAMING_PACKAGES[@]}")
   else
     # Without a real GPU driver, steam's 32-bit Vulkan dependency can only be
     # met by software Vulkan (breaks the login screen's video) or by pacman
     # picking lib32-nvidia-utils. Neither is worth it on a VM.
     warn "Skipping Steam: no gaming graphics card found"
   fi
+  local sync=-Syu
+  in_chroot && sync=-S
+  run sudo pacman "$sync" --needed --noconfirm "${packages[@]}"
+}
 
+install_aur_packages() {
+  info "Adding a few extras from the Arch community..."
   # makepkg's internal `sudo pacman` calls don't pick up the cached ticket no
   # matter how it's shared. Rather than fight that: passwordless sudo for
   # pacman only, for this step only — created here, removed at the end.
   write_sudoers "$SUDOERS_DROPIN" "$USER ALL=(ALL) NOPASSWD: /usr/bin/pacman"
 
-  local pkg parts=0 used=0 part
-  for pkg in "${AUR_PACKAGES[@]}"; do [[ $pkg == *-bin ]] && parts=$(( parts + 1 )) || parts=$(( parts + 6 )); done
+  # The step's bar shares (lib/ui.sh's share), one per package, by its
+  # weight (aur_weight).
+  local pkg parts used=0 part
+  parts=$(aur_weight "$SETUP_DIR/packages")
   for pkg in "${AUR_PACKAGES[@]}"; do
-    [[ $pkg == *-bin ]] && part=1 || part=6
-    share $(( 250 + 750 * used / parts )) $(( 250 + 750 * (used + part) / parts ))
+    part=$(aur_weight "$SETUP_DIR/packages" "$pkg")
+    share $(( 1000 * used / parts )) $(( 1000 * (used + part) / parts ))
     aur_install "$pkg"
     used=$(( used + part ))
   done

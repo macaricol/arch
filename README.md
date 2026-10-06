@@ -42,8 +42,17 @@ network takes longer. If it never comes up, or the installer can't be
 fetched, it says so and leaves a root shell on tty1. The stock ISO's other
 boot entries (the live system, memtest...) are removed.
 
-    sudo pacman -S --needed xorriso squashfs-tools
+    sudo pacman -S --needed libisoburn squashfs-tools devtools git curl
     sudo tools/build-autoinstall-iso.sh
+
+The AUR packages that compile from source (`AUR_PACKAGES` without the
+`-bin` ones: qview) are built into the USB, in a clean chroot with
+devtools' `makechrootpkg` (created once in `/var/lib/archman-build`, about
+200 MB, and updated on every run), so installs from it don't spend minutes
+compiling them. Without devtools, or when run as root rather than through
+sudo, that step is skipped and installs compile them as before. An install
+still builds a package itself when the AUR has a newer version than the
+USB's, or if the prebuilt one won't install.
 
 Run with no arguments it asks whether to fetch the current official ISO or
 use one you already have. `--download` skips the question for scripted use,
@@ -121,7 +130,19 @@ Things that look odd but are deliberate:
   With no Intel/AMD/NVIDIA GPU detected (VMs), only plain `mesa` is installed
   and Steam is skipped: software Vulkan (`vulkan-swrast`) would satisfy the
   dependency, but a 64-bit Vulkan device makes the SDDM theme's video
-  background render blank under VirtualBox.
+  background render blank under VirtualBox. The drivers come with the base
+  system (pacstrap), so they're in place before the desktop phase's
+  transaction that brings Steam.
+- **The desktop phase installs from the official repos in one pacman
+  transaction**: `KDE_PACKAGES`, `EXTRA_PACKAGES`, `GAMING_PACKAGES` (when
+  there's a GPU), plus gum and base-devel. The lists stay separate in
+  `config.sh`; one transaction means pacman's checks and post-install hooks
+  (font, icon and desktop caches) run once instead of once per list. From
+  the installer it's `pacman -S`: pacstrap synced the package lists moments
+  before, so there's nothing to update. Run by hand, it's `-Syu`. The
+  installer also has pacman download `PARALLEL_DOWNLOADS` files at once
+  (10; pacman's default is 5), set in the USB's `pacman.conf`, which
+  pacstrap copies into the new system.
 - **Surround upmixing is written twice**, to
   `/etc/pipewire/client.conf.d/` and `/etc/pipewire/pipewire-pulse.conf.d/`.
   PipeWire mixes channels in the client library, so the native path (mpv,
@@ -248,7 +269,7 @@ Things that look odd but are deliberate:
   title in one centred column; earlier output stays in the log, which is
   why `warn` writes there too. None of this persists after a reboot.
 - **The progress bar is weighted and keeps moving.** Each step carries a
-  weight, roughly its seconds (`step "Installing the desktop" 53`), so long
+  weight, roughly its seconds (`step "Installing the desktop and apps" 75`), so long
   steps take their share of the bar. The weights are one full run's times on
   a fast connection; a slower one stretches the download steps, but pacman's
   measured progress keeps those moving. A step running several long commands

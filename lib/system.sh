@@ -9,8 +9,6 @@ require_network() { ping -c1 -W3 archlinux.org &>/dev/null || die "No internet c
 # Runs a command as root: directly when already root, through sudo otherwise.
 as_root() { if (( EUID == 0 )); then "$@"; else sudo "$@"; fi; }
 
-pkg_install()    { run as_root pacman -S --needed --noconfirm "$@"; }
-
 # retry DELAY COMMAND... — runs COMMAND up to 3 times, DELAY seconds apart.
 # For downloads: a dropped connection shouldn't lose a run that's minutes in.
 retry() {
@@ -22,7 +20,51 @@ retry() {
   return 1
 }
 
-# aur_install PACKAGE — builds and installs an AUR package with makepkg, no
+# Where the USB keeps the AUR packages built with it (tools/
+# build-autoinstall-iso.sh), on the live system. The install phase copies
+# them into the installer's packages/ for the desktop phase.
+ISO_PACKAGES=/usr/local/share/archauto/packages
+
+# prebuilt_package DIR PACKAGE — prints the path of PACKAGE's prebuilt
+# package in DIR, if there is one.
+prebuilt_package() {
+  local file
+  for file in "$1/$2"-[0-9]*.pkg.tar.zst; do
+    [[ -f $file && $file != *-debug-* ]] && { echo "$file"; return 0; }
+  done
+  return 1
+}
+
+# aur_weight DIR [PACKAGE] — roughly the seconds installing PACKAGE (or all
+# of AUR_PACKAGES) takes, for the progress bar, given the prebuilt packages
+# in DIR: a -bin package downloads (15), a prebuilt one installs (3), one
+# built from source compiles (165; qview on a VM's single core).
+aur_weight() {
+  local pkg weight=0
+  local -a packages=("${AUR_PACKAGES[@]}")
+  [[ -z ${2:-} ]] || packages=("$2")
+  for pkg in "${packages[@]}"; do
+    if [[ $pkg == *-bin ]]; then weight=$(( weight + 15 ))
+    elif prebuilt_package "$1" "$pkg" > /dev/null; then weight=$(( weight + 3 ))
+    else weight=$(( weight + 165 ))
+    fi
+  done
+  echo "$weight"
+}
+
+# aur_has_newer PACKAGE FILE — true when the AUR has a newer version of
+# PACKAGE than the prebuilt FILE; false when it can't tell (no network...).
+aur_has_newer() {
+  local aur ours
+  aur=$(curl -fsS --max-time 10 "https://aur.archlinux.org/rpc/v5/info?arg[]=$1" 2>/dev/null \
+    | grep -oE '"Version":"[^"]+"' | cut -d'"' -f4) || return 1
+  ours=$(pacman -Qp "$2" 2>/dev/null | cut -d' ' -f2) || return 1
+  [[ -n $aur && -n $ours ]] && (( $(vercmp "$aur" "$ours") > 0 ))
+}
+
+# aur_install PACKAGE — installs an AUR package: the prebuilt one the USB
+# brought (in the installer's packages/), unless the AUR has a newer
+# version; otherwise, or if that fails, built with makepkg here. No
 # AUR helper: building one (paru is Rust) took longer than the packages
 # themselves. Its dependencies must be in the official repos (makepkg -s
 # installs them; -r removes the build-only ones afterwards). Built on disk:
@@ -36,6 +78,15 @@ retry() {
 # state, moved on by run() during the build, would be lost with it, and the
 # bar would jump back when the next step draws it.
 aur_install() {
+  local prebuilt
+  if prebuilt=$(prebuilt_package "$SETUP_DIR/packages" "$1"); then
+    if aur_has_newer "$1" "$prebuilt"; then
+      info "The AUR has a newer $1 than this USB's, building it"
+    else
+      run as_root pacman -U --needed --noconfirm "$prebuilt" && return 0
+      warn "Couldn't install the prebuilt $1, building it instead"
+    fi
+  fi
   local build from=$PROGRESS_FROM to=$PROGRESS_TO
   build=$(mktemp -d -p /var/tmp)
   share "$from" $(( from + (to - from) / 20 ))

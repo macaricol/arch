@@ -16,7 +16,9 @@ phase_install() {
   # The progress bar covers the installing, not the questions before it: the
   # steps below from partitioning on, then the desktop phase's, which the chroot
   # phase runs and which carries the bar on. Weights: see lib/ui.sh's step.
-  PROGRESS_TOTAL=$(( $(step_weights "$SETUP_DIR/phases/install.sh") + $(step_weights "$SETUP_DIR/phases/desktop.sh") ))
+  # The desktop phase's AUR step weighs by what this USB brought prebuilt.
+  PROGRESS_TOTAL=$(( $(step_weights "$SETUP_DIR/phases/install.sh") + $(step_weights "$SETUP_DIR/phases/desktop.sh")
+                     + $(aur_weight "$ISO_PACKAGES") ))
 
   header "Set up your account"
   input HOST_NAME "Hostname" valid_hostname
@@ -237,10 +239,13 @@ install_base() {
   mapfile -t gpu < <(gpu_packages)
   packages+=("${gpu[@]}")
 
-  # The drivers' 32-bit halves (for Steam) live in multilib. pacstrap reads
-  # the ISO's pacman.conf, and -P copies it into the new system, so enabling
-  # it here covers both.
+  # pacstrap reads the ISO's pacman.conf, and -P copies it into the new
+  # system, so changes here cover both. The drivers' 32-bit halves (for
+  # Steam) live in multilib. And PARALLEL_DOWNLOADS files at once (config.sh)
+  # rather than pacman's 5: hundreds of small packages, each with a round
+  # trip to the mirror before its bytes.
   sed -i '/^#\[multilib\]/,/^#Include/ s/^#//' /etc/pacman.conf
+  sed -i -E "s/^#?ParallelDownloads.*/ParallelDownloads = $PARALLEL_DOWNLOADS/" /etc/pacman.conf
 
   share 50 1000
   info "Downloading and installing the core system. This takes a few minutes."
@@ -257,6 +262,11 @@ configure_new_system() {
   local stage=/mnt/root/arch-setup
   rm -rf "$stage"
   cp -r "$SETUP_DIR" "$stage"
+  # The AUR packages this USB brought prebuilt, for the desktop phase.
+  if compgen -G "$ISO_PACKAGES/*.pkg.tar.zst" > /dev/null; then
+    mkdir -p "$stage/packages"
+    cp "$ISO_PACKAGES"/*.pkg.tar.zst "$stage/packages/"
+  fi
 
   # Passwords travel in a root-only file, never in argv or the environment.
   # The chroot phase deletes it as its first act; the trap covers the case

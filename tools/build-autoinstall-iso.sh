@@ -10,8 +10,12 @@
 #     does, shows the ARCHMAN logo across two thirds of the screen for 4
 #     seconds while the network comes up, then runs bootstrap.sh.
 #
-# Requires root (to loop-mount the EFI image), xorriso and squashfs-tools:
-#   sudo pacman -S --needed xorriso squashfs-tools
+# Requires root (to loop-mount the EFI image), through sudo, and these
+# packages (it checks first, and prints the command for any missing):
+#   sudo pacman -S --needed libisoburn squashfs-tools devtools git curl
+# devtools builds the AUR packages that compile from source (AUR_PACKAGES in
+# config.sh, all but the -bin ones) into the ISO, so installs from it don't
+# compile them.
 #
 # This only produces a new ISO file; it never touches a block device. Test it
 # in a VM, then write it yourself:
@@ -64,10 +68,34 @@ else
   OUT_ISO=${positional[1]:-archlinux-autoinstall.iso}
 fi
 
-(( EUID == 0 )) || { echo "Must be run as root (needed to loop-mount the EFI image)" >&2; exit 1; }
-for bin in xorriso mksquashfs unsquashfs; do
-  command -v "$bin" &>/dev/null || { echo "Missing dependency: $bin" >&2; exit 1; }
+# Every command this needs from outside a base install, and its package.
+# All checked up front, before anything is done: a run that stops halfway,
+# minutes in, for want of one of them helps nobody.
+declare -A DEPENDENCIES=(
+  [xorriso]=libisoburn                # reads and writes the ISO
+  [mksquashfs]=squashfs-tools         # repacks the live system
+  [unsquashfs]=squashfs-tools
+  [makechrootpkg]=devtools            # prebuilds the AUR packages, in a clean chroot
+  [mkarchroot]=devtools
+  [git]=git                           # fetches their build recipes
+  [curl]=curl                         # downloads the official ISO
+)
+missing_commands=() missing_packages=()
+for bin in "${!DEPENDENCIES[@]}"; do
+  command -v "$bin" &>/dev/null && continue
+  missing_commands+=("$bin")
+  [[ " ${missing_packages[*]} " == *" ${DEPENDENCIES[$bin]} "* ]] || missing_packages+=("${DEPENDENCIES[$bin]}")
 done
+if (( ${#missing_commands[@]} )); then
+  {
+    echo "Building the ISO needs commands this machine doesn't have: ${missing_commands[*]}"
+    echo "Install them with this, then run it again:"
+    echo
+    echo "  sudo pacman -S --needed ${missing_packages[*]}"
+  } >&2
+  exit 1
+fi
+(( EUID == 0 )) || { echo "Must be run as root (needed to loop-mount the EFI image): sudo $0 $*" >&2; exit 1; }
 
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
@@ -117,7 +145,6 @@ refetch() {
 # Sets IN_ISO to a verified copy of the latest official ISO, downloading it
 # into the current directory unless a good one is already sitting there.
 download_iso() {
-  command -v curl &>/dev/null || { echo "Missing dependency: curl" >&2; exit 1; }
   echo "==> Looking up the latest official ISO..."
   local name sum
   read -r name sum < <(latest_iso_info) || true
@@ -364,6 +391,42 @@ curl -fsSL "$BOOTSTRAP_URL" | QUIET=1 REPO=$REPO BRANCH=$BRANCH bash \
 EOF
 } > "$work/airootfs/usr/local/bin/archauto"
 chmod +x "$work/airootfs/usr/local/bin/archauto"
+
+# The AUR packages that compile from source (all but -bin), built here,
+# in a clean chroot (devtools' makechrootpkg, as SUDO_USER: makepkg won't
+# build as root), and put in the live system for the installer (lib/
+# system.sh's aur_install). The chroot is kept between runs, updated each
+# time. A build that fails is skipped; installs then build it themselves.
+prebuild_aur_packages() {
+  local dest=$1 chroot=/var/lib/archman-build pkg dir
+  local -a from_source=()
+  for pkg in "${AUR_PACKAGES[@]}"; do [[ $pkg == *-bin ]] || from_source+=("$pkg"); done
+  (( ${#from_source[@]} )) || return 0
+  echo "==> Prebuilding AUR packages: ${from_source[*]}..."
+  if [[ -z ${SUDO_USER:-} || $SUDO_USER == root ]]; then
+    echo "    skipped: run this through sudo as a regular user (makepkg won't build as root)"
+    return 0
+  fi
+  if [[ ! -d $chroot/root ]]; then
+    echo "    creating the clean build chroot in $chroot (once)..."
+    mkdir -p "$chroot"
+    run mkarchroot "$chroot/root" base-devel || { echo "    skipped: couldn't create the chroot"; return 0; }
+  fi
+  mkdir -p "$dest"
+  for pkg in "${from_source[@]}"; do
+    dir=$(sudo -u "$SUDO_USER" mktemp -d)
+    sudo -u "$SUDO_USER" mkdir "$dir/out"
+    if sudo -u "$SUDO_USER" git clone -q --depth 1 "https://aur.archlinux.org/$pkg.git" "$dir/$pkg" \
+       && (cd "$dir/$pkg" && PKGDEST="$dir/out" MAKEFLAGS="-j$(nproc)" run makechrootpkg -c -u -r "$chroot"); then
+      find "$dir/out" -name '*.pkg.tar.zst' ! -name '*-debug-*' -exec install -m644 -t "$dest" {} +
+      echo "    $pkg: $(cd "$dest" && ls "$pkg"-[0-9]*.pkg.tar.zst 2>/dev/null)"
+    else
+      echo "    $pkg: build failed, skipped; installs will compile it"
+    fi
+    rm -rf "$dir"
+  done
+}
+prebuild_aur_packages "$work/airootfs/usr/local/share/archauto/packages"
 
 echo "==> Repacking squashfs (this takes a while)..."
 rm -f "$work/airootfs.sfs"
