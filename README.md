@@ -355,7 +355,5 @@ userspace onto an AMD or Intel machine.
   drivers, for the reason in the design notes. Needs the multilib repo, which
   the install phase enables.
 - `base-devel` — Build tools, required to compile anything from the AUR
-- `paru` (AUR) — AUR helper, built from source so it always matches the
-  installed pacman's libalpm; the Rust toolchain is removed again afterwards
 - `zen-browser-bin` (AUR) — Firefox-based privacy-focused browser
 - `qview` (AUR) — Lightweight, fast image viewer

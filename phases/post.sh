@@ -48,7 +48,7 @@ phase_post() {
   info "Letting you share folders with other computers on your network"
   configure_samba
 
-  step "Installing games & extras" 420
+  step "Installing games & extras" 180
   install_gaming_and_aur
 
   step "Preparing your first login" 2
@@ -198,7 +198,7 @@ EOF
 }
 
 install_gaming_and_aur() {
-  info "Building a few extras from the Arch community. This is the slowest step."
+  info "Adding Steam and a few extras from the Arch community..."
   pkg_install base-devel
   if [[ -n $(gpu_vendors) ]]; then
     pkg_install "${GAMING_PACKAGES[@]}"
@@ -214,20 +214,10 @@ install_gaming_and_aur() {
   # pacman only, for this step only — created here, removed at the end.
   write_sudoers "$SUDOERS_DROPIN" "$USER ALL=(ALL) NOPASSWD: /usr/bin/pacman"
 
-  if command -v paru &>/dev/null; then
-    info "The community package helper is already installed"
-  else
-    # Built from source on purpose: paru-bin is compiled against a fixed
-    # libalpm and breaks whenever pacman bumps its ABI (it has been flagged
-    # out-of-date for months). -r removes the Rust toolchain again afterwards.
-    # On disk: in the installer's chroot, /tmp is in RAM, and a Rust build
-    # can outgrow it.
-    local build; build=$(mktemp -d -p /var/tmp)
-    git_clone https://aur.archlinux.org/paru.git "$build"
-    (cd "$build" && run makepkg -sri --noconfirm)
-    rm -rf "$build"
-  fi
-  aur_install "${AUR_PACKAGES[@]}"
+  local pkg
+  for pkg in "${AUR_PACKAGES[@]}"; do
+    aur_install "$pkg"
+  done
 
   sudo rm -f "$SUDOERS_DROPIN"
 }

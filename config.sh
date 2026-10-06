@@ -63,7 +63,7 @@ EXTRA_PACKAGES=(
 )
 
 GAMING_PACKAGES=(steam)  # only installed when a supported GPU was detected, see post phase
-AUR_PACKAGES=(zen-browser-bin qview)
+AUR_PACKAGES=(zen-browser-bin qview)   # built with makepkg: dependencies must be in the official repos
 
 # The lib32-* packages are what Steam needs. Installing the right ones up
 # front matters: steam depends on virtual lib32-vulkan-driver / lib32-libgl,

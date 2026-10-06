@@ -22,8 +22,19 @@ retry() {
   return 1
 }
 
-# AUR builds clone from aur.archlinux.org, which drops connections now and then.
-aur_install() { retry 10 run paru -S --needed --noconfirm "$@" || die "Could not install AUR packages: $*"; }
+# aur_install PACKAGE — builds and installs an AUR package with makepkg, no
+# AUR helper: building one (paru is Rust) took longer than the packages
+# themselves. Its dependencies must be in the official repos (makepkg -s
+# installs them; -r removes the build-only ones afterwards). Built on disk:
+# in the installer's chroot, /tmp is in RAM. Both the clone (from
+# aur.archlinux.org, which drops connections now and then) and the build
+# (which downloads the sources) are retried.
+aur_install() {
+  local build; build=$(mktemp -d -p /var/tmp)
+  git_clone "https://aur.archlinux.org/$1.git" "$build/$1"
+  (cd "$build/$1" && retry 10 run makepkg -sri --noconfirm --needed) || die "Could not install $1 from the AUR"
+  rm -rf "$build"
+}
 
 # write_sudoers FILE LINE... — a sudoers drop-in, root-only from the start and
 # checked before sudo reads it; an invalid one is removed, as it would break
