@@ -239,7 +239,10 @@ Things that look odd but are deliberate:
   steps take their share of the bar. While a step's commands run, the bar
   also moves within that share: on a time curve that slows as the weight
   goes by and stops at 95% (the next step completes it), or faster when
-  pacman's own `(n/N) installing` count says so. It moves an eighth of a
+  pacman's real progress says so: its download, measured as the growth of
+  its package cache against the `Total Download Size` it announces (so the
+  bar keeps your connection's pace), then its `(n/N) installing` count.
+  The download counts for 70% of a pacman run. It moves an eighth of a
   cell at a time, its edge one of `▏▎▍▌▋▊▉`: a pixel at a time in the
   8-pixel-wide console font. The patched fonts add those characters; with
   a stock console font the bar moves a whole cell at a time. Only the bar's

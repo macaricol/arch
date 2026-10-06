@@ -236,6 +236,8 @@ install_base() {
   sed -i '/^#\[multilib\]/,/^#Include/ s/^#//' /etc/pacman.conf
 
   info "Downloading and installing the core system. This takes a few minutes."
+  # pacstrap downloads into the new system's cache (see lib/ui.sh's pacman_progress).
+  local PACMAN_CACHE=/mnt/var/cache/pacman/pkg
   printf 'Packages: %s\n' "${packages[*]}" >> "$LOG_FILE"
   retry 10 run pacstrap -K -P /mnt "${packages[@]}" || die "Couldn't download the core system"
   genfstab -U /mnt >> /mnt/etc/fstab

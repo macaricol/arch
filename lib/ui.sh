@@ -300,25 +300,62 @@ progress_eighths() {
 # update_progress [OUTPUT] — moves the bar within the current step, called
 # by run()'s spinner. Two estimates, the further along wins: time, on a
 # curve that's quick at first and slows as the step's weight in seconds
-# goes by, reaching only 95% (the step's end is the next step()); and, from
-# the running command's OUTPUT, pacman's "(n/N) installing" count. Only the
-# bar's line is redrawn, and only when it has moved.
+# goes by, reaching only 95% (the step's end is the next step()); and, when
+# the running command is pacman, its real progress (pacman_progress). Only
+# the bar's line is redrawn, and only when it has moved.
 update_progress() {
   (( BAR_ROW > 0 && PROGRESS_STEP > 0 )) || return 0
   local elapsed=$(( (${EPOCHREALTIME//[!0-9]/} - STEP_START) / 1000 ))     # ms
-  local permille=$(( 950 * elapsed / (elapsed + PROGRESS_STEP * 500) )) count
+  local permille=$(( 950 * elapsed / (elapsed + PROGRESS_STEP * 500) ))
   if [[ -n ${1:-} ]]; then
-    count=$(tail -c 2000 "$1" 2>/dev/null | grep -oE '\(\s*[0-9]+/[0-9]+\) (installing|upgrading|reinstalling)' | tail -1) || true
-    if [[ $count =~ ([0-9]+)/([0-9]+) ]] && (( BASH_REMATCH[2] > 0 )); then
-      count=$(( 950 * BASH_REMATCH[1] / BASH_REMATCH[2] ))
-      (( count > permille )) && permille=$count
-    fi
+    pacman_progress "$1"
+    (( PACMAN_PERMILLE > permille )) && permille=$PACMAN_PERMILLE
   fi
   (( permille > PROGRESS_PERMILLE )) && PROGRESS_PERMILLE=$permille
   (( $(progress_eighths) != PROGRESS_FILLED )) || return 0
   printf '\e7\e[%d;1H\e[2K' "$BAR_ROW"
   draw_progress
   printf '\e8'
+}
+
+# Where pacman saves what it downloads. The install phase's pacstrap fills
+# the new system's cache instead, and sets this for its run.
+PACMAN_CACHE=/var/cache/pacman/pkg
+DOWNLOAD_SHARE=700   # permille of a pacman run that's downloading, the rest installing
+cache_bytes() {
+  local size; size=$(du -sb "$PACMAN_CACHE" 2>/dev/null) || true   # partial when not root
+  size=${size%%[[:space:]]*}
+  echo "${size:-0}"
+}
+RUN_DOWNLOAD='' RUN_CACHE_START=0 PACMAN_PERMILLE=0
+
+# pacman_progress OUTPUT — a running pacman's progress from its OUTPUT, in
+# PACMAN_PERMILLE (up to 950, as the time curve): the download, as the cache's
+# growth since the run started (RUN_CACHE_START) against the "Total Download
+# Size" it announced, so the bar keeps the network's real pace; then the
+# "(n/N) installing" count. 0 for any other command.
+pacman_progress() {
+  local count installed=0 downloaded=0
+  if [[ -z $RUN_DOWNLOAD ]]; then
+    RUN_DOWNLOAD=$(awk '/^Total Download Size:/ {
+        m = $5 == "KiB" ? 1024 : $5 == "MiB" ? 1048576 : $5 == "GiB" ? 1073741824 : 1
+        printf "%d", $4 * m; exit }' "$1" 2>/dev/null) || true
+  fi
+  count=$(tail -c 2000 "$1" 2>/dev/null | grep -oE '\(\s*[0-9]+/[0-9]+\) (installing|upgrading|reinstalling)' | tail -1) || true
+  [[ $count =~ ([0-9]+)/([0-9]+) ]] && (( BASH_REMATCH[2] > 0 )) && installed=$(( 1000 * BASH_REMATCH[1] / BASH_REMATCH[2] ))
+  if (( ${RUN_DOWNLOAD:-0} > 0 )); then
+    # Installing starts once every download is in.
+    if (( installed )); then
+      downloaded=1000
+    else
+      downloaded=$(( 1000 * ($(cache_bytes) - RUN_CACHE_START) / RUN_DOWNLOAD ))
+      (( downloaded > 1000 )) && downloaded=1000
+    fi
+    PACMAN_PERMILLE=$(( 950 * (DOWNLOAD_SHARE * downloaded + (1000 - DOWNLOAD_SHARE) * installed) / 1000000 ))
+  else
+    # Nothing to download (all cached), or not pacman.
+    PACMAN_PERMILLE=$(( 950 * installed / 1000 ))
+  fi
 }
 
 # header "Title" [colour] — clears the screen and draws logo, progress bar
@@ -361,6 +398,7 @@ run() {
     return "${PIPESTATUS[0]}"
   fi
   local out; out=$(mktemp)
+  RUN_DOWNLOAD='' RUN_CACHE_START=$(cache_bytes)
   "$@" &>"$out" &
   # Pac-Man chomping a row of pellets: closed with the pellets a step away,
   # then open with each moved one step closer, the first at its mouth.
