@@ -306,11 +306,21 @@ draw_progress() {
   # should be.
   progress_eighths
   (( PROGRESS_SHOWN >= 0 && PROGRESS_SHOWN <= PROGRESS_TARGET )) || PROGRESS_SHOWN=$PROGRESS_TARGET
-  local eighths=$PROGRESS_SHOWN
-  local full=$(( eighths / 8 )) part=$(( eighths % 8 )) edge=''
-  on_console && [[ ${PATCHED_FONT:-0} != 1 ]] && part=0
+  progress_line
+  printf '%s\n' "$PROGRESS_LINE"
+}
+
+# progress_line — the bar at PROGRESS_SHOWN as a whole line, margin and all,
+# in PROGRESS_LINE. Built without a fork ($(...)), so a frame of the
+# animation is quick to make, and it's written in one go over the last.
+progress_line() {
+  local full=$(( PROGRESS_SHOWN / 8 )) part=$(( PROGRESS_SHOWN % 8 )) filled empty edge=''
+  if on_console && [[ ${PATCHED_FONT:-0} != 1 ]]; then part=0; fi
+  printf -v filled '%*s' "$full" ''
+  printf -v empty '%*s' $(( PROGRESS_WIDTH - full - (part > 0) )) ''
   (( part )) && edge=$'\e[44m'"${C_CYAN}${EIGHTHS[part]}${C_RESET}"
-  center "${C_CYAN}$(repeat █ "$full")${C_RESET}${edge}${C_BLUE}$(repeat █ $((PROGRESS_WIDTH - full - (part > 0))))${C_RESET}" "$PROGRESS_WIDTH"
+  printf -v PROGRESS_LINE '%s%*s%s%s%s%s%s%s%s' "$MARGIN" $(( (LAYOUT_WIDTH - PROGRESS_WIDTH) / 2 )) '' \
+    "$C_CYAN" "${filled// /█}" "$C_RESET" "$edge" "$C_BLUE" "${empty// /█}" "$C_RESET"
 }
 
 # Where the bar should be, in PROGRESS_TARGET, in eighths of a cell: the
@@ -365,16 +375,18 @@ update_progress() {
 # be: a tenth of the way each frame, at least an eighth of a cell, so a
 # jump in the estimate (a step ending early, a big package landing) plays
 # out over a second or two instead of at once. run()'s spinner calls it 20
-# times a second. Only the bar's line is redrawn, and only when it moves.
+# times a second. Only the bar is redrawn, and only when it moves.
 animate_progress() {
   (( BAR_ROW > 0 && PROGRESS_TOTAL > 0 && PROGRESS_SHOWN >= 0 )) || return 0
   progress_eighths
   (( PROGRESS_SHOWN < PROGRESS_TARGET )) || return 0
   local gap=$(( PROGRESS_TARGET - PROGRESS_SHOWN ))
   PROGRESS_SHOWN=$(( PROGRESS_SHOWN + (gap > 10 ? gap / 10 : 1) ))
-  printf '\e7\e[%d;1H\e[2K' "$BAR_ROW"
-  draw_progress
-  printf '\e8'
+  # One write, over the bar as it was: no erasing first (it's always the
+  # same width), so there's never a moment with the line blank — which,
+  # 20 times a second, was a flicker.
+  progress_line
+  printf '\e7\e[%d;1H%s\e8' "$BAR_ROW" "$PROGRESS_LINE"
 }
 
 # Where pacman saves what it downloads. The install phase's pacstrap fills
