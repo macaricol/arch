@@ -214,11 +214,12 @@ EOF
 
 install_gaming_and_aur() {
   info "Adding Steam and a few extras from the Arch community..."
-  # The step's bar shares (lib/ui.sh's share): build tools, Steam, then an
-  # equal share for each AUR package.
-  share 0 150
+  # The step's bar shares (lib/ui.sh's share): build tools, Steam, then the
+  # AUR packages, each by its kind: one built from source (several minutes
+  # on a slow machine) counts 6 times one that only downloads (-bin).
+  share 0 50
   pkg_install base-devel
-  share 150 450
+  share 50 250
   if [[ -n $(gpu_vendors) ]]; then
     pkg_install "${GAMING_PACKAGES[@]}"
   else
@@ -233,10 +234,13 @@ install_gaming_and_aur() {
   # pacman only, for this step only — created here, removed at the end.
   write_sudoers "$SUDOERS_DROPIN" "$USER ALL=(ALL) NOPASSWD: /usr/bin/pacman"
 
-  local i n=${#AUR_PACKAGES[@]}
-  for (( i = 0; i < n; i++ )); do
-    share $(( 450 + 550 * i / n )) $(( 450 + 550 * (i + 1) / n ))
-    aur_install "${AUR_PACKAGES[i]}"
+  local pkg parts=0 used=0 part
+  for pkg in "${AUR_PACKAGES[@]}"; do [[ $pkg == *-bin ]] && parts=$(( parts + 1 )) || parts=$(( parts + 6 )); done
+  for pkg in "${AUR_PACKAGES[@]}"; do
+    [[ $pkg == *-bin ]] && part=1 || part=6
+    share $(( 250 + 750 * used / parts )) $(( 250 + 750 * (used + part) / parts ))
+    aur_install "$pkg"
+    used=$(( used + part ))
   done
 
   sudo rm -f "$SUDOERS_DROPIN"

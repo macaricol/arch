@@ -166,13 +166,58 @@ menu() {
   done
 }
 
-# choose_look — asks which look the desktop gets, into LOOK: archman (the
-# installer's theming) or plain (KDE as it comes). Esc asks again.
+# buttons "Title" DEFAULT LABEL DESCRIPTION [LABEL DESCRIPTION...] — a row
+# of buttons, like gum confirm's (the selected one in the tag colour, the
+# others in the empty bar's), with the selected one's DESCRIPTION under
+# them, redrawn as the selection moves; gum can't change text under its
+# buttons. ←→ (or Tab, h, l) move, Enter picks. Starts on the DEFAULT'th
+# (from 0); the picked one's index goes in PICKED.
+buttons() {
+  local title=$1 selected=$2; shift 2
+  local -a labels=() descriptions=()
+  while (( $# )); do labels+=("$1"); descriptions+=("$2"); shift 2; done
+  local total=${#labels[@]} key seq i row width line
+  header "$title"
+  printf '\e7'   # everything below is redrawn from here
+  while :; do
+    printf '\e8\e[J'
+    row='' width=0
+    for i in "${!labels[@]}"; do
+      (( i )) && { row+='  '; width=$(( width + 2 )); }
+      if (( i == selected )); then row+=$'\e[30;46m'; else row+=$'\e[97;44m'; fi
+      row+="   ${labels[i]}   $C_RESET"
+      width=$(( width + ${#labels[i]} + 6 ))
+    done
+    center "$row" "$width"
+    echo
+    wrap "${descriptions[selected]}" $(( LAYOUT_WIDTH - 8 ))
+    for line in "${WRAPPED[@]}"; do center "${C_WHITE}${line}${C_RESET}" "${#line}"; done
+    echo
+    center "${C_GREY}←→ choose · Enter select${C_RESET}" 24
+    IFS= read -rsn1 key || die "Input closed"
+    case $key in
+      '')    PICKED=$selected; return 0 ;;
+      $'\t') selected=$(( (selected + 1) % total )) ;;
+      h)     selected=$(( (selected - 1 + total) % total )) ;;
+      l)     selected=$(( (selected + 1) % total )) ;;
+      $'\e')
+        # Arrow keys arrive as ESC [ C/D; anything else is ignored.
+        read -rsn2 -t 0.1 seq || seq=''
+        case $seq in
+          '[D') selected=$(( (selected - 1 + total) % total )) ;;
+          '[C') selected=$(( (selected + 1) % total )) ;;
+        esac ;;
+    esac
+  done
+}
+
+# choose_look — asks which look the desktop gets, into LOOK: plain (KDE as
+# it comes) or archman (the installer's theming, the default).
 choose_look() {
-  local archman="ARCHMAN: dark theme, login screen, wallpaper, icons, top panel, clock"
-  local plain="Plain KDE Plasma: KDE's own look, as it comes"
-  until menu "Choose your desktop's look" "$archman" "$plain"; do :; done
-  if [[ $MENU_CHOICE == "$plain" ]]; then LOOK=plain; else LOOK=archman; fi
+  buttons "Choose your desktop's look" 1 \
+    Vanilla "KDE Plasma as it comes: KDE's own Breeze theme, login screen and wallpaper." \
+    Archman "Dark theme, the ARCHMAN login screen, a cyberpunk wallpaper, Breeze Chameleon icons, a top panel and a clock widget."
+  if (( PICKED == 0 )); then LOOK=plain; else LOOK=archman; fi
 }
 
 # unlock_screen VAR "Hint" ["Error"] — a full-screen password prompt in the

@@ -211,7 +211,9 @@ PROGRESS_PERMILLE=${PROGRESS_PERMILLE:-0}   # of the current step
 PROGRESS_SHOWN=${PROGRESS_SHOWN:--1}        # eighths drawn (see animate_progress); -1: none yet
 PROGRESS_FROM=${PROGRESS_FROM:-0}           # the current share of the step, in permille
 PROGRESS_TO=${PROGRESS_TO:-1000}
-PROGRESS_SINCE=${PROGRESS_SINCE:-0}         # µs, when the share started
+PROGRESS_SINCE=${PROGRESS_SINCE:-0}         # µs, when the share started (for the log)
+PROGRESS_TICK=${PROGRESS_TICK:-0}           # µs, update_progress's last time
+PROGRESS_CREEP=${PROGRESS_CREEP:-0}         # its leftover, in thousandths of a permille
 PROGRESS_TITLE=${PROGRESS_TITLE:-}          # the current step's, and when it started (µs),
 PROGRESS_STARTED=${PROGRESS_STARTED:-0}     # for the log
 BAR_ROW=${BAR_ROW:-0}                       # the bar's screen row, once a header has drawn it
@@ -223,7 +225,8 @@ PROGRESS_WIDTH=40
 progress_env() {
   local var
   for var in PROGRESS_DONE PROGRESS_STEP PROGRESS_TOTAL PROGRESS_PERMILLE PROGRESS_SHOWN \
-             PROGRESS_FROM PROGRESS_TO PROGRESS_SINCE PROGRESS_TITLE PROGRESS_STARTED BAR_ROW; do
+             PROGRESS_FROM PROGRESS_TO PROGRESS_SINCE PROGRESS_TICK PROGRESS_CREEP \
+             PROGRESS_TITLE PROGRESS_STARTED BAR_ROW; do
     printf '%s=%s\n' "$var" "${!var}"
   done
 }
@@ -320,24 +323,41 @@ progress_eighths() {
 }
 
 # update_progress [OUTPUT] — how far into the current step we are, in
-# PROGRESS_PERMILLE; run()'s spinner asks 5 times a second. Two estimates
-# of how far into the current share, the further along wins: time, on a
-# curve that's quick at first and slows as the share's expected seconds (its
-# part of the step's weight) go by, reaching only 95% (the share's end is
-# the next share or step); and the running command's real progress
-# (measured_progress). animate_progress moves the bar there.
+# PROGRESS_PERMILLE; run()'s spinner asks 5 times a second. It never stands
+# still: each time it creeps on towards 95% of the current share (the rest
+# is the next share's or step's to give), by a part of the distance left
+# that shrinks as that distance does, so it slows down but keeps moving, at
+# a pace set by the share's expected seconds (its part of the step's
+# weight). Creeping from wherever the bar is, not along a fixed curve, it
+# carries on after a measured jump too, where a curve would have fallen
+# behind and left the bar standing. And when the running command reports
+# its real progress (measured_progress), the bar goes at least that far.
+# animate_progress moves the bar there.
 update_progress() {
   (( BAR_ROW > 0 && PROGRESS_STEP > 0 )) || return 0
+  local now=${EPOCHREALTIME//[!0-9]/}
+  local dt=$(( (now - PROGRESS_TICK) / 1000 ))   # ms since the last time; at most 1 s,
+  PROGRESS_TICK=$now                             # as nothing creeps between commands
+  (( dt >= 0 && dt <= 1000 )) || dt=200
   local span=$(( PROGRESS_TO - PROGRESS_FROM ))
-  local elapsed=$(( (${EPOCHREALTIME//[!0-9]/} - PROGRESS_SINCE) / 1000 ))   # ms
-  # Half way at half the expected time: PROGRESS_STEP s * span / 1000, in ms, / 2.
-  local part=$(( 950 * elapsed / (elapsed + PROGRESS_STEP * span / 2 + 1) ))
-  if [[ -n ${1:-} ]]; then
-    measured_progress "$1"
-    (( MEASURED > part )) && part=$MEASURED
+  local ceiling=$(( PROGRESS_FROM + span * 950 / 1000 ))
+  local gap=$(( ceiling - PROGRESS_PERMILLE ))
+  if (( gap > 0 && span > 0 )); then
+    # The distance left shrinks as 1 / (1 + t / tau), tau a third of the
+    # expected time (PROGRESS_STEP s * span / 1000, in ms): three quarters
+    # of the way when the share should be done, still moving well after.
+    # In thousandths of a permille, kept between calls.
+    local tau=$(( PROGRESS_STEP * span / 3 + 1 ))
+    PROGRESS_CREEP=$(( PROGRESS_CREEP + gap * gap * dt * 1000 / (span * 950 / 1000 * tau) ))
+    PROGRESS_PERMILLE=$(( PROGRESS_PERMILLE + PROGRESS_CREEP / 1000 ))
+    PROGRESS_CREEP=$(( PROGRESS_CREEP % 1000 ))
+    (( PROGRESS_PERMILLE <= ceiling )) || PROGRESS_PERMILLE=$ceiling
   fi
-  local permille=$(( PROGRESS_FROM + span * part / 1000 ))
-  (( permille > PROGRESS_PERMILLE )) && PROGRESS_PERMILLE=$permille
+  if [[ -n ${1:-} && -n $RUN_KIND ]]; then
+    measured_progress "$1"
+    local permille=$(( PROGRESS_FROM + span * MEASURED / 1000 ))
+    (( permille > PROGRESS_PERMILLE )) && PROGRESS_PERMILLE=$permille
+  fi
   return 0
 }
 
@@ -360,47 +380,55 @@ animate_progress() {
 # Where pacman saves what it downloads. The install phase's pacstrap fills
 # the new system's cache instead, and sets this for its run.
 PACMAN_CACHE=/var/cache/pacman/pkg
-DOWNLOAD_SHARE=700   # permille of a pacman run that's downloading, the rest installing
 cache_bytes() {
   local size; size=$(du -sb "$PACMAN_CACHE" 2>/dev/null) || true   # partial when not root
   size=${size%%[[:space:]]*}
   echo "${size:-0}"
 }
-RUN_DOWNLOAD='' RUN_CACHE_START=0 MEASURED=0
+RUN_KIND='' RUN_CACHE_START=0 MEASURED=0
 
-# measured_progress OUTPUT — a running command's own progress, from its
-# OUTPUT, in MEASURED (up to 950, as the time curve), or 0 if it has none:
-#   pacman: the download, as the cache's growth since the run started
-#     (RUN_CACHE_START) against the "Total Download Size" it announced, so
-#     the bar keeps the network's real pace; then the "(n/N) installing"
-#     count.
-#   git clone --progress: its "Receiving objects: n%".
+# measured_progress OUTPUT — the running command's own progress, from its
+# OUTPUT, in MEASURED, in permille of its share, up to 950 (as the creep);
+# run() sets RUN_KIND for the commands that report any:
+#   pacman (and pacstrap): first the download, up to 550, as the cache's
+#     growth since the run started (RUN_CACHE_START) against the "Total
+#     Download Size" it announced, so the bar keeps the network's real pace;
+#     then its checks (keyring, integrity, file conflicts, disk space), each
+#     a milestone up to 700; then installing, up to 950, as the "installing
+#     <name>..." lines so far against the "Packages (N)" it announced.
+#     (Writing to a file, not a terminal, pacman prints no "(n/N)" counts.)
+#   git (git clone --progress): its "Receiving objects: n%".
+# Not makepkg: its pacman output is only the dependencies, before the build.
 measured_progress() {
-  local count installed=0 downloaded=0 received
-  received=$(tail -c 2000 "$1" 2>/dev/null | grep -aoE 'Receiving objects: +[0-9]+%' | tail -1) || true
-  if [[ $received =~ ([0-9]+)% ]]; then
-    MEASURED=$(( 950 * BASH_REMATCH[1] / 100 ))
+  local received total packages installed stage downloaded
+  if [[ $RUN_KIND == git ]]; then
+    received=$(tail -c 2000 "$1" 2>/dev/null | grep -aoE 'Receiving objects: +[0-9]+%' | tail -1) || true
+    [[ $received =~ ([0-9]+)% ]] && MEASURED=$(( 950 * BASH_REMATCH[1] / 100 )) || MEASURED=0
     return 0
   fi
-  if [[ -z $RUN_DOWNLOAD ]]; then
-    RUN_DOWNLOAD=$(awk '/^Total Download Size:/ {
-        m = $5 == "KiB" ? 1024 : $5 == "MiB" ? 1048576 : $5 == "GiB" ? 1073741824 : 1
-        printf "%d", $4 * m; exit }' "$1" 2>/dev/null) || true
-  fi
-  count=$(tail -c 2000 "$1" 2>/dev/null | grep -oE '\(\s*[0-9]+/[0-9]+\) (installing|upgrading|reinstalling)' | tail -1) || true
-  [[ $count =~ ([0-9]+)/([0-9]+) ]] && (( BASH_REMATCH[2] > 0 )) && installed=$(( 1000 * BASH_REMATCH[1] / BASH_REMATCH[2] ))
-  if (( ${RUN_DOWNLOAD:-0} > 0 )); then
-    # Installing starts once every download is in.
-    if (( installed )); then
-      downloaded=1000
-    else
-      downloaded=$(( 1000 * ($(cache_bytes) - RUN_CACHE_START) / RUN_DOWNLOAD ))
-      (( downloaded > 1000 )) && downloaded=1000
-    fi
-    MEASURED=$(( 950 * (DOWNLOAD_SHARE * downloaded + (1000 - DOWNLOAD_SHARE) * installed) / 1000000 ))
+  read -r total packages installed stage < <(awk '
+    /^Total Download Size:/ && !total {
+      m = $5 == "KiB" ? 1024 : $5 == "MiB" ? 1048576 : $5 == "GiB" ? 1073741824 : 1
+      total = $4 * m }
+    /^Packages \([0-9]+\)/ && !packages { packages = substr($2, 2) + 0 }
+    /^(installing|upgrading|reinstalling|downgrading) / { installed++ }
+    /^checking keyring/               { stage = 1 }
+    /^checking package integrity/     { stage = 2 }
+    /^loading package files/          { stage = 3 }
+    /^checking for file conflicts/    { stage = 4 }
+    /^checking available disk space/  { stage = 5 }
+    /^:: Processing package changes/  { stage = 6 }
+    END { printf "%d %d %d %d\n", total, packages, installed, stage }' "$1" 2>/dev/null) || true
+  if (( ${installed:-0} > 0 && ${packages:-0} > 0 )); then
+    MEASURED=$(( 700 + 250 * (installed < packages ? installed : packages) / packages ))
+  elif (( ${stage:-0} > 0 )); then
+    MEASURED=$(( 550 + 25 * stage ))
+  elif (( ${total:-0} > 0 )); then
+    downloaded=$(( 1000 * ($(cache_bytes) - RUN_CACHE_START) / total ))
+    (( downloaded <= 1000 )) || downloaded=1000
+    MEASURED=$(( 550 * downloaded / 1000 ))
   else
-    # Nothing to download (all cached), or not pacman.
-    MEASURED=$(( 950 * installed / 1000 ))
+    MEASURED=0
   fi
 }
 
@@ -436,8 +464,10 @@ step() {
 # the bar through its own share instead of the whole step, where the first
 # to finish would fill it and leave it standing through the rest.
 share() {
-  log_share_time
-  PROGRESS_FROM=$1 PROGRESS_TO=$2 PROGRESS_SINCE=${EPOCHREALTIME//[!0-9]/}
+  # Splitting the current share (from its start, as aur_install does) ends
+  # nothing: only the parts get logged.
+  (( $1 == PROGRESS_FROM && $2 <= PROGRESS_TO )) || log_share_time
+  PROGRESS_FROM=$1 PROGRESS_TO=$2 PROGRESS_SINCE=${EPOCHREALTIME//[!0-9]/} PROGRESS_CREEP=0
   if (( PROGRESS_PERMILLE < $1 )); then PROGRESS_PERMILLE=$1; fi
 }
 
@@ -477,7 +507,12 @@ run() {
     return "${PIPESTATUS[0]}"
   fi
   local out; out=$(mktemp)
-  RUN_DOWNLOAD='' RUN_CACHE_START=$(cache_bytes)
+  # What kind of progress it reports, if any (measured_progress).
+  case " $* " in
+    *" pacman "*|*" pacstrap "*) RUN_KIND=pacman RUN_CACHE_START=$(cache_bytes) ;;
+    *" git clone "*)             RUN_KIND=git ;;
+    *)                           RUN_KIND='' ;;
+  esac
   "$@" &>"$out" &
   # Pac-Man chomping a row of pellets: closed with the pellets a step away,
   # then open with each moved one step closer, the first at its mouth.

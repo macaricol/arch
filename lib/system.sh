@@ -26,13 +26,23 @@ retry() {
 # AUR helper: building one (paru is Rust) took longer than the packages
 # themselves. Its dependencies must be in the official repos (makepkg -s
 # installs them; -r removes the build-only ones afterwards). Built on disk:
-# in the installer's chroot, /tmp is in RAM. Both the clone (from
+# in the installer's chroot, /tmp is in RAM; and on every core, which
+# makepkg.conf leaves to the user (MAKEFLAGS). Both the clone (from
 # aur.archlinux.org, which drops connections now and then) and the build
-# (which downloads the sources) are retried.
+# (which downloads the sources) are retried. The clone, a few files, takes
+# the first 5% of the progress bar's current share (lib/ui.sh's share).
+#
+# Not in a subshell (env -C changes directory instead): the progress bar's
+# state, moved on by run() during the build, would be lost with it, and the
+# bar would jump back when the next step draws it.
 aur_install() {
-  local build; build=$(mktemp -d -p /var/tmp)
+  local build from=$PROGRESS_FROM to=$PROGRESS_TO
+  build=$(mktemp -d -p /var/tmp)
+  share "$from" $(( from + (to - from) / 20 ))
   git_clone "https://aur.archlinux.org/$1.git" "$build/$1"
-  (cd "$build/$1" && retry 10 run makepkg -sri --noconfirm --needed) || die "Could not install $1 from the AUR"
+  share $(( from + (to - from) / 20 )) "$to"
+  retry 10 run env -C "$build/$1" MAKEFLAGS="-j$(nproc)" makepkg -sri --noconfirm --needed \
+    || die "Could not install $1 from the AUR"
   rm -rf "$build"
 }
 

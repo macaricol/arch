@@ -251,27 +251,32 @@ Things that look odd but are deliberate:
   weight, roughly its seconds (`step "Installing the desktop" 53`), so long
   steps take their share of the bar. The weights are one full run's times on
   a fast connection; a slower one stretches the download steps, but pacman's
-  measured progress (below) keeps those moving. While a step's commands run,
-  the bar also moves within that share: on a time curve that slows as the
-  weight goes by and stops at 95% (the next step completes it), or faster
-  when pacman's real progress says so: its download, measured as the growth
-  of its package cache against the `Total Download Size` it announces (so
-  the bar keeps your connection's pace), then its `(n/N) installing` count.
-  The download counts for 70% of a pacman run; `git clone` reports its own
-  percentage too. A step running several long commands splits into shares,
-  one per command (`share 150 450`), each moving through its own part of the
-  step, so the first to finish can't fill the step and leave the bar
-  standing through the rest. The chroot and desktop phases carry on the bar
-  exactly where the install phase left it (`progress_env`). The bar doesn't
-  jump to a new estimate but glides there, 20 frames a second, covering a
-  tenth of the remaining distance each frame (`animate_progress`). It moves
-  an eighth of a cell at a time, its edge one of `▏▎▍▌▋▊▉`: a pixel at a
-  time in the 8-pixel-wide console font. The patched fonts add those
-  characters; with a stock console font the bar moves a whole cell at a
-  time. Only the bar's line is redrawn. Adding a step means giving it a
-  weight; the totals add themselves up (`step_weights`). Each step's real
-  duration goes into the log next to its weight, and a split step's shares
-  too, for tuning: `grep '\[time\]' setup.log`.
+  measured progress keeps those moving. A step running several long commands
+  splits into shares, one per command (`share 50 250`), so the first to
+  finish can't fill the step and leave the bar standing through the rest.
+  Within a share, the bar never stands still: it creeps towards 95% of the
+  share from wherever it is, slowing as it gets closer (three quarters of
+  the way at the share's expected time, still moving long after), and goes
+  further whenever the running command reports real progress. pacman's is
+  read from its output: the download, as the growth of its package cache
+  against the `Total Download Size` it announces (so the bar keeps your
+  connection's pace); then its integrity, conflict and disk-space checks;
+  then its `installing <name>...` lines against the `Packages (N)` it
+  announces (written to a file, pacman prints no `(n/N)` counts). `git
+  clone` reports its own percentage. makepkg reports nothing usable (its
+  pacman output is only the dependencies), so a build creeps. The chroot and
+  desktop phases carry on the bar exactly where the install phase left it
+  (`progress_env`); nothing that moves it runs in a subshell, where its
+  progress would be lost and the bar would jump back. The bar doesn't jump
+  to a new estimate but glides there, 20 frames a second, covering a tenth
+  of the remaining distance each frame (`animate_progress`). It moves an
+  eighth of a cell at a time, its edge one of `▏▎▍▌▋▊▉`: a pixel at a time
+  in the 8-pixel-wide console font. The patched fonts add those characters;
+  with a stock console font the bar moves a whole cell at a time. Only the
+  bar's line is redrawn. Adding a step means giving it a weight; the totals
+  add themselves up (`step_weights`). Each step's real duration goes into
+  the log next to its weight, and a split step's shares too, for tuning:
+  `grep '\[time\]' setup.log`.
 - **Prompts use [gum](https://github.com/charmbracelet/gum) when it runs.**
   The install phase fetches it onto the live ISO (`pacman -Sy gum`, a few
   MB of RAM) and the desktop phase installs it on the new system, for runs by
@@ -391,5 +396,6 @@ userspace onto an AMD or Intel machine.
   drivers, for the reason in the design notes. Needs the multilib repo, which
   the install phase enables.
 - `base-devel` — Build tools, required to compile anything from the AUR
+  (built with `MAKEFLAGS=-j$(nproc)`: makepkg.conf leaves it to one core)
 - `zen-browser-bin` (AUR) — Firefox-based privacy-focused browser
 - `qview` (AUR) — Lightweight, fast image viewer
