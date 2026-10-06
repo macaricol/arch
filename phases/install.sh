@@ -179,9 +179,10 @@ mirror_countries() {
   return 0
 }
 
-install_base() {
-  # The fastest mirrors in our country; worldwide when it isn't known or has
-  # no HTTPS mirrors reflector can find (it then leaves no Server lines).
+# Ranks the mirrors pacstrap downloads from: the fastest in our country;
+# worldwide when it isn't known or has no HTTPS mirrors reflector can find
+# (it then leaves no Server lines).
+rank_mirrors() {
   local countries mirrorlist=/etc/pacman.d/mirrorlist
   countries=$(mirror_countries)
   if [[ -n $countries ]]; then
@@ -195,6 +196,10 @@ install_base() {
       || warn "Couldn't rank download servers, using the default ones"
   fi
   grep -q '^Server' "$mirrorlist" || die "Mirrorlist is empty"
+}
+
+install_base() {
+  rank_mirrors
 
   # Microcode and GPU drivers go in with the base system, so the initramfs
   # the chroot phase builds already includes them: NVIDIA machines boot on
