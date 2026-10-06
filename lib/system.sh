@@ -112,5 +112,5 @@ partition_path() { if [[ $1 =~ [0-9]$ ]]; then echo "${1}p$2"; else echo "${1}$2
 git_clone() { retry 5 fresh_clone "$@" || die "Could not clone $1"; }
 fresh_clone() {
   ${3:-} rm -rf "$2"
-  run ${3:-} git clone --depth 1 "$1" "$2"
+  run ${3:-} git clone --progress --depth 1 "$1" "$2"   # --progress: for the bar
 }

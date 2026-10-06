@@ -134,7 +134,9 @@ EOF
 configure_login_and_desktop() {
   # The astronaut theme first: the wallpapers below come from it.
   local astronaut=/usr/share/sddm/themes/$ASTRONAUT_THEME
+  share 0 700   # the step's bar shares (lib/ui.sh's share): the clone is the big one
   git_clone "$ASTRONAUT_REPO" "$astronaut" as_root
+  share 700 1000
   sudo cp -r "$astronaut"/Fonts/* /usr/share/fonts/
   run sudo fc-cache -f
 
@@ -199,7 +201,11 @@ EOF
 
 install_gaming_and_aur() {
   info "Adding Steam and a few extras from the Arch community..."
+  # The step's bar shares (lib/ui.sh's share): build tools, Steam, then an
+  # equal share for each AUR package.
+  share 0 150
   pkg_install base-devel
+  share 150 450
   if [[ -n $(gpu_vendors) ]]; then
     pkg_install "${GAMING_PACKAGES[@]}"
   else
@@ -214,9 +220,10 @@ install_gaming_and_aur() {
   # pacman only, for this step only — created here, removed at the end.
   write_sudoers "$SUDOERS_DROPIN" "$USER ALL=(ALL) NOPASSWD: /usr/bin/pacman"
 
-  local pkg
-  for pkg in "${AUR_PACKAGES[@]}"; do
-    aur_install "$pkg"
+  local i n=${#AUR_PACKAGES[@]}
+  for (( i = 0; i < n; i++ )); do
+    share $(( 450 + 550 * i / n )) $(( 450 + 550 * (i + 1) / n ))
+    aur_install "${AUR_PACKAGES[i]}"
   done
 
   sudo rm -f "$SUDOERS_DROPIN"

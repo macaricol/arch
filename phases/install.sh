@@ -205,6 +205,7 @@ rank_mirrors() {
 }
 
 install_base() {
+  share 0 150   # reflector times each mirror's download: some 20 s
   rank_mirrors
 
   # Microcode and GPU drivers go in with the base system, so the initramfs
@@ -235,8 +236,9 @@ install_base() {
   # it here covers both.
   sed -i '/^#\[multilib\]/,/^#Include/ s/^#//' /etc/pacman.conf
 
+  share 150 1000
   info "Downloading and installing the core system. This takes a few minutes."
-  # pacstrap downloads into the new system's cache (see lib/ui.sh's pacman_progress).
+  # pacstrap downloads into the new system's cache (see lib/ui.sh's measured_progress).
   local PACMAN_CACHE=/mnt/var/cache/pacman/pkg
   printf 'Packages: %s\n' "${packages[*]}" >> "$LOG_FILE"
   retry 10 run pacstrap -K -P /mnt "${packages[@]}" || die "Couldn't download the core system"
@@ -257,9 +259,11 @@ configure_new_system() {
   install -m 600 /dev/null "$stage/creds"
   printf '%s\n' "$PASSWORD" > "$stage/creds"
 
+  # The bar carries on in the chroot phase, and from there in the post phase.
+  local -a progress
+  mapfile -t progress < <(progress_env)
   arch-chroot /mnt env HOST_NAME="$HOST_NAME" USER_NAME="$USER_NAME" VERBOSE="$VERBOSE" \
-    PROGRESS_DONE="$PROGRESS_DONE" PROGRESS_STEP="$PROGRESS_STEP" PROGRESS_TOTAL="$PROGRESS_TOTAL" \
-    PATCHED_FONT="${PATCHED_FONT:-0}" \
+    PATCHED_FONT="${PATCHED_FONT:-0}" "${progress[@]}" \
     bash /root/arch-setup/setup.sh chroot
 }
 

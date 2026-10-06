@@ -198,18 +198,35 @@ center() {
 # Each step has a weight, roughly the seconds it takes (step "Title" 120), so
 # a long step moves the bar further than a quick one. PROGRESS_DONE is the
 # weight of the steps finished, PROGRESS_STEP the current one's, and
-# PROGRESS_TOTAL them all (step_weights). All three may come from the
-# environment: the post phase, run from the installer, carries on the
-# install phase's bar. Within a step the bar keeps moving, and glides
-# rather than jumps: see update_progress and animate_progress.
+# PROGRESS_TOTAL them all (step_weights). A step with several long commands
+# splits into shares, one per command (see share). Within a step the bar
+# keeps moving, and glides rather than jumps: see update_progress and
+# animate_progress. All of this state comes from the environment when set:
+# the chroot and post phases carry on the install phase's bar where it is
+# (progress_env), on screen and in time.
 PROGRESS_DONE=${PROGRESS_DONE:-0}
 PROGRESS_STEP=${PROGRESS_STEP:-0}
 PROGRESS_TOTAL=${PROGRESS_TOTAL:-0}
-PROGRESS_PERMILLE=0      # of the current step
-PROGRESS_SHOWN=-1        # eighths drawn (see animate_progress); -1: none yet
-STEP_START=0             # µs
-BAR_ROW=0                # the bar's screen row, once a header has drawn it
+PROGRESS_PERMILLE=${PROGRESS_PERMILLE:-0}   # of the current step
+PROGRESS_SHOWN=${PROGRESS_SHOWN:--1}        # eighths drawn (see animate_progress); -1: none yet
+PROGRESS_FROM=${PROGRESS_FROM:-0}           # the current share of the step, in permille
+PROGRESS_TO=${PROGRESS_TO:-1000}
+PROGRESS_SINCE=${PROGRESS_SINCE:-0}         # µs, when the share started
+PROGRESS_TITLE=${PROGRESS_TITLE:-}          # the current step's, and when it started (µs),
+PROGRESS_STARTED=${PROGRESS_STARTED:-0}     # for the log
+BAR_ROW=${BAR_ROW:-0}                       # the bar's screen row, once a header has drawn it
+PROGRESS_TARGET=0
 PROGRESS_WIDTH=40
+
+# progress_env — the bar's state as NAME=value lines, for env: a phase
+# started from this one carries on the same bar.
+progress_env() {
+  local var
+  for var in PROGRESS_DONE PROGRESS_STEP PROGRESS_TOTAL PROGRESS_PERMILLE PROGRESS_SHOWN \
+             PROGRESS_FROM PROGRESS_TO PROGRESS_SINCE PROGRESS_TITLE PROGRESS_STARTED BAR_ROW; do
+    printf '%s=%s\n' "$var" "${!var}"
+  done
+}
 
 # step_weights FILE — the sum of the weights of FILE's step lines.
 step_weights() {
@@ -303,19 +320,23 @@ progress_eighths() {
 }
 
 # update_progress [OUTPUT] — how far into the current step we are, in
-# PROGRESS_PERMILLE; run()'s spinner asks 5 times a second. Two estimates,
-# the further along wins: time, on a curve that's quick at first and slows
-# as the step's weight in seconds goes by, reaching only 95% (the step's end
-# is the next step()); and, when the running command is pacman, its real
-# progress (pacman_progress). animate_progress moves the bar there.
+# PROGRESS_PERMILLE; run()'s spinner asks 5 times a second. Two estimates
+# of how far into the current share, the further along wins: time, on a
+# curve that's quick at first and slows as the share's expected seconds (its
+# part of the step's weight) go by, reaching only 95% (the share's end is
+# the next share or step); and the running command's real progress
+# (measured_progress). animate_progress moves the bar there.
 update_progress() {
   (( BAR_ROW > 0 && PROGRESS_STEP > 0 )) || return 0
-  local elapsed=$(( (${EPOCHREALTIME//[!0-9]/} - STEP_START) / 1000 ))     # ms
-  local permille=$(( 950 * elapsed / (elapsed + PROGRESS_STEP * 500) ))
+  local span=$(( PROGRESS_TO - PROGRESS_FROM ))
+  local elapsed=$(( (${EPOCHREALTIME//[!0-9]/} - PROGRESS_SINCE) / 1000 ))   # ms
+  # Half way at half the expected time: PROGRESS_STEP s * span / 1000, in ms, / 2.
+  local part=$(( 950 * elapsed / (elapsed + PROGRESS_STEP * span / 2 + 1) ))
   if [[ -n ${1:-} ]]; then
-    pacman_progress "$1"
-    (( PACMAN_PERMILLE > permille )) && permille=$PACMAN_PERMILLE
+    measured_progress "$1"
+    (( MEASURED > part )) && part=$MEASURED
   fi
+  local permille=$(( PROGRESS_FROM + span * part / 1000 ))
   (( permille > PROGRESS_PERMILLE )) && PROGRESS_PERMILLE=$permille
   return 0
 }
@@ -345,15 +366,22 @@ cache_bytes() {
   size=${size%%[[:space:]]*}
   echo "${size:-0}"
 }
-RUN_DOWNLOAD='' RUN_CACHE_START=0 PACMAN_PERMILLE=0
+RUN_DOWNLOAD='' RUN_CACHE_START=0 MEASURED=0
 
-# pacman_progress OUTPUT — a running pacman's progress from its OUTPUT, in
-# PACMAN_PERMILLE (up to 950, as the time curve): the download, as the cache's
-# growth since the run started (RUN_CACHE_START) against the "Total Download
-# Size" it announced, so the bar keeps the network's real pace; then the
-# "(n/N) installing" count. 0 for any other command.
-pacman_progress() {
-  local count installed=0 downloaded=0
+# measured_progress OUTPUT — a running command's own progress, from its
+# OUTPUT, in MEASURED (up to 950, as the time curve), or 0 if it has none:
+#   pacman: the download, as the cache's growth since the run started
+#     (RUN_CACHE_START) against the "Total Download Size" it announced, so
+#     the bar keeps the network's real pace; then the "(n/N) installing"
+#     count.
+#   git clone --progress: its "Receiving objects: n%".
+measured_progress() {
+  local count installed=0 downloaded=0 received
+  received=$(tail -c 2000 "$1" 2>/dev/null | grep -aoE 'Receiving objects: +[0-9]+%' | tail -1) || true
+  if [[ $received =~ ([0-9]+)% ]]; then
+    MEASURED=$(( 950 * BASH_REMATCH[1] / 100 ))
+    return 0
+  fi
   if [[ -z $RUN_DOWNLOAD ]]; then
     RUN_DOWNLOAD=$(awk '/^Total Download Size:/ {
         m = $5 == "KiB" ? 1024 : $5 == "MiB" ? 1048576 : $5 == "GiB" ? 1073741824 : 1
@@ -369,10 +397,10 @@ pacman_progress() {
       downloaded=$(( 1000 * ($(cache_bytes) - RUN_CACHE_START) / RUN_DOWNLOAD ))
       (( downloaded > 1000 )) && downloaded=1000
     fi
-    PACMAN_PERMILLE=$(( 950 * (DOWNLOAD_SHARE * downloaded + (1000 - DOWNLOAD_SHARE) * installed) / 1000000 ))
+    MEASURED=$(( 950 * (DOWNLOAD_SHARE * downloaded + (1000 - DOWNLOAD_SHARE) * installed) / 1000000 ))
   else
     # Nothing to download (all cached), or not pacman.
-    PACMAN_PERMILLE=$(( 950 * installed / 1000 ))
+    MEASURED=$(( 950 * installed / 1000 ))
   fi
 }
 
@@ -393,16 +421,37 @@ header() {
 # step "Title" WEIGHT — the previous step is done; this one starts, worth
 # WEIGHT (roughly its seconds) of the bar.
 step() {
+  log_step_time
   PROGRESS_DONE=$(( PROGRESS_DONE + PROGRESS_STEP ))
   PROGRESS_STEP=${2:-1} PROGRESS_PERMILLE=0
-  STEP_START=${EPOCHREALTIME//[!0-9]/}
+  PROGRESS_TITLE=$1 PROGRESS_STARTED=${EPOCHREALTIME//[!0-9]/}
+  share 0 1000
   header "$1"
+}
+
+# share FROM TO — the commands that follow make up this share of the
+# current step, in permille, the ones before it being done. For a step with
+# several long commands: each one's progress, timed or measured, then moves
+# the bar through its own share instead of the whole step, where the first
+# to finish would fill it and leave it standing through the rest.
+share() {
+  PROGRESS_FROM=$1 PROGRESS_TO=$2 PROGRESS_SINCE=${EPOCHREALTIME//[!0-9]/}
+  if (( PROGRESS_PERMILLE < $1 )); then PROGRESS_PERMILLE=$1; fi
+}
+
+# Logs how long the step that just ended took against its weight, for
+# tuning the weights: grep '\[time\]' setup.log
+log_step_time() {
+  [[ -n $PROGRESS_TITLE ]] || return 0
+  printf '[time] %s: %ds (weight %d)\n' "$PROGRESS_TITLE" \
+    $(( (${EPOCHREALTIME//[!0-9]/} - PROGRESS_STARTED) / 1000000 )) "$PROGRESS_STEP" >> "$LOG_FILE" 2>/dev/null || true
 }
 
 # finish "Title" — the closing screen of a phase: full bar, title in green.
 finish() {
+  log_step_time
   # Full at once: nothing runs after it to animate the bar there.
-  PROGRESS_DONE=$PROGRESS_TOTAL PROGRESS_STEP=0 PROGRESS_SHOWN=-1
+  PROGRESS_DONE=$PROGRESS_TOTAL PROGRESS_STEP=0 PROGRESS_SHOWN=-1 PROGRESS_TITLE=
   header "$1" "$C_GREEN"
 }
 

@@ -242,9 +242,16 @@ Things that look odd but are deliberate:
   pacman's real progress says so: its download, measured as the growth of
   its package cache against the `Total Download Size` it announces (so the
   bar keeps your connection's pace), then its `(n/N) installing` count.
-  The download counts for 70% of a pacman run. The bar doesn't jump to a
-  new estimate but glides there, 20 frames a second, covering a tenth of
-  the remaining distance each frame (`animate_progress`). It moves an eighth of a
+  The download counts for 70% of a pacman run; `git clone` reports its
+  own percentage too. A step running several long commands splits into
+  shares, one per command (`share 150 450`), each moving through its own
+  part of the step, so the first to finish can't fill the step and leave
+  the bar standing through the rest. The chroot and post phases carry on
+  the bar exactly where the install phase left it (`progress_env`). The bar
+  doesn't jump to a new estimate but glides there, 20 frames a second,
+  covering a tenth of the remaining distance each frame
+  (`animate_progress`). Each step's real duration goes into the log next
+  to its weight, for tuning the weights: `grep '\[time\]' setup.log`. It moves an eighth of a
   cell at a time, its edge one of `▏▎▍▌▋▊▉`: a pixel at a time in the
   8-pixel-wide console font. The patched fonts add those characters; with
   a stock console font the bar moves a whole cell at a time. Only the bar's
