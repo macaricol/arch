@@ -168,13 +168,18 @@ message() {
   printf '%s' "$end"
 }
 
-# Warnings also go to the log: the next step header clears the screen.
+# Warnings and errors also go to the log: the next step header, or the USB's
+# failure screen, clears the screen.
 info() { message "$TAG" "$C_WHITE" "$*" $'\n\n'; }
 warn() {
   message "$C_YELLOW${C_BOLD}ᗧ$C_RESET" "$C_YELLOW$C_BOLD" "$*" $'\n\n' >&2
   printf '[warn] %s\n' "$*" >> "$LOG_FILE" 2>/dev/null || true
 }
-die()  { message "$C_RED${C_BOLD}ᗧ$C_RESET" "$C_RED$C_BOLD" "$*" $'\n' >&2; exit 1; }
+die() {
+  message "$C_RED${C_BOLD}ᗧ$C_RESET" "$C_RED$C_BOLD" "$*" $'\n' >&2
+  printf '[error] %s\n' "$*" >> "$LOG_FILE" 2>/dev/null || true
+  exit 1
+}
 ask()  { message "$TAG" "$C_WHITE" "$1" ' '; }
 
 # repeat CHAR COUNT — multibyte-safe (tr is not)

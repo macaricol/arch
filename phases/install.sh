@@ -194,7 +194,11 @@ rank_mirrors() {
     run reflector --latest 20 --protocol https --sort rate --number 6 --save "$mirrorlist" \
       || warn "Couldn't rank download servers, using the default ones"
   fi
-  grep -q '^Server' "$mirrorlist" || die "Mirrorlist is empty"
+  # Last resort, for files the mirrors above don't have: pacman tries the
+  # servers in order, and a mirror's package list can name a file it hasn't
+  # synced yet (404). Arch's own CDN is always current. It goes into the new
+  # system's mirrorlist too.
+  echo 'Server = https://geo.mirror.pkgbuild.com/$repo/os/$arch' >> "$mirrorlist"
 }
 
 install_base() {
@@ -230,7 +234,7 @@ install_base() {
 
   info "Downloading and installing the core system. This takes a few minutes."
   printf 'Packages: %s\n' "${packages[*]}" >> "$LOG_FILE"
-  run pacstrap -K -P /mnt "${packages[@]}"
+  retry 10 run pacstrap -K -P /mnt "${packages[@]}" || die "Couldn't download the core system"
   genfstab -U /mnt >> /mnt/etc/fstab
   cp /etc/pacman.d/mirrorlist /mnt/etc/pacman.d/mirrorlist
 }

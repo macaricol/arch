@@ -324,10 +324,11 @@ splash() {
   center "$1" '1;97'
 }
 
-# Something went wrong before the installer could take over: say so and
-# leave a root shell on tty1 to fix it from.
+# Something went wrong: say so and leave a root shell on tty1 to fix it from.
+# With --keep, below what's on screen: the installer's own error, and the
+# failed command's output, which a cleared screen would lose.
 give_up() {
-  splash "$1"
+  if [[ $1 == --keep ]]; then shift; printf '\e[0m\n'; center "$1" '1;97'; else splash "$1"; fi
   echo; center "Run this once it's fixed:" 97
   center "curl -fsSL $BOOTSTRAP_URL | REPO=$REPO BRANCH=$BRANCH bash" 90
   printf '\e[?25h\n'
@@ -359,7 +360,7 @@ ping -c1 -W1 archlinux.org &>/dev/null \
 (( SECONDS - shown < 4 )) && sleep $(( 4 - (SECONDS - shown) ))
 
 curl -fsSL "$BOOTSTRAP_URL" | QUIET=1 REPO=$REPO BRANCH=$BRANCH bash \
-  || give_up "The installer stopped. Its log is in /tmp/arch-setup/setup.log."
+  || give_up --keep "The installer stopped. Its log: /tmp/arch-setup/setup.log, then /mnt/home/*/.arch-setup/setup.log"
 EOF
 } > "$work/airootfs/usr/local/bin/archauto"
 chmod +x "$work/airootfs/usr/local/bin/archauto"
