@@ -11,16 +11,29 @@ as_root() { if (( EUID == 0 )); then "$@"; else sudo "$@"; fi; }
 
 pkg_install()    { run as_root pacman -S --needed --noconfirm "$@"; }
 
-# AUR builds clone from aur.archlinux.org, which drops connections now and
-# then; retry rather than lose a run that's already minutes in.
-aur_install() {
-  local attempt
+# retry DELAY COMMAND... — runs COMMAND up to 3 times, DELAY seconds apart.
+# For downloads: a dropped connection shouldn't lose a run that's minutes in.
+retry() {
+  local delay=$1 attempt; shift
   for attempt in 1 2 3; do
-    run paru -S --needed --noconfirm "$@" && return 0
-    (( attempt < 3 )) && { warn "Download hiccup, trying again ($((attempt + 1)) of 3)..."; sleep 10; }
+    "$@" && return 0
+    (( attempt < 3 )) && { warn "Download hiccup, trying again ($((attempt + 1)) of 3)..."; sleep "$delay"; }
   done
-  die "Could not install AUR packages: $*"
+  return 1
 }
+
+# AUR builds clone from aur.archlinux.org, which drops connections now and then.
+aur_install() { retry 10 run paru -S --needed --noconfirm "$@" || die "Could not install AUR packages: $*"; }
+
+# write_sudoers FILE LINE... — a sudoers drop-in, root-only from the start and
+# checked before sudo reads it; an invalid one is removed, as it would break
+# sudo altogether.
+write_sudoers() {
+  local file=$1; shift
+  printf '%s\n' "$@" | as_root install -m 440 /dev/stdin "$file" || die "Couldn't write $file"
+  as_root visudo -c -f "$file" > /dev/null || { as_root rm -f "$file"; die "Generated sudoers drop-in is invalid"; }
+}
+
 # True inside a chroot, such as the installer's arch-chroot. IN_CHROOT=1
 # says so for processes that can't check themselves: systemd-detect-virt
 # needs to read /proc/1/root, which only root may.
@@ -83,14 +96,10 @@ gpu_packages() {
 # "p" rule applies to mmcblk/loop: any device name ending in a digit).
 partition_path() { if [[ $1 =~ [0-9]$ ]]; then echo "${1}p$2"; else echo "${1}$2"; fi; }
 
-# git_clone URL DEST — shallow clone into a fresh directory. Retried, since
-# one reset connection shouldn't abort a run that's minutes in.
-git_clone() {
-  local attempt
-  for attempt in 1 2 3; do
-    rm -rf "$2"
-    run git clone --depth 1 "$1" "$2" && return 0
-    (( attempt < 3 )) && { warn "Download hiccup, trying again ($((attempt + 1)) of 3)..."; sleep 5; }
-  done
-  die "Could not clone $1"
+# git_clone URL DEST [as_root] — shallow clone into a fresh directory,
+# retried. as_root clones into a directory only root can write.
+git_clone() { retry 5 fresh_clone "$@" || die "Could not clone $1"; }
+fresh_clone() {
+  ${3:-} rm -rf "$2"
+  run ${3:-} git clone --depth 1 "$1" "$2"
 }

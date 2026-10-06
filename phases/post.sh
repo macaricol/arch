@@ -134,8 +134,7 @@ EOF
 configure_login_and_desktop() {
   # The astronaut theme first: the wallpapers below come from it.
   local astronaut=/usr/share/sddm/themes/$ASTRONAUT_THEME
-  sudo rm -rf "$astronaut"
-  run sudo git clone --depth 1 "$ASTRONAUT_REPO" "$astronaut"
+  git_clone "$ASTRONAUT_REPO" "$astronaut" as_root
   sudo cp -r "$astronaut"/Fonts/* /usr/share/fonts/
   run sudo fc-cache -f
 
@@ -213,9 +212,7 @@ install_gaming_and_aur() {
   # makepkg's internal `sudo pacman` calls don't pick up the cached ticket no
   # matter how it's shared. Rather than fight that: passwordless sudo for
   # pacman only, for this step only — created here, removed at the end.
-  echo "$USER ALL=(ALL) NOPASSWD: /usr/bin/pacman" | sudo tee "$SUDOERS_DROPIN" > /dev/null
-  sudo chmod 440 "$SUDOERS_DROPIN"
-  sudo visudo -c -f "$SUDOERS_DROPIN" > /dev/null || die "Generated sudoers drop-in is invalid"
+  write_sudoers "$SUDOERS_DROPIN" "$USER ALL=(ALL) NOPASSWD: /usr/bin/pacman"
 
   if command -v paru &>/dev/null; then
     info "The community package helper is already installed"

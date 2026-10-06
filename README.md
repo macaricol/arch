@@ -175,7 +175,8 @@ Things that look odd but are deliberate:
 - **kde-init is autostarted, not run from post.sh**, because Plasma writes
   several of the config files it edits during its own startup. The
   containment and applet IDs it uses come from Plasma's stock first-session
-  layout.
+  layout. Each tweak runs on its own: one that fails is logged and skipped,
+  and the rest still apply.
 - **The installer restyles the console** while it runs (on a real tty only,
   `TERM=linux`): it picks the largest of three stock kbd fonts that keeps
   about 48 rows and 80 columns, so text isn't tiny on high-resolution

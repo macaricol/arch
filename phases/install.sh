@@ -111,9 +111,8 @@ select_drive() {
   (( ${#drives[@]} )) || die "No disks found"
 
   local cancel='── cancel ──'
-  menu "Select the installation drive" "$cancel" "${drives[@]}" \
+  menu "Select the installation drive" "$cancel" "${drives[@]}" && [[ $MENU_CHOICE != "$cancel" ]] \
     || { clear; info "Cancelled."; exit 0; }
-  [[ $MENU_CHOICE != "$cancel" ]] || { clear; info "Cancelled."; exit 0; }
 
   DRIVE=${MENU_CHOICE%% *}
   [[ -b $DRIVE ]] || die "Not a block device: $DRIVE"
@@ -247,7 +246,7 @@ configure_new_system() {
   # where arch-chroot never gets that far.
   trap 'rm -f /mnt/root/arch-setup/creds' EXIT
   install -m 600 /dev/null "$stage/creds"
-  printf '%s\n%s\n' "$PASSWORD" "$PASSWORD" > "$stage/creds"
+  printf '%s\n' "$PASSWORD" > "$stage/creds"
 
   arch-chroot /mnt env HOST_NAME="$HOST_NAME" USER_NAME="$USER_NAME" VERBOSE="$VERBOSE" \
     PROGRESS_DONE="$PROGRESS_DONE" PROGRESS_STEP="$PROGRESS_STEP" PROGRESS_TOTAL="$PROGRESS_TOTAL" \

@@ -4,12 +4,13 @@
 phase_chroot() {
   require_root
   : "${HOST_NAME:?}" "${USER_NAME:?}"
-  local root_password user_password
-  { IFS= read -r root_password; IFS= read -r user_password; } < "$SETUP_DIR/creds"
+  # One password, for both the user and root.
+  local password
+  IFS= read -r password < "$SETUP_DIR/creds"
   rm -f "$SETUP_DIR/creds"
 
   configure_locale
-  configure_accounts "$root_password" "$user_password"
+  configure_accounts "$password"
   configure_boot_splash
   configure_hibernation
   install_bootloader
@@ -30,7 +31,7 @@ configure_locale() {
   echo "KEYMAP=$KEYMAP" > /etc/vconsole.conf
 }
 
-# $1 root password, $2 user password
+# $1 the password, for root and the user
 configure_accounts() {
   info "Creating your account..."
   echo "$HOST_NAME" > /etc/hostname
@@ -38,13 +39,11 @@ configure_accounts() {
 
   useradd -m -G wheel -s /bin/bash "$USER_NAME"
   # chpasswd reads stdin, so the passwords never appear in argv or env.
-  printf 'root:%s\n%s:%s\n' "$1" "$USER_NAME" "$2" | chpasswd
+  printf 'root:%s\n%s:%s\n' "$1" "$USER_NAME" "$1" | chpasswd
 
   # No lecture on first use: when the post phase is run by hand, its first
   # sudo is the unlock screen, which is the prompt.
-  printf '%s\n' '%wheel ALL=(ALL:ALL) ALL' 'Defaults lecture = never' > /etc/sudoers.d/10-wheel
-  chmod 440 /etc/sudoers.d/10-wheel
-  visudo -c -f /etc/sudoers.d/10-wheel > /dev/null || die "Generated sudoers drop-in is invalid"
+  write_sudoers /etc/sudoers.d/10-wheel '%wheel ALL=(ALL:ALL) ALL' 'Defaults lecture = never'
 
   run systemctl enable NetworkManager
 }
@@ -79,8 +78,7 @@ configure_boot_splash() {
   # shutdown splash starting, say).
   local opt
   for opt in quiet splash vt.global_cursor_default=0; do
-    grep -qE "^GRUB_CMDLINE_LINUX_DEFAULT=\".*\b$opt\b" /etc/default/grub \
-      || sed -i "s|^\(GRUB_CMDLINE_LINUX_DEFAULT=\".*\)\"|\1 $opt\"|" /etc/default/grub
+    add_kernel_option "$opt"
   done
 
   # loglevel=3 only covers boot: keep kernel messages below "error" off the
@@ -115,9 +113,16 @@ configure_hibernation() {
     grep -q '^HOOKS=.*resume' /etc/mkinitcpio.conf \
       || sed -i 's/^\(HOOKS=(.*\)filesystems/\1resume filesystems/' /etc/mkinitcpio.conf
   fi
-  grep -q 'resume=UUID=' /etc/default/grub \
-    || sed -i "s|^\(GRUB_CMDLINE_LINUX_DEFAULT=\".*\)\"|\1 resume=UUID=$swap_uuid\"|" /etc/default/grub
+  add_kernel_option "resume=UUID=$swap_uuid"
   run mkinitcpio -P
+}
+
+# add_kernel_option OPTION — appends OPTION to the kernel command line in
+# /etc/default/grub, unless it's there already; install_bootloader writes it
+# into grub.cfg.
+add_kernel_option() {
+  grep -qE "^GRUB_CMDLINE_LINUX_DEFAULT=\".*\b$1\b" /etc/default/grub \
+    || sed -i "s|^\(GRUB_CMDLINE_LINUX_DEFAULT=\".*\)\"|\1 $1\"|" /etc/default/grub
 }
 
 install_bootloader() {
@@ -144,9 +149,7 @@ hand_over_to_user() {
 # progress bar carries on from the install phase's (PROGRESS_*).
 run_post_phase() {
   local home=/home/$USER_NAME rule=/etc/sudoers.d/90-arch-setup-install
-  echo "$USER_NAME ALL=(ALL:ALL) NOPASSWD: ALL" > "$rule"
-  chmod 440 "$rule"
-  visudo -c -f "$rule" > /dev/null || die "Generated sudoers drop-in is invalid"
+  write_sudoers "$rule" "$USER_NAME ALL=(ALL:ALL) NOPASSWD: ALL"
   trap 'rm -f '"$rule" EXIT
   runuser -u "$USER_NAME" -- env TERM="$TERM" VERBOSE="$VERBOSE" \
     PROGRESS_DONE="$PROGRESS_DONE" PROGRESS_STEP="$PROGRESS_STEP" PROGRESS_TOTAL="$PROGRESS_TOTAL" \

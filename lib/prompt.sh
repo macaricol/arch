@@ -181,7 +181,8 @@ unlock_screen() {
   logo_lines
   local __box=36 __pw='' __key __rest __line __shown
   # logo, blank, tagline, 2 blanks, box (3 rows), blank, message
-  local __top=$(( ($(term_rows) - ${#LOGO_LINES[@]} - 9) / 2 + 1 ))
+  term_size
+  local __top=$(( (ROWS - ${#LOGO_LINES[@]} - 9) / 2 + 1 ))
   (( __top < 1 )) && __top=1
   clear
   update_margin

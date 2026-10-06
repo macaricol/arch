@@ -7,13 +7,24 @@ phase_kde_init() {
   # Cleanup runs even if a tweak fails: better one missed setting (it's in
   # the log) than the autostart entry firing again on every login.
   trap cleanup EXIT
-  configure_kwin
-  configure_dolphin
-  apply_dark_theme
-  install_plasmoids
-  configure_desktop_layout
-  install_icon_theme
+  local tweak
+  for tweak in configure_kwin configure_dolphin apply_dark_theme install_plasmoids \
+               configure_desktop_layout install_icon_theme; do
+    tweak "$tweak"
+  done
   systemctl --user restart plasma-plasmashell.service
+}
+
+# tweak FUNCTION — runs one of the tweaks below; if it fails, the rest still
+# run. In a subshell with set -e of its own: inside an `if` or `||`, bash
+# ignores set -e, and a failed command would go unnoticed.
+tweak() {
+  local status
+  set +e
+  ( set -e; "$1" )
+  status=$?
+  set -e
+  (( status == 0 )) || warn "Skipped $1, it failed (status $status)"
 }
 
 # kwriteconfig6 shorthand for the desktop layout file

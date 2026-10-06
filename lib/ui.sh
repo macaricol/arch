@@ -20,26 +20,24 @@ TAG_COLS=2   # the tag and the space after it
 # of the logo); MARGIN is the indent that centres it on the current terminal.
 LAYOUT_WIDTH=79
 
-# stty reads the size from /dev/tty, as stdin may be the curl pipe.
 # The terminal to act on: standard input when it's a virtual console
-# (/dev/ttyN), which is how the installer runs,
-# else the controlling terminal. Named explicitly because setfont, left to
+# (/dev/ttyN), which is how the installer runs, else the controlling
+# terminal (/dev/tty, as stdin may be the curl pipe). Named explicitly because setfont, left to
 # find a console itself, can settle on another one (or none) in a service.
 console_dev() {
   local dev
   dev=$(tty 2>/dev/null) || dev=
   if [[ $dev == /dev/tty[0-9]* ]]; then echo "$dev"; else echo /dev/tty; fi
 }
-term_cols() {
+# term_size — the terminal's size, in ROWS and COLS.
+term_size() {
   local size
-  size=$(stty -F "$(console_dev)" size 2>/dev/null) && echo "${size#* }" || echo "${COLUMNS:-80}"
-}
-term_rows() {
-  local size
-  size=$(stty -F "$(console_dev)" size 2>/dev/null) && echo "${size% *}" || echo "${LINES:-24}"
+  size=$(stty -F "$(console_dev)" size 2>/dev/null) || size="${LINES:-24} ${COLUMNS:-80}"
+  ROWS=${size% *} COLS=${size#* }
 }
 update_margin() {
-  local pad=$(( ($(term_cols) - LAYOUT_WIDTH) / 2 ))
+  term_size
+  local pad=$(( (COLS - LAYOUT_WIDTH) / 2 ))
   (( pad < 0 )) && pad=0
   printf -v MARGIN '%*s' "$pad" ''
 }
@@ -73,7 +71,7 @@ set_console_palette() {
 # font the install phase loaded.
 scale_console_font() {
   on_console && (( EUID == 0 )) && command -v setfont &>/dev/null || return 0
-  local target=48 best='' best_diff=99999 font rows cols diff dev errors i
+  local target=48 best='' best_diff=99999 font diff dev errors i
   dev=$(console_dev) errors=$(mktemp)
   # With a quiet boot, the console may have no font support yet: the kernel
   # defers the framebuffer console's takeover until something is printed
@@ -91,9 +89,9 @@ scale_console_font() {
   for font in default8x16 sun12x22 latarcyrheb-sun32; do
     [[ -f $SETUP_DIR/assets/consolefonts/$font.psfu.gz ]] && font=$SETUP_DIR/assets/consolefonts/$font.psfu.gz
     setfont -C "$dev" "$font" 2>>"$errors" || continue
-    rows=$(term_rows) cols=$(term_cols)
-    (( cols >= 80 )) || continue
-    diff=$(( rows > target ? rows - target : target - rows ))
+    term_size
+    (( COLS >= 80 )) || continue
+    diff=$(( ROWS > target ? ROWS - target : target - ROWS ))
     (( diff < best_diff )) && { best=$font; best_diff=$diff; }
   done
   if setfont -C "$dev" "${best:-default8x16}" 2>>"$errors" && [[ $best == "$SETUP_DIR"/* ]]; then
@@ -213,7 +211,6 @@ step_weights() {
   awk '/^  step "[^"]*" [0-9]+/ { sum += $NF } END { print sum + 0 }' "$1"
 }
 
-# The logo, then TAGLINE (config.sh) underneath.
 # logo_lines — the logo (logo_file) as printable lines in LOGO_LINES, its
 # width in columns in LOGO_WIDTH. Its .colors file gives each cell a digit,
 # fg * 3 + bg, of the colours 0 background, 1 letters, 2 extrusion: on the
@@ -254,6 +251,7 @@ logo_lines() {
   done
 }
 
+# The logo, then TAGLINE (config.sh) underneath.
 draw_logo() {
   logo_lines
   (( LOGO_WIDTH )) || return 0
@@ -273,11 +271,16 @@ draw_progress() {
   # Before the first step (the questions), a blank line in its place, so
   # the title doesn't move when the bar appears.
   (( PROGRESS_TOTAL > 0 && PROGRESS_DONE + PROGRESS_STEP > 0 )) || { echo; return 0; }
-  local filled=$(( PROGRESS_WIDTH * (PROGRESS_DONE * 1000 + PROGRESS_STEP * PROGRESS_PERMILLE)
-                   / (PROGRESS_TOTAL * 1000) ))
-  (( filled > PROGRESS_WIDTH )) && filled=$PROGRESS_WIDTH
+  local filled; filled=$(progress_cells)
   PROGRESS_FILLED=$filled
   center "${C_CYAN}$(repeat █ "$filled")${C_BLUE}$(repeat █ $((PROGRESS_WIDTH - filled)))${C_RESET}" "$PROGRESS_WIDTH"
+}
+
+# The bar's filled cells: the steps done, plus the current one's permille.
+progress_cells() {
+  local filled=$(( PROGRESS_WIDTH * (PROGRESS_DONE * 1000 + PROGRESS_STEP * PROGRESS_PERMILLE)
+                   / (PROGRESS_TOTAL * 1000) ))
+  echo $(( filled < PROGRESS_WIDTH ? filled : PROGRESS_WIDTH ))
 }
 
 # update_progress [OUTPUT] — moves the bar within the current step, called
@@ -298,9 +301,7 @@ update_progress() {
     fi
   fi
   (( permille > PROGRESS_PERMILLE )) && PROGRESS_PERMILLE=$permille
-  local filled=$(( PROGRESS_WIDTH * (PROGRESS_DONE * 1000 + PROGRESS_STEP * PROGRESS_PERMILLE)
-                   / (PROGRESS_TOTAL * 1000) ))
-  (( filled != PROGRESS_FILLED )) || return 0
+  (( $(progress_cells) != PROGRESS_FILLED )) || return 0
   printf '\e7\e[%d;1H\e[2K' "$BAR_ROW"
   draw_progress
   printf '\e8'

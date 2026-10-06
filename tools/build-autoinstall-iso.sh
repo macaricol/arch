@@ -280,8 +280,6 @@ install -Dm644 -t "$work/airootfs/usr/local/share/archauto" "$repo_dir"/assets/c
     'source "$SETUP_DIR/config.sh"; source "$SETUP_DIR/lib/ui.sh"; logo_lines; printf "%s\n" "$LOGO_WIDTH" "${LOGO_LINES[@]}"')
   printf 'LOGO_WIDTH=%q\nLOGO=%q\n' "${logo%%$'\n'*}" "${logo#*$'\n'}"
   cat <<'EOF'
-LAYOUT_WIDTH=79
-
 # Font first, as lib/ui.sh's scale_console_font picks it (nearest ~48 rows
 # with 80+ columns) and from the same patched files, so the installer keeps
 # it and nothing jumps.
@@ -308,7 +306,6 @@ setfont -C /dev/tty1 "${best:-default8x16}" 2>/dev/null
 for i in "${!CONSOLE_PALETTE[@]}"; do printf '\e]P%X%s' "$i" "${CONSOLE_PALETTE[i]}"; done
 printf '\e[0m\e[?25l'
 
-# center TEXT COLOUR — as lib/ui.sh's center, in one SGR colour
 # center TEXT COLOUR [WIDTH] — as lib/ui.sh's center, in one SGR colour (or
 # none, for text already coloured: then WIDTH is its width without escapes)
 center() {
@@ -352,7 +349,7 @@ printf '\e[2J\e[H'
 python3 "$share/fb-logo.py" "$share/logo-hd.txt" "$share/logo-hd.colors" \
   "${CONSOLE_PALETTE[0]}" "${CONSOLE_PALETTE[6]}" "${CONSOLE_PALETTE[2]}" 2>/dev/null || splash ""
 shown=$SECONDS
-for _ in $(seq 1 30); do
+for _ in {1..30}; do
   ping -c1 -W1 archlinux.org &>/dev/null && break
   (( SECONDS - shown >= 4 )) && status "Waiting for network..."
   sleep 1
