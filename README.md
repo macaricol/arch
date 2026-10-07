@@ -35,11 +35,14 @@ To install from a different branch: `curl ... | BRANCH=clauding bash`.
 `tools/build-autoinstall-iso.sh` turns an official ISO into a USB that runs
 the command above by itself. It has no boot menu (on UEFI): it boots
 straight in, quietly — no kernel or systemd messages and no login text —
-shows the ARCHMAN logo across two thirds of the screen for 4 seconds while
-the network comes up (`tools/fb-logo.py`, drawn on the framebuffer), then
-starts the installer. A status line appears under the logo only if the
-network takes longer. If it never comes up, or the installer can't be
-fetched, it says so and leaves a root shell on tty1. The stock ISO's other
+and shows the ARCHMAN logo across two thirds of the screen
+(`tools/fb-logo.py`, drawn on the framebuffer), with "Checking if this
+computer is ready..." under it 2 seconds in. The logo stays up while the
+network comes up and through the installer's own checks (UEFI, internet,
+fetching gum), which draw nothing over it, for at least 4 seconds in all;
+the first thing after it is the account screen. If the network never comes
+up, or the installer can't be fetched, it says so and leaves a root shell
+on tty1. The stock ISO's other
 boot entries (the live system, memtest...) are removed.
 
     sudo pacman -S --needed libisoburn squashfs-tools devtools git curl

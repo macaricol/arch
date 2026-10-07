@@ -7,8 +7,10 @@
 #     kernel/initramfs with "archauto" and quiet-boot options appended.
 #   - archauto.service, added to the live system, runs only when "archauto"
 #     is on the kernel command line. It takes tty1 before the root autologin
-#     does, shows the ARCHMAN logo across two thirds of the screen for 4
-#     seconds while the network comes up, then runs bootstrap.sh.
+#     does, shows the ARCHMAN logo across two thirds of the screen, with
+#     "Checking if this computer is ready..." under it 2 seconds in, while
+#     the network comes up, then runs bootstrap.sh. The installer keeps the
+#     logo up through its own checks (at least 4 seconds in all).
 #
 # Requires root (to loop-mount the EFI image), through sudo, and these
 # packages (it checks first, and prints the command for any missing):
@@ -289,10 +291,9 @@ EOF
 ln -sf ../archauto.service "$work/airootfs/etc/systemd/system/multi-user.target.wants/archauto.service"
 
 # The script it runs: the ARCHMAN logo across two thirds of the screen
-# (tools/fb-logo.py, drawn on the framebuffer) for 4 seconds while the
-# network comes up, then bootstrap.sh. A status line only appears if that
-# takes longer; without a framebuffer it falls back to a text splash laid out
-# like lib/ui.sh's step screens. Settings are baked in from config.sh and
+# (tools/fb-logo.py, drawn on the framebuffer) while the network comes up,
+# then bootstrap.sh; without a framebuffer, a text splash laid out like
+# lib/ui.sh's step screens. Settings are baked in from config.sh and
 # assets/logo at build time; the patched console fonts the text logo needs
 # (assets/consolefonts), the logo files and fb-logo.py are copied alongside.
 mkdir -p "$work/airootfs/usr/local/bin"
@@ -362,32 +363,46 @@ give_up() {
   exec zsh -l
 }
 
-# status "Text" — a line near the bottom, under the big logo. Placed without
-# a newline: scrolling the console would smear the logo.
-status() {
-  local LC_ALL=C.UTF-8 rows cols
+# under_logo "Text" — a line just under the big logo: two text rows below
+# its bottom edge, which fb-logo.py reports in pixels. With the text splash
+# instead, its own status line. Placed without a newline: scrolling the
+# console would smear the logo.
+under_logo() {
+  local LC_ALL=C.UTF-8 rows cols row
+  (( LOGO_BOTTOM )) || { splash "$1"; return; }
   read -r rows cols < <(stty size < /dev/tty)
-  printf '\e[%d;1H\e[2K\e[%d;%dH\e[1;97m%s\e[0m' $(( rows - 2 )) $(( rows - 2 )) $(( (cols - ${#1}) / 2 + 1 )) "$1"
+  row=$(( LOGO_BOTTOM * rows / SCREEN_HEIGHT + 3 ))
+  printf '\e[%d;1H\e[2K\e[%d;%dH\e[1;97m%s\e[0m' "$row" "$row" $(( (cols - ${#1}) / 2 + 1 )) "$1"
 }
 
-# The logo, two thirds of the screen wide, for at least 4 seconds while the
-# network comes up; the text splash if there's no 32-bit framebuffer.
+# The logo, two thirds of the screen wide (the text splash if there's no
+# 32-bit framebuffer), up from here until the installer's first question:
+# it checks the network, then the installer (told by SPLASH_SINCE) checks
+# the rest, draws nothing meanwhile, and keeps the splash up for at least
+# 4 seconds in all. 2 seconds in, one line under the logo says what's
+# going on.
 share=/usr/local/share/archauto
 printf '\e[2J\e[H'
-python3 "$share/fb-logo.py" "$share/logo-hd.txt" "$share/logo-hd.colors" \
-  "${CONSOLE_PALETTE[0]}" "${CONSOLE_PALETTE[6]}" "${CONSOLE_PALETTE[2]}" 2>/dev/null || splash ""
-shown=$SECONDS
+LOGO_BOTTOM=0 SCREEN_HEIGHT=0
+if geometry=$(python3 "$share/fb-logo.py" "$share/logo-hd.txt" "$share/logo-hd.colors" \
+                "${CONSOLE_PALETTE[0]}" "${CONSOLE_PALETTE[6]}" "${CONSOLE_PALETTE[2]}" 2>/dev/null); then
+  read -r LOGO_BOTTOM SCREEN_HEIGHT <<< "$geometry"
+else
+  splash ""
+fi
+SPLASH_SINCE=$EPOCHSECONDS
+( sleep 2; under_logo "Checking if this computer is ready..." ) &
+checking=$!
 for _ in {1..30}; do
   ping -c1 -W1 archlinux.org &>/dev/null && break
-  (( SECONDS - shown >= 4 )) && status "Waiting for network..."
   sleep 1
 done
 ping -c1 -W1 archlinux.org &>/dev/null \
-  || give_up "No network after 30s. Connect manually (iwctl for Wi-Fi)."
-(( SECONDS - shown < 4 )) && sleep $(( 4 - (SECONDS - shown) ))
+  || { kill "$checking" 2>/dev/null; give_up "No network after 30s. Connect manually (iwctl for Wi-Fi)."; }
 
-curl -fsSL "$BOOTSTRAP_URL" | QUIET=1 REPO=$REPO BRANCH=$BRANCH bash \
-  || give_up --keep "The installer stopped. Its log: /tmp/arch-setup/setup.log, then /mnt/home/*/.arch-setup/setup.log"
+curl -fsSL "$BOOTSTRAP_URL" | QUIET=1 SPLASH_SINCE=$SPLASH_SINCE REPO=$REPO BRANCH=$BRANCH bash \
+  || { kill "$checking" 2>/dev/null
+       give_up --keep "The installer stopped. Its log: /tmp/arch-setup/setup.log, then /mnt/home/*/.arch-setup/setup.log"; }
 EOF
 } > "$work/airootfs/usr/local/bin/archauto"
 chmod +x "$work/airootfs/usr/local/bin/archauto"

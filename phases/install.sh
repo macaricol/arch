@@ -5,14 +5,31 @@ phase_install() {
   # Piped in via curl | bash, fd 0 is the script itself, not the keyboard.
   exec < /dev/tty
   loadkeys "$KEYMAP" 2>/dev/null || warn "Couldn't load keymap $KEYMAP"
-  setup_console
 
-  header "Arch Linux installer"
-  info "Checking this computer is ready (UEFI boot, internet)..."
+  # Booted from the USB (tools/build-autoinstall-iso.sh), its splash is on
+  # screen: the big logo, and under it "Checking if this computer is
+  # ready...". It stays up through the checks, so nothing is drawn until
+  # they're done, not even run()'s spinner; nor the console's font and
+  # colours set up, which redraw the screen. Then, at least 4 seconds after
+  # the splash appeared, on to the first question. Otherwise (curl | bash
+  # by hand, an older USB), a screen of its own says the same.
+  if [[ -n ${SPLASH_SINCE:-} ]]; then
+    QUIET_RUN=1
+  else
+    setup_console
+    header "Arch Linux installer"
+    info "Checking if this computer is ready..."
+  fi
   require_root
   require_uefi
   require_network
   install_gum
+  if [[ -n ${SPLASH_SINCE:-} ]]; then
+    QUIET_RUN=0
+    local shown=$(( EPOCHSECONDS - SPLASH_SINCE ))
+    (( shown >= 4 )) || sleep $(( 4 - shown ))
+    setup_console
+  fi
   # The progress bar covers the installing, not the questions before it: the
   # steps below from partitioning on, then the desktop phase's, which the chroot
   # phase runs and which carries the bar on. Weights: see lib/ui.sh's step.
@@ -102,7 +119,6 @@ wait_for_usb_removal() {
 # overlay, so this costs a few MB of RAM and nothing on the target disk.
 install_gum() {
   command -v gum &>/dev/null && return 0
-  info "Getting things ready..."
   run pacman -Sy --noconfirm --needed gum || warn "Using simple prompts (couldn't download the fancy ones)"
 }
 

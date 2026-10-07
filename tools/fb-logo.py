@@ -11,7 +11,8 @@ The colours are RGB hex. The logo files are assets/logo/logo-hd.*: a cell a
 character, 2 x 4 pixels, its pattern the character (U+E100 + bits, or one of
 the block characters) and its two colours a digit, fg * 3 + bg. Only 32-bit
 framebuffers are drawn; anything else exits 1, and the caller falls back to
-a text splash.
+a text splash. On success it prints the logo's bottom edge and the screen's
+height, in pixels, so the caller can put a line of text just under it.
 """
 import os
 import sys
@@ -69,6 +70,7 @@ def main():
                     rows[src] = b"".join(colours[row[min(int(x / scale), len(row) - 1)]] for x in range(w))
                 line = background[:left * 4] + rows[src] + background[(left + w) * 4:]
             os.pwrite(fb.fileno(), line, y * stride)
+    print(top + h, height)
 
 
 if __name__ == "__main__":
