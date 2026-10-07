@@ -39,6 +39,19 @@ from another branch: `sudo BRANCH=clauding tools/build-autoinstall-iso.sh`.
 
 **This erases the selected drive.** Test in a VM first.
 
+### Monthly builds
+
+GitHub builds the image every month (`.github/workflows/iso.yml`): on the
+2nd, from the official ISO Arch publishes on the 1st, and publishes it as a
+release, `archman-YYYY.MM.DD`, with the image to download. The last three are
+kept. "Run workflow" in the Actions tab builds one at any time, from the
+branch picked there, which is also the branch that image installs from. The
+build runs `tools/ci-build-iso.sh` in a fresh `archlinux` container
+(privileged, to loop-mount the EFI image), which prebuilds the AUR packages
+with plain makepkg (`--build-user`) rather than in a devtools chroot, as
+that runs a container of its own. GitHub pauses scheduled workflows in a
+repository without commits for 60 days; the Actions tab turns it back on.
+
 ### The USB
 
 `tools/build-autoinstall-iso.sh` turns the official Arch ISO into the

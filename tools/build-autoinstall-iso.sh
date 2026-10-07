@@ -45,6 +45,10 @@ Usage: sudo $0 [input-arch.iso] [output.iso]
   input-arch.iso   an official Arch ISO to patch; omit it to be asked
   output.iso       defaults to archlinux-autoinstall.iso
   -d, --download   fetch the latest official ISO instead of asking
+  --build-user=NAME  prebuild the AUR packages with plain makepkg as NAME
+                   (who can run sudo pacman without a password), not in a
+                   devtools clean chroot: for a throwaway clean Arch container,
+                   such as the monthly GitHub build (tools/ci-build-iso.sh)
   --wifi-test      for testing in a VM: simulated Wi-Fi networks, and the
                    Wi-Fi screen shown even with a cable
   -h, --help       this message
@@ -53,11 +57,13 @@ USAGE
 
 DOWNLOAD=0
 WIFI_TEST=0
+BUILD_USER=''
 declare -a positional=()
 for arg in "$@"; do
   case $arg in
     -d|--download) DOWNLOAD=1 ;;
     --wifi-test)   WIFI_TEST=1 ;;
+    --build-user=*) BUILD_USER=${arg#*=} ;;
     -h|--help)     usage; exit 0 ;;
     -*)            echo "Unknown option: $arg" >&2; usage >&2; exit 1 ;;
     *)             positional+=("$arg") ;;
@@ -82,11 +88,12 @@ declare -A DEPENDENCIES=(
   [mksquashfs]=squashfs-tools         # repacks the live system
   [unsquashfs]=squashfs-tools
   [makechrootpkg]=devtools            # prebuilds the AUR packages, in a clean chroot
-  [mkarchroot]=devtools
+  [mkarchroot]=devtools               # (not with --build-user: makepkg instead)
   [git]=git                           # fetches their build recipes
   [curl]=curl                         # downloads the official ISO
   [gum]=gum                           # the USB's Wi-Fi screen (and the installer's prompts)
 )
+if [[ -n $BUILD_USER ]]; then unset 'DEPENDENCIES[makechrootpkg]' 'DEPENDENCIES[mkarchroot]'; fi
 missing_commands=() missing_packages=()
 for bin in "${!DEPENDENCIES[@]}"; do
   command -v "$bin" &>/dev/null && continue
@@ -534,6 +541,10 @@ prebuild_aur_packages() {
   for pkg in "${AUR_PACKAGES[@]}"; do [[ $pkg == *-bin ]] || from_source+=("$pkg"); done
   (( ${#from_source[@]} )) || return 0
   echo "==> Prebuilding AUR packages: ${from_source[*]}..."
+  if [[ -n $BUILD_USER ]]; then
+    prebuild_with_makepkg "$dest" "${from_source[@]}"
+    return 0
+  fi
   if [[ -z ${SUDO_USER:-} || $SUDO_USER == root ]]; then
     echo "    skipped: run this through sudo as a regular user (makepkg won't build as root)"
     return 0
@@ -549,6 +560,25 @@ prebuild_aur_packages() {
     sudo -u "$SUDO_USER" mkdir "$dir/out"
     if sudo -u "$SUDO_USER" git clone -q --depth 1 "https://aur.archlinux.org/$pkg.git" "$dir/$pkg" \
        && (cd "$dir/$pkg" && PKGDEST="$dir/out" MAKEFLAGS="-j$(nproc)" run makechrootpkg -c -u -r "$chroot"); then
+      find "$dir/out" -name '*.pkg.tar.zst' ! -name '*-debug-*' -exec install -m644 -t "$dest" {} +
+      echo "    $pkg: $(cd "$dest" && ls "$pkg"-[0-9]*.pkg.tar.zst 2>/dev/null)"
+    else
+      echo "    $pkg: build failed, skipped; installs will compile it"
+    fi
+    rm -rf "$dir"
+  done
+}
+# --build-user: the same, with plain makepkg as that user, on this system,
+# which is then the clean one (a fresh container): makechrootpkg runs its
+# own container, which doesn't work inside Docker.
+prebuild_with_makepkg() {
+  local dest=$1 pkg dir; shift
+  mkdir -p "$dest"
+  for pkg; do
+    dir=$(sudo -u "$BUILD_USER" mktemp -d)
+    if sudo -u "$BUILD_USER" git clone -q --depth 1 "https://aur.archlinux.org/$pkg.git" "$dir/$pkg" \
+       && run sudo -u "$BUILD_USER" env -C "$dir/$pkg" PKGDEST="$dir/out" MAKEFLAGS="-j$(nproc)" \
+            makepkg --syncdeps --noconfirm; then
       find "$dir/out" -name '*.pkg.tar.zst' ! -name '*-debug-*' -exec install -m644 -t "$dest" {} +
       echo "    $pkg: $(cd "$dest" && ls "$pkg"-[0-9]*.pkg.tar.zst 2>/dev/null)"
     else
