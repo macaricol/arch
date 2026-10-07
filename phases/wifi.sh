@@ -108,7 +108,6 @@ online() { timeout 3 ping -c1 -W2 archlinux.org &>/dev/null; }
 wifi_password() {
   local LC_ALL=C.UTF-8 __var=$1 __pw='' __shown=0 __key __rest __mask __note=''   # ${#} in characters
   __mask=$(mask_char)
-  info "Press Tab to see what you're typing."
   ask "Password >"
   # The field starts here: the one cursor position saved (\e7), and never
   # saved over, as each frame is redrawn from it (\e8, then \e[J to clear
