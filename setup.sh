@@ -21,6 +21,7 @@ source "$SETUP_DIR/config.sh"
 source "$SETUP_DIR/lib/ui.sh"
 source "$SETUP_DIR/lib/prompt.sh"
 source "$SETUP_DIR/lib/system.sh"
+source "$SETUP_DIR/lib/keyboard.sh"
 
 phase=${1:-}
 case $phase in

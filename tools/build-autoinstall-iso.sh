@@ -486,6 +486,15 @@ fi
 
 started=$SECONDS network=0
 (( WIFI_TEST )) || { wait_online 8 && network=1; }   # (--wifi-test: straight to the Wi-Fi screen)
+if (( WIFI_TEST )); then
+  # iwd deletes and re-creates the interface of a radio it takes over: wait
+  # for the one left to it, or the check below finds no Wi-Fi at all.
+  for _ in {1..20}; do
+    compgen -G '/sys/class/net/*/wireless' > /dev/null && break
+    sleep 0.5
+  done
+  ls /sys/class/net >> /run/wifi-test.log 2>&1
+fi
 if (( ! network )) && compgen -G '/sys/class/net/*/wireless' > /dev/null; then
   kill "$checking" 2>/dev/null; wait "$checking" 2>/dev/null
   bash "$share/installer/setup.sh" wifi || give_up "${NO_INTERNET[@]}"

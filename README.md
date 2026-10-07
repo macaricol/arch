@@ -99,6 +99,7 @@ mirror is `ISO_MIRROR` in `config.sh`.
     lib/ui.sh                console font/palette, centred step screens, run() spinner + setup.log
     lib/prompt.sh            validated input, passwords, arrow-key menu, buttons
     lib/system.sh            CPU/GPU detection, pacman/AUR/service helpers
+    lib/keyboard.sh          the keyboard layouts and their question (Wi-Fi screen or install phase)
     phases/install.sh        live ISO: partition, format, pacstrap (+ CPU/GPU drivers), hand off to chroot
     phases/chroot.sh         locale, accounts, sudo, hibernation, GRUB, then runs desktop.sh as the user
     phases/desktop.sh        the desktop, as the user in the chroot: Plasma, theming, Samba, Steam, AUR
@@ -179,11 +180,13 @@ Things that look odd but are deliberate:
   with it. Each layout carries its console keymap and its X11 layout and
   variant (from systemd's `kbd-model-map`), for Plasma and the login screen;
   layouts without Latin letters come with US as a second one (both Shift
-  keys switch), so a Latin password still works at the login screen. The
-  Wi-Fi password is asked before any of this, so on a US layout: its field
-  says so, and Tab shows what's typed (its own field, as gum's password
-  field can't be shown); one that isn't 8 to 63 characters is refused at
-  once.
+  keys switch), so a Latin password still works at the login screen.
+  Without a cable, the question comes first on the USB's Wi-Fi screen
+  instead, so the Wi-Fi password is typed with the right layout: with no
+  network there's no location yet, so English (US) leads, then the rest
+  alphabetically. The installer keeps that choice (`/run/archman-keyboard`)
+  and asks again only on starting over. The Wi-Fi password field shows what
+  is typed on Tab, and refuses a password that isn't 8 to 63 characters.
 - **English everywhere, dates the local way.** The language is English (US)
   throughout (`LOCALE`: `LANG=en_US.UTF-8`), never asked. Dates and times
   alone (`LC_TIME`, `TIME_LOCALE='auto'`) follow the country from the same
