@@ -73,6 +73,12 @@ version by then: paru, installed first, brings them up to date with the rest
 (`paru -Syu`). It builds a package itself only if the prebuilt one won't
 install.
 
+The USB also carries what the first Plasma session would otherwise
+download: the icon theme and the widgets (`ICON_THEME`, `PLASMOID_REPOS`),
+fetched when it's built (about 7 MB in the image). So the ARCHMAN look comes
+out whole even if the new system has no internet at its first login; from
+an older USB without them, that session downloads them as before.
+
 Run with no arguments it asks whether to fetch the current official ISO or
 use one you already have. `--download` skips the question for scripted use,
 and an explicit path still works as before:

@@ -559,6 +559,37 @@ prebuild_aur_packages() {
 }
 prebuild_aur_packages "$work/airootfs/usr/local/share/archauto/packages"
 
+# What the first Plasma session (phases/plasma-tweaks.sh) would download:
+# the icon theme (ICON_THEME from ICON_THEME_REPO) and the widgets
+# (PLASMOID_REPOS' package/ directories), fetched now and carried on the
+# USB, so the new system has them even with no internet at its first login.
+# Only what's used is kept, without git's history. Any that can't be
+# fetched are left out; that first session then downloads them as before.
+carry_plasma_extras() {
+  local dest=$1 tmp repo name
+  echo "==> Fetching the first login's icon theme and widgets..."
+  tmp=$(mktemp -d)
+  if git clone -q --depth 1 "$ICON_THEME_REPO" "$tmp/icons" && [[ -d $tmp/icons/$ICON_THEME ]]; then
+    mkdir -p "$dest/icons"
+    cp -r "$tmp/icons/$ICON_THEME" "$dest/icons/"
+    echo "    icons: $ICON_THEME"
+  else
+    echo "    icons: couldn't fetch $ICON_THEME; the first login will"
+  fi
+  for repo in "${PLASMOID_REPOS[@]}"; do
+    name=${repo##*/} name=${name%.git}
+    if git clone -q --depth 1 "$repo" "$tmp/$name" && [[ -d $tmp/$name/package ]]; then
+      mkdir -p "$dest/plasmoids/$name"
+      cp -r "$tmp/$name/package" "$dest/plasmoids/$name/"
+      echo "    widget: $name"
+    else
+      echo "    widget: couldn't fetch $name; the first login will"
+    fi
+  done
+  rm -rf "$tmp"
+}
+carry_plasma_extras "$work/airootfs/usr/local/share/archauto/extras"
+
 echo "==> Repacking squashfs (this takes a while)..."
 rm -f "$work/airootfs.sfs"
 run mksquashfs "$work/airootfs" "$work/airootfs.sfs" -comp zstd -Xcompression-level 9

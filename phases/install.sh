@@ -347,6 +347,8 @@ configure_new_system() {
     mkdir -p "$stage/packages"
     cp "$ISO_PACKAGES"/*.pkg.tar.zst "$stage/packages/"
   fi
+  # And the icon theme and widgets it brought, for the first Plasma session.
+  [[ ! -d $ISO_EXTRAS ]] || cp -r "$ISO_EXTRAS" "$stage/extras"
 
   # Passwords travel in a root-only file, never in argv or the environment.
   # The chroot phase deletes it as its first act; the trap covers the case

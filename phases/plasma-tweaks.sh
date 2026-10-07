@@ -61,15 +61,23 @@ set_lock_screen_wallpaper() {
 }
 
 # Installs each repo's package/ directory as a Plasma applet (into
-# ~/.local/share/plasma/plasmoids); upgrades it if it's already there.
+# ~/.local/share/plasma/plasmoids); upgrades it if it's already there. The
+# copy the USB brought (extras/plasmoids/<repo name>) when there is one, so
+# no internet is needed; otherwise downloaded.
 install_plasmoids() {
-  local repo tmp
+  local repo name tmp package
   for repo in "${PLASMOID_REPOS[@]}"; do
-    tmp=$(mktemp -d)
-    git_clone "$repo" "$tmp"
-    run kpackagetool6 --type Plasma/Applet --install "$tmp/package" \
-      || run kpackagetool6 --type Plasma/Applet --upgrade "$tmp/package"
-    rm -rf "$tmp"
+    name=${repo##*/} name=${name%.git}
+    tmp=''
+    package=$SETUP_DIR/extras/plasmoids/$name/package
+    if [[ ! -d $package ]]; then
+      tmp=$(mktemp -d)
+      git_clone "$repo" "$tmp"
+      package=$tmp/package
+    fi
+    run kpackagetool6 --type Plasma/Applet --install "$package" \
+      || run kpackagetool6 --type Plasma/Applet --upgrade "$package"
+    [[ -z $tmp ]] || rm -rf "$tmp"
   done
 }
 
@@ -110,12 +118,18 @@ configure_desktop_layout() {
     --key launchers "applications:systemsettings.desktop,preferred://filemanager,preferred://browser"
 }
 
+# The icon theme: the copy the USB brought (extras/icons) when there is
+# one, so no internet is needed; otherwise downloaded.
 install_icon_theme() {
-  local tmp; tmp=$(mktemp -d)
-  git_clone "$ICON_THEME_REPO" "$tmp"
   mkdir -p "$HOME/.local/share/icons"
-  cp -r "$tmp/$ICON_THEME" "$HOME/.local/share/icons/"
-  rm -rf "$tmp"
+  if [[ -d $SETUP_DIR/extras/icons/$ICON_THEME ]]; then
+    cp -r "$SETUP_DIR/extras/icons/$ICON_THEME" "$HOME/.local/share/icons/"
+  else
+    local tmp; tmp=$(mktemp -d)
+    git_clone "$ICON_THEME_REPO" "$tmp"
+    cp -r "$tmp/$ICON_THEME" "$HOME/.local/share/icons/"
+    rm -rf "$tmp"
+  fi
   kwriteconfig6 --file kdeglobals --group Icons --key Theme "$ICON_THEME"
 }
 

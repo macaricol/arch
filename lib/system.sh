@@ -19,6 +19,10 @@ retry() {
 # build-autoinstall-iso.sh), on the live system. The install phase copies
 # them into the installer's packages/ for the desktop phase.
 ISO_PACKAGES=/usr/local/share/archauto/packages
+# And the first Plasma session's downloads, made when the USB was built
+# (plasma-tweaks' icon theme and widgets): extras/icons/<theme>,
+# extras/plasmoids/<repo name>/package. Copied into the installer's extras/.
+ISO_EXTRAS=/usr/local/share/archauto/extras
 
 # prebuilt_package DIR PACKAGE — prints the path of PACKAGE's prebuilt
 # package in DIR, if there is one.
