@@ -113,9 +113,7 @@ phase (still in the chroot) and the Plasma first-login step, which then
 deletes it, leaving only `~/arch-setup.log`.
 
 Every command that goes through `run()` is logged there, with its full
-output shown on the terminal only if it fails. `VERBOSE=1` streams
-everything live instead: from another console (Alt+F2), rerun the installer
-with `curl -fsSL <bootstrap.sh URL> | VERBOSE=1 bash`.
+output shown on the terminal only if it fails.
 
 ## Configuration
 

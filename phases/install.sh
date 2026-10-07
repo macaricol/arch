@@ -345,7 +345,7 @@ configure_new_system() {
   # The bar carries on in the chroot phase, and from there in the desktop phase.
   local -a progress
   mapfile -t progress < <(progress_env)
-  arch-chroot /mnt env HOST_NAME="$HOST_NAME" USER_NAME="$USER_NAME" VERBOSE="$VERBOSE" TIMEZONE="$TIMEZONE" TIME_LOCALE="$TIME_LOCALE" \
+  arch-chroot /mnt env HOST_NAME="$HOST_NAME" USER_NAME="$USER_NAME" TIMEZONE="$TIMEZONE" TIME_LOCALE="$TIME_LOCALE" \
     KEYMAP="$KEYMAP" X11_LAYOUT="$X11_LAYOUT" X11_VARIANT="$X11_VARIANT" X11_OPTIONS="$X11_OPTIONS" \
     PATCHED_FONT="${PATCHED_FONT:-0}" "${progress[@]}" \
     bash /root/arch-setup/setup.sh chroot

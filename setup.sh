@@ -10,8 +10,8 @@
 #   setup.sh wifi            (internal) live ISO, as root: pick a Wi-Fi network
 #   setup.sh plasma-tweaks   (internal) first Plasma session: desktop tweaks
 #
-# VERBOSE=1 shows command output live instead of a spinner. Everything run
-# through run() is logged to setup.log next to this file in any case.
+# Everything run through run() is logged, with its output, to setup.log
+# next to this file.
 set -euo pipefail
 
 SETUP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

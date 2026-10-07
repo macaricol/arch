@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # Terminal output: console look, messages, step headers, and the run() spinner.
 
-VERBOSE=${VERBOSE:-0}
 LOG_FILE=${LOG_FILE:-$SETUP_DIR/setup.log}
 LOGO_FILE=$SETUP_DIR/assets/logo/logo.txt
 
@@ -509,15 +508,11 @@ finish() {
 }
 
 # Runs a command. Its output always goes to LOG_FILE; the terminal shows a
-# spinner (or the live output with VERBOSE=1). On failure the output is also
+# spinner. On failure the output is also
 # echoed to stderr so the failure is diagnosable, and the real exit code is
 # returned so set -e still trips.
 run() {
   printf '\n$ %s\n' "$*" >> "$LOG_FILE"
-  if (( VERBOSE )); then
-    "$@" 2>&1 | tee -a "$LOG_FILE"
-    return "${PIPESTATUS[0]}"
-  fi
   local out; out=$(mktemp)
   # What kind of progress it reports, if any (measured_progress).
   case " $* " in
