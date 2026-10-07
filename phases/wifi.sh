@@ -20,14 +20,15 @@ phase_wifi() {
   [[ -n ${station:-} ]] || die "No Wi-Fi adapter found. Plug in a network cable, then restart."
 
   local -a names kinds bars items
-  local scan_again='── scan again ──' i pick password
+  local scan_again='── scan again ──' i pick name password
   while :; do
     (( ${WIFI_TEST:-0} )) || { online && return 0; }   # TEMPORARY (Wi-Fi test): was "online && return 0"
+    header "Choose your Wi-Fi network"
+    info "Looking for Wi-Fi networks..."
     wifi_scan "$station"
     if (( ${#names[@]} == 0 )); then
-      header "No Wi-Fi networks found"
-      info "Looking again..."
-      sleep 2
+      buttons "No Wi-Fi networks found" 0 \
+        "Look again" "Move closer to your router, or check it's switched on, then look again."
       continue
     fi
     items=()
@@ -39,25 +40,49 @@ phase_wifi() {
       if [[ ${items[i]} == "$MENU_CHOICE" ]]; then pick=$i; fi
     done
     (( pick >= 0 )) || continue
+    name=${names[pick]}
 
-    password=''
-    case ${kinds[pick]} in
-      psk)  echo; input password "Password for ${names[pick]}" '' --secret ;;
-      open) ;;
-      *)    echo; warn "${names[pick]} needs a company login (802.1X), which isn't supported here. Pick another network."
-            sleep 3; continue ;;
-    esac
-    header "Connecting to ${names[pick]}"
-    WIFI_PASSWORD=$password
-    # run()'s report of a failure (iwctl's own words) goes nowhere: the
-    # message below says it plainly. It's in the log either way.
-    if run wifi_connect "$device" "${names[pick]}" 2>/dev/null && run wait_online 2>/dev/null; then
-      info "Connected."
-      sleep 1
-      return 0
+    if [[ ${kinds[pick]} != psk && ${kinds[pick]} != open ]]; then
+      buttons "$name can't be used here" 0 \
+        "Other network" "It needs a company login (802.1X), which this installer doesn't support."
+      continue
     fi
-    warn "Couldn't connect to ${names[pick]}.$([[ -n $password ]] && echo " Check the password and try again.")"
-    sleep 3
+
+    # The network picked: its password (when it has one), connecting, and
+    # on failure, what went wrong and the choice of trying again (straight
+    # back to the password) or another network (back to the list).
+    while :; do
+      password=''
+      if [[ ${kinds[pick]} == psk ]]; then
+        header "Connect to $name"
+        input password "Password" '' --secret
+      fi
+      header "Connecting to $name"
+      info "This can take up to half a minute."
+      WIFI_PASSWORD=$password
+      # run()'s report of a failure (iwctl's own words) goes nowhere: the
+      # screens below say it plainly. It's in the log either way.
+      if ! run wifi_connect "$device" "$name" 2>/dev/null; then
+        if [[ -n $password ]]; then
+          buttons "Couldn't connect to $name" 0 \
+            "Try again" "The password may be wrong. Type it again." \
+            "Other network" "Go back to the list of Wi-Fi networks."
+        else
+          buttons "Couldn't connect to $name" 0 \
+            "Try again" "The network didn't answer. Try connecting again." \
+            "Other network" "Go back to the list of Wi-Fi networks."
+        fi
+      elif ! run wait_online 2>/dev/null; then
+        buttons "$name doesn't reach the internet" 1 \
+          "Try again" "It connected, but the internet didn't answer. Try connecting again." \
+          "Other network" "Go back to the list of Wi-Fi networks."
+      else
+        info "Connected."
+        sleep 1
+        return 0
+      fi
+      (( PICKED == 0 )) || break
+    done
   done
 }
 
