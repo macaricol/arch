@@ -2,7 +2,6 @@
 # Terminal output: console look, messages, step headers, and the run() spinner.
 
 VERBOSE=${VERBOSE:-0}
-QUIET_RUN=0   # 1: run() draws no spinner (the USB's splash is on screen)
 LOG_FILE=${LOG_FILE:-$SETUP_DIR/setup.log}
 LOGO_FILE=$SETUP_DIR/assets/logo/logo.txt
 
@@ -537,14 +536,14 @@ run() {
   printf '\e[?25l'   # no cursor blinking after the pellets
   while kill -0 "$pid" 2>/dev/null; do
     if (( tick % 4 == 0 )); then
-      (( QUIET_RUN )) || printf '\r%s%s' "$MARGIN" "${frames[tick / 4 % 2]}"
+      printf '\r%s%s' "$MARGIN" "${frames[tick / 4 % 2]}"
       update_progress "$out"
     fi
     animate_progress
     tick=$(( tick + 1 ))
     sleep 0.05
   done
-  (( QUIET_RUN )) || printf '\r\e[K'
+  printf '\r\e[K'
   on_console || printf '\e[?25h'   # see cursor()
   local status=0
   wait "$pid" || status=$?

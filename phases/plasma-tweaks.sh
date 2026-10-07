@@ -2,10 +2,9 @@
 # Phase 4 — first Plasma session, as the user. Desktop look & layout, then
 # self-cleanup. Autostarted by the desktop phase; runs once. The look's tweaks
 # only with the ARCHMAN look (phases/look.sh leaves the choice in
-# $SETUP_DIR/look; without it, as when run by hand, ARCHMAN).
+# $SETUP_DIR/look; without it, ARCHMAN).
 
 phase_plasma_tweaks() {
-  require_user
   # Cleanup runs even if a tweak fails: better one missed setting (it's in
   # the log) than the autostart entry firing again on every login.
   trap cleanup EXIT

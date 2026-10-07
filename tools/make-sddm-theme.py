@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Builds the images and settings of the archman SDDM theme
-(assets/sddm/archman), the login screen made to look like the installer's
-unlock screen (lib/prompt.sh's unlock_screen).
+(assets/sddm/archman): an Omarchy-style unlock screen in the installer's
+look, the logo over a padlock and a password box.
 
 The images are rendered with the patched 8x16 console font, exactly as the
 console draws them: logo.png from logo-hd.txt, lock.png from the padlock's

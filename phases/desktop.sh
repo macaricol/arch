@@ -1,31 +1,13 @@
 #!/usr/bin/env bash
-# Phase 3 — the desktop, as the new user: run inside arch-chroot by the
-# chroot phase, or by hand on an installed system. Drivers, desktop, apps,
+# Phase 3 — the desktop, as the new user, inside arch-chroot: run by the
+# chroot phase, carrying on the installer's console and progress bar, with
+# sudo allowed without a password while it runs. Drivers, desktop, apps,
 # services.
 
-SUDOERS_DROPIN=/etc/sudoers.d/99-arch-setup-temp
-
 phase_desktop() {
-  require_user
-  setup_console
-
-  # One password prompt up front (none when run from the installer, which
-  # allows sudo without one); a background loop then keeps the ticket alive
-  # so no later step stalls on a second prompt under a spinner.
-  sudo -n true 2>/dev/null || unlock_sudo
-  ( while kill -0 $$ 2>/dev/null; do sudo -n true; sleep 60; done ) &>/dev/null &
-  local keepalive_pid=$!
-  # -n in the trap: if the ticket is somehow gone, fail quietly rather than
-  # hang on a password prompt nobody can answer.
-  trap 'kill '"$keepalive_pid"' 2>/dev/null; sudo -n rm -f "$SUDOERS_DROPIN" 2>/dev/null' EXIT
-  # Unless carrying on the installer's bar.
-  (( PROGRESS_TOTAL )) || PROGRESS_TOTAL=$(( $(step_weights "$SETUP_DIR/phases/desktop.sh")
-                                             + $(aur_weight "$SETUP_DIR/packages") ))
-
   # Weight: measured on a VM (81 s, once merged).
   step "Installing the desktop and apps" 80
   info "Installing KDE Plasma, the desktop you'll log into, and your apps. This is the big download."
-  require_network
   install_desktop_packages
 
   step "Tuning the video player" 1
@@ -56,37 +38,11 @@ phase_desktop() {
 
   step "Finishing up" 2
   info "Turning on Bluetooth and the login screen..."
-  enable_service --now bluetooth
-  # No --now for SDDM: run by hand, it would take over tty1, where this phase
-  # is still running, before the prompt below. The reboot starts it.
-  enable_service sddm
+  enable_service bluetooth sddm
 
-  # Run from the installer: it asks for the look itself, then shows its own
-  # last screen and reboots. The last step's time goes in the log first.
-  if in_chroot; then log_step_time; return 0; fi
-  choose_look
-  run sudo env LOOK="$LOOK" bash "$SETUP_DIR/setup.sh" look
-  finish "All done! Reboot to see your new setup"
-  if confirm "Reboot now?"; then
-    info "Rebooting..."
-    sleep 2
-    sudo reboot
-  else
-    info "Reboot manually when ready to apply everything."
-  fi
-}
-
-# The password screen, until sudo accepts what's typed. The password goes
-# to sudo on stdin, never in argv; lecture and prompt are suppressed, as the
-# screen is the prompt.
-unlock_sudo() {
-  local password error=''
-  while :; do
-    unlock_screen password "Enter your password to finish setting up" "$error"
-    printf '%s\n' "$password" | sudo -S -p '' -v 2>/dev/null && break
-    error="Wrong password, try again"
-  done
-  clear
+  # The installer asks for the look, then shows its own last screen and
+  # reboots. The last step's time goes in the log first.
+  log_step_time
 }
 
 configure_mpv() {
@@ -204,18 +160,16 @@ configure_samba() {
    usershare allow guests = yes
    usershare owner only = yes
 EOF
-  enable_service --now smb nmb
+  enable_service smb nmb
 }
 
 # Everything from the official repos in one pacman transaction: the
-# package lists in config.sh, plus gum (the prompt UI, lib/prompt.sh, for
-# runs by hand) and base-devel (for the AUR builds). One transaction, not
-# one per list: pacman's checks and post-install hooks (font, icon, desktop
-# caches...) then run once. From the installer, the package lists are the
-# ones pacstrap synced moments ago, so nothing needs updating: -S. Run by
-# hand, the system is brought up to date with them: -Syu.
+# package lists in config.sh, plus base-devel (for the AUR builds). One
+# transaction, not one per list: pacman's checks and post-install hooks
+# (font, icon, desktop caches...) then run once. -S, not -Syu: the package
+# lists are the ones pacstrap synced moments ago, so nothing needs updating.
 install_desktop_packages() {
-  local -a packages=(gum "${KDE_PACKAGES[@]}" "${EXTRA_PACKAGES[@]}" base-devel)
+  local -a packages=("${KDE_PACKAGES[@]}" "${EXTRA_PACKAGES[@]}" base-devel)
   if [[ -n $(gpu_vendors) ]]; then
     packages+=("${GAMING_PACKAGES[@]}")
   else
@@ -224,18 +178,11 @@ install_desktop_packages() {
     # picking lib32-nvidia-utils. Neither is worth it on a VM.
     warn "Skipping Steam: no gaming graphics card found"
   fi
-  local sync=-Syu
-  in_chroot && sync=-S
-  run sudo pacman "$sync" --needed --noconfirm "${packages[@]}"
+  run sudo pacman -S --needed --noconfirm "${packages[@]}"
 }
 
 install_aur_packages() {
   info "Adding a few extras from the Arch community..."
-  # makepkg's internal `sudo pacman` calls don't pick up the cached ticket no
-  # matter how it's shared. Rather than fight that: passwordless sudo for
-  # pacman only, for this step only — created here, removed at the end.
-  write_sudoers "$SUDOERS_DROPIN" "$USER ALL=(ALL) NOPASSWD: /usr/bin/pacman"
-
   # The step's bar shares (lib/ui.sh's share), one per package, by its
   # weight (aur_weight).
   local pkg parts used=0 part
@@ -246,8 +193,6 @@ install_aur_packages() {
     aur_install "$pkg"
     used=$(( used + part ))
   done
-
-  sudo rm -f "$SUDOERS_DROPIN"
 }
 
 # Plasma writes several of the config files plasma-tweaks edits during its own

@@ -1,8 +1,8 @@
-// ARCHMAN login screen: the installer's unlock screen (lib/prompt.sh's
-// unlock_screen) as an SDDM theme. logo.png, lock.png and dot.png are renders
+// ARCHMAN login screen: an Omarchy-style unlock screen in the installer's
+// look, as an SDDM theme. logo.png, lock.png and dot.png are renders
 // of the console font (tools/make-sddm-theme.py), shown at a whole-number
 // scale with smoothing off, so they keep the console's pixels; the layout is
-// the unlock screen's, measured in console cells (8 x 16 at scale 1).
+// laid out in console cells (8 x 16 at scale 1), like the installer's screens.
 // Colours and tagline: theme.conf.
 import QtQuick 2.15
 

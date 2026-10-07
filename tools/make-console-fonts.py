@@ -4,8 +4,8 @@ from, each with two glyphs redrawn as Pac-Man.
 
   ᗧ (U+15E7)  Pac-Man, mouth open to the right: the message tag
   ⬤ (U+2B24)  Pac-Man, mouth closed: the same circle, for the spinner's chomp
-  U+E000–U+E00E  a padlock in 15 tiles, 5 columns by 3 rows, for the
-                 first-boot unlock screen (lib/prompt.sh's unlock_screen)
+  U+E000–U+E00E  a padlock in 15 tiles, 5 columns by 3 rows, for the login
+                 screen's (tools/make-sddm-theme.py renders it from these)
   U+E010         a round bullet, for that screen's password box (the
                  fonts' own • ranges from a square to a diamond)
   U+E100 + n     the cells of assets/logo/logo-hd.txt (tools/make-logo.py): each a 2 x 4

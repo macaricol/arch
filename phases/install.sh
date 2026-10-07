@@ -6,30 +6,15 @@ phase_install() {
   exec < /dev/tty
   loadkeys "$KEYMAP" 2>/dev/null || warn "Couldn't load keymap $KEYMAP"
 
-  # Booted from the USB (tools/build-autoinstall-iso.sh), its splash is on
-  # screen: the big logo, and under it "Checking if this computer is
-  # ready...". It stays up through the checks, so nothing is drawn until
-  # they're done, not even run()'s spinner; nor the console's font and
-  # colours set up, which redraw the screen. Then, at least 4 seconds after
-  # the splash appeared, on to the first question. Otherwise (curl | bash
-  # by hand, an older USB), a screen of its own says the same.
-  if [[ -n ${SPLASH_SINCE:-} ]]; then
-    QUIET_RUN=1
-  else
-    setup_console
-    header "Arch Linux installer"
-    info "Checking if this computer is ready..."
-  fi
-  require_root
-  require_uefi
-  require_network
-  install_gum
-  if [[ -n ${SPLASH_SINCE:-} ]]; then
-    QUIET_RUN=0
-    local shown=$(( EPOCHSECONDS - SPLASH_SINCE ))
-    (( shown >= 4 )) || sleep $(( 4 - shown ))
-    setup_console
-  fi
+  # The USB's splash is on screen (tools/build-autoinstall-iso.sh): the big
+  # logo, and under it "Checking if this computer is ready...". The USB has
+  # checked the network; it booted in UEFI mode, as root, and brought gum.
+  # The splash stays up at least 4 seconds in all (since SPLASH_SINCE);
+  # only then the console's font and colours, which redraw the screen, and
+  # the first question.
+  local shown=$(( EPOCHSECONDS - ${SPLASH_SINCE:-$EPOCHSECONDS} ))
+  (( shown >= 4 )) || sleep $(( 4 - shown ))
+  setup_console
   # The progress bar covers the installing, not the questions before it: the
   # steps below from partitioning on, then the desktop phase's, which the chroot
   # phase runs and which carries the bar on. Weights: see lib/ui.sh's step.
@@ -113,13 +98,6 @@ wait_for_usb_removal() {
     [[ -n $usb && ! -b $usb ]] && { info "See you on the other side!"; return; }
     read -rs -t 1 key && return
   done
-}
-
-# gum draws the prompts (lib/prompt.sh). The live ISO's root is a RAM
-# overlay, so this costs a few MB of RAM and nothing on the target disk.
-install_gum() {
-  command -v gum &>/dev/null && return 0
-  run pacman -Sy --noconfirm --needed gum || warn "Using simple prompts (couldn't download the fancy ones)"
 }
 
 # Arrow-key menu over the machine's disks, minus the live USB we booted from.
@@ -275,6 +253,7 @@ install_base() {
 
 # Copies this installer into the new root and re-invokes it there.
 configure_new_system() {
+  carry_wifi_networks
   local stage=/mnt/root/arch-setup
   rm -rf "$stage"
   cp -r "$SETUP_DIR" "$stage"
@@ -307,4 +286,37 @@ live_usb_disk() {
   local name
   name=$(lsblk -no PKNAME "$(findmnt -no SOURCE /run/archiso/bootmnt 2>/dev/null)" 2>/dev/null) || return 1
   [[ -n $name ]] && echo "/dev/$name"
+}
+
+# The Wi-Fi networks the live ISO connected to (its iwd remembers them, in
+# /var/lib/iwd: phases/wifi.sh's) as NetworkManager
+# connections on the new system, so it's online from its first boot: the
+# first Plasma session downloads its widgets and icons. Root-only files, as
+# they hold the passwords. iwd names a file by the network's name, or "="
+# and the name in hex when it has other characters than letters, digits,
+# - and _; NetworkManager then gets the name as its bytes.
+carry_wifi_networks() {
+  local file base ssid name security secret dir=/mnt/etc/NetworkManager/system-connections
+  for file in /var/lib/iwd/*.psk /var/lib/iwd/*.open; do
+    [[ -f $file ]] || continue
+    base=${file##*/} base=${base%.*}
+    if [[ $base == =* ]]; then
+      [[ ${base#=} =~ ^([0-9a-fA-F]{2})+$ ]] || continue
+      printf -v name '%b' "$(sed 's/../\\x&/g' <<< "${base#=}")"
+      ssid=$(sed 's/../&\n/g' <<< "${base#=}" | while read -r byte; do [[ -z $byte ]] || printf '%d;' "0x$byte"; done)
+    else
+      name=$base ssid=$base
+    fi
+    security=''
+    if [[ $file == *.psk ]]; then
+      secret=$(sed -n 's/^Passphrase=//p' "$file" | head -1)
+      [[ -n $secret ]] || secret=$(sed -n 's/^PreSharedKey=//p' "$file" | head -1)
+      [[ -n $secret ]] || continue
+      printf -v security '[wifi-security]\nkey-mgmt=wpa-psk\npsk=%s\n' "$secret"
+    fi
+    mkdir -p "$dir"
+    printf '[connection]\nid=%s\ntype=wifi\n\n[wifi]\nmode=infrastructure\nssid=%s\n\n%s\n[ipv4]\nmethod=auto\n\n[ipv6]\nmethod=auto\n' \
+      "$name" "$ssid" "$security" | install -m 600 /dev/stdin "$dir/${name//\//_}.nmconnection"
+    printf 'Wi-Fi carried over: %s\n' "$name" >> "$LOG_FILE"
+  done
 }

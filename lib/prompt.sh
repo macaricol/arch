@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
-# Interactive prompts: validated text input, passwords, yes/no, arrow-key menu.
+# Interactive prompts: validated text input, passwords, arrow-key menu,
+# buttons.
 #
-# gum (https://github.com/charmbracelet/gum) draws them when it's available:
-# the install phase fetches it onto the live ISO and the desktop phase installs
-# it on the new system. Without it, the plain prompts below take over.
+# gum (https://github.com/charmbracelet/gum) draws them: the USB carries it
+# (tools/build-autoinstall-iso.sh). Should it not run there, the plain
+# prompts below take over.
 
 shopt -s extglob  # for the +([[:space:]]) trim patterns below
 
-# gum installed by a partial `pacman -Sy` could be built against a newer
-# glibc than the ISO's, and a gum that fails to start would make every
-# prompt loop; so it's only used once a test run succeeds. Not cached until
-# then, as the install phase fetches it after this file is loaded.
+# gum copied from the build machine could, in principle, need a newer glibc
+# than the ISO's, and a gum that fails to start would make every prompt
+# loop; so it's only used once a test run succeeds.
 have_gum() {
   [[ -t 0 ]] || return 1
   [[ -n ${GUM_OK:-} ]] || { gum --version &>/dev/null && GUM_OK=1 || return 1; }
@@ -108,25 +108,6 @@ password() {
   printf -v "$__var" '%s' "$__p1"
 }
 
-# confirm "Question?" [y|n default] — returns 0 for yes
-confirm() {
-  local default=${2:-y} hint reply status
-  if have_gum; then
-    [[ $default == y ]] && hint=true || hint=false
-    gum confirm --default="$hint" --padding "$(gum_padding)" --prompt.foreground 15 \
-      --selected.foreground 0 --selected.background 6 \
-      --unselected.foreground 15 --unselected.background 4 "$1" && { cursor off; return 0; }
-    status=$?; cursor off; gum_cancelled "$status"; return 1
-  fi
-  [[ $default == y ]] && hint='Y/n' || hint='y/N'
-  ask "$1 [$hint]"
-  cursor on
-  read -r reply
-  cursor off
-  reply=${reply:-$default}
-  [[ $reply =~ ^[Yy] ]]
-}
-
 # menu "Title" item... — arrow-key picker. Enter stores the chosen item in
 # MENU_CHOICE and returns 0; Esc or q returns 1.
 menu() {
@@ -220,59 +201,6 @@ choose_look() {
   if (( PICKED == 0 )); then LOOK=plain; else LOOK=archman; fi
 }
 
-# unlock_screen VAR "Hint" ["Error"] — a full-screen password prompt in the
-# style of Omarchy's: logo and tagline in the middle of the screen, a
-# padlock beside a password box under them, the hint (or the error, in red)
-# below. Reads the password itself, a dot per character, as gum can't draw
-# inside a box; Backspace and Ctrl+U edit. Stores the password in VAR.
-# Omarchy's padlock, 5 columns by 3 rows of tiles from assets/consolefonts
-# (U+E000-U+E00E, see tools/make-console-fonts.py), one row per box row.
-LOCK=($'\ue000\ue001\ue002\ue003\ue004' $'\ue005\ue006\ue007\ue008\ue009'
-      $'\ue00a\ue00b\ue00c\ue00d\ue00e')
-DOT=$'\ue010'   # a round bullet, from the same fonts
-unlock_screen() {
-  local __var=$1 __hint=$2 __error=${3:-} LC_ALL=C.UTF-8
-  logo_lines
-  local __box=36 __pw='' __key __rest __line __shown
-  # logo, blank, tagline, 2 blanks, box (3 rows), blank, message
-  term_size
-  local __top=$(( (ROWS - ${#LOGO_LINES[@]} - 9) / 2 + 1 ))
-  (( __top < 1 )) && __top=1
-  clear
-  update_margin
-  printf '\e[%d;1H' "$__top"
-  for __line in "${LOGO_LINES[@]}"; do center "$__line" "$LOGO_WIDTH"; done
-  echo
-  center "${C_PINK}${TAGLINE}${C_RESET}" "${#TAGLINE}"
-  printf '\n\n'
-  # the padlock and a space, then the box and its 2 borders
-  local __pad=$(( ${#MARGIN} + (LAYOUT_WIDTH - 5 - 1 - __box - 2) / 2 ))
-  printf '%*s%s%s%s %s┌%s┐%s\n' "$__pad" '' "$C_CYAN" "${LOCK[0]}" "$C_RESET" "$C_GREY" "$(repeat ─ "$__box")" "$C_RESET"
-  printf '%*s%s%s%s %s│%*s│%s\n' "$__pad" '' "$C_CYAN" "${LOCK[1]}" "$C_RESET" "$C_GREY" "$__box" '' "$C_RESET"
-  printf '%*s%s%s%s %s└%s┘%s\n' "$__pad" '' "$C_CYAN" "${LOCK[2]}" "$C_RESET" "$C_GREY" "$(repeat ─ "$__box")" "$C_RESET"
-  echo
-  if [[ -n $__error ]]; then
-    center "${C_RED}${__error}${C_RESET}" "${#__error}"
-  else
-    center "${C_GREY}${__hint}${C_RESET}" "${#__hint}"
-  fi
-
-  # The field: the box's middle row, one space in from its left border.
-  local __row=$(( __top + ${#LOGO_LINES[@]} + 5 )) __col=$(( __pad + 5 + 1 + 1 + 2 ))
-  cursor on
-  while :; do
-    __shown=$(( ${#__pw} < __box - 2 ? ${#__pw} : __box - 2 ))
-    printf '\e[%d;%dH%s%s%*s\e[%d;%dH' "$__row" "$__col" "$C_WHITE" "$(repeat "$DOT" "$__shown")$C_RESET" \
-      $(( __box - 2 - __shown )) '' "$__row" $(( __col + __shown ))
-    IFS= read -rsn1 __key || die "Input closed"
-    case $__key in
-      '')            break ;;                             # Enter
-      $'\x7f'|$'\b') __pw=${__pw%?} ;;                     # Backspace
-      $'\x15')       __pw='' ;;                           # Ctrl+U
-      $'\e')         read -rsn5 -t 0.01 __rest || true ;; # swallow arrow keys etc.
-      *)             __pw+=$__key ;;
-    esac
-  done
-  cursor off
-  printf -v "$__var" '%s' "$__pw"
-}
+# A round bullet, from the patched console fonts (assets/consolefonts): the
+# mask for typed passwords (mask_char).
+DOT=$'\ue010'

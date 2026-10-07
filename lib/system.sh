@@ -1,11 +1,6 @@
 #!/usr/bin/env bash
 # Environment checks, hardware detection, and package/service helpers.
 
-require_root()    { (( EUID == 0 )) || die "Must be run as root"; }
-require_user()    { (( EUID != 0 )) || die "Run this as your regular user (it uses sudo itself), not as root"; }
-require_uefi()    { [[ -d /sys/firmware/efi ]] || die "This computer started in legacy (BIOS) mode. Restart and boot the USB in UEFI mode."; }
-require_network() { ping -c1 -W3 archlinux.org &>/dev/null || die "No internet connection. Plug in a cable or connect Wi-Fi (iwctl), then try again."; }
-
 # Runs a command as root: directly when already root, through sudo otherwise.
 as_root() { if (( EUID == 0 )); then "$@"; else sudo "$@"; fi; }
 
@@ -106,22 +101,9 @@ write_sudoers() {
   as_root visudo -c -f "$file" > /dev/null || { as_root rm -f "$file"; die "Generated sudoers drop-in is invalid"; }
 }
 
-# True inside a chroot, such as the installer's arch-chroot. IN_CHROOT=1
-# says so for processes that can't check themselves: systemd-detect-virt
-# needs to read /proc/1/root, which only root may.
-in_chroot() { [[ ${IN_CHROOT:-0} == 1 ]] || systemd-detect-virt --chroot &>/dev/null; }
-
-# enable_service [--now] UNIT... — --now also starts them, except in a
-# chroot, where nothing can be started (the first boot does it).
-enable_service() {
-  local -a args=()
-  local arg
-  for arg; do
-    [[ $arg == --now ]] && in_chroot && continue
-    args+=("$arg")
-  done
-  run as_root systemctl enable "${args[@]}"
-}
+# enable_service UNIT... — enabled, not started: in the installer's chroot
+# nothing can be started, and the first boot starts them.
+enable_service() { run as_root systemctl enable "$@"; }
 
 # Regenerates grub.cfg, then comments out its "Loading Linux..." echo lines
 # (there is no /etc/default/grub knob for those).
