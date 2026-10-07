@@ -103,18 +103,22 @@ wifi_password() {
   __mask=$(mask_char)
   info "The keyboard works as English (US) here: yours is picked after this. Press Tab to see what you're typing."
   ask "Password >"
-  printf '\e7'   # the field starts here; everything below is redrawn from it
+  # The field starts here: the one cursor position saved (\e7), and never
+  # saved over, as each frame is redrawn from it (\e8, then \e[J to clear
+  # below). After the hints under the field, back to its start and the
+  # field once more, which leaves the cursor at its end, where typing goes.
+  printf '\e7'
+  local __field
   cursor on
   while :; do
-    printf '\e8\e[J'
-    if (( __shown )); then printf '%s' "$__pw"; else repeat "$__mask" "${#__pw}"; fi
-    printf '\e7\n\n'
+    if (( __shown )); then __field=$__pw; else __field=$(repeat "$__mask" "${#__pw}"); fi
+    printf '\e8\e[J%s\n\n' "$__field"
     if [[ -n $__note ]]; then
       printf '%s%s%s%s\n' "$MARGIN" "$C_YELLOW" "$__note" "$C_RESET"
     fi
     printf '%s%sTab %s the password · Esc goes back to the list%s' "$MARGIN" "$C_GREY" \
       "$( (( __shown )) && echo hides || echo shows )" "$C_RESET"
-    printf '\e8'
+    printf '\e8%s' "$__field"
     IFS= read -rsn1 __key || die "Input closed"
     __note=''
     case $__key in
