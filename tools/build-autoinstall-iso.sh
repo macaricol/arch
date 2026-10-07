@@ -592,7 +592,11 @@ carry_plasma_extras "$work/airootfs/usr/local/share/archauto/extras"
 
 echo "==> Repacking squashfs (this takes a while)..."
 rm -f "$work/airootfs.sfs"
-run mksquashfs "$work/airootfs" "$work/airootfs.sfs" -comp zstd -Xcompression-level 9
+# The official ISO's own settings (archiso's releng profiledef.sh): xz in
+# 1 MB blocks packs it some 110 MB smaller than zstd did, keeping the image
+# well under GitHub's 2 GB for release files. Slower to pack, a few minutes;
+# the live system unpacking more slowly costs an install a few seconds.
+run mksquashfs "$work/airootfs" "$work/airootfs.sfs" -comp xz -Xbcj x86,arm64 -b 1M -Xdict-size 1M
 
 echo "==> Adding a boot entry to the EFI image..."
 efi_mnt="$work/efi_mnt"
