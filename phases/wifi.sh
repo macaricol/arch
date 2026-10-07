@@ -5,6 +5,10 @@
 # connection, before the installer can be downloaded: so from the copy of
 # this installer the USB carries. Returns once the internet is reachable.
 #
+# Every call to iwd has a time limit (busctl --timeout, timeout for iwctl):
+# should iwd stop answering, the screen moves on, to an empty list that
+# offers to look again, rather than waiting forever.
+#
 # The live ISO's Wi-Fi is iwd. The list comes from it over D-Bus (busctl,
 # read with python3, both on the ISO), which gives each network's name,
 # kind and signal as data rather than iwctl's coloured table; connecting
@@ -145,7 +149,7 @@ wifi_password() {
 # wifi_station — prints the iwd station's D-Bus path and its device name
 # (wlan0...), the first Wi-Fi adapter's; nothing without one.
 wifi_station() {
-  busctl --json=short call net.connman.iwd / org.freedesktop.DBus.ObjectManager GetManagedObjects 2>/dev/null \
+  busctl --timeout=5 --json=short call net.connman.iwd / org.freedesktop.DBus.ObjectManager GetManagedObjects 2>/dev/null \
     | python3 -c '
 import json, sys
 for path, ifaces in json.load(sys.stdin)["data"][0].items():
@@ -158,9 +162,12 @@ for path, ifaces in json.load(sys.stdin)["data"][0].items():
 # open, 8021x...) and bars (signal, 1 to 4), strongest first.
 wifi_scan() {
   local name kind bar i
-  busctl call net.connman.iwd "$1" net.connman.iwd.Station Scan &>/dev/null || true
-  for (( i = 0; i < 25; i++ )); do
-    [[ $(busctl get-property net.connman.iwd "$1" net.connman.iwd.Station Scanning 2>/dev/null) == 'b false' ]] && break
+  # At most some 15 s in all, even with iwd not answering: the scan asked
+  # for (3 s), its end waited for by the clock (6 s), the list (2 x 3 s).
+  busctl --timeout=3 call net.connman.iwd "$1" net.connman.iwd.Station Scan &>/dev/null || true
+  local until=$(( SECONDS + 6 ))
+  while (( SECONDS < until )); do
+    [[ $(busctl --timeout=1 get-property net.connman.iwd "$1" net.connman.iwd.Station Scanning 2>/dev/null) == 'b false' ]] && break
     sleep 0.2
   done
   names=() kinds=() bars=()
@@ -169,11 +176,14 @@ wifi_scan() {
   done < <(python3 - "$1" <<'PY'
 import json, subprocess, sys
 def busctl(*args):
-    out = subprocess.run(["busctl", "--json=short", "call", "net.connman.iwd", *args],
-                         capture_output=True, text=True, check=True).stdout
+    out = subprocess.run(["busctl", "--timeout=3", "--json=short", "call", "net.connman.iwd", *args],
+                         capture_output=True, text=True, check=True, timeout=5).stdout
     return json.loads(out)["data"][0]
-objects = busctl("/", "org.freedesktop.DBus.ObjectManager", "GetManagedObjects")
-ordered = busctl(sys.argv[1], "net.connman.iwd.Station", "GetOrderedNetworks")
+try:
+    objects = busctl("/", "org.freedesktop.DBus.ObjectManager", "GetManagedObjects")
+    ordered = busctl(sys.argv[1], "net.connman.iwd.Station", "GetOrderedNetworks")
+except Exception:      # iwd not answering, or no networks yet: an empty list
+    sys.exit(0)
 for path, signal in ordered:              # strongest first; signal in 100 * dBm
     net = objects.get(path, {}).get("net.connman.iwd.Network")
     if not net:
@@ -204,7 +214,7 @@ wifi_item() {
 wifi_connect() {
   local -a args=()
   [[ -z $WIFI_PASSWORD ]] || args=(--passphrase "$WIFI_PASSWORD")
-  iwctl "${args[@]}" station "$1" connect "$2"
+  timeout 45 iwctl "${args[@]}" station "$1" connect "$2" < /dev/null
 }
 
 # wait_online — up to 20 s, by the clock, for an address and the internet.
