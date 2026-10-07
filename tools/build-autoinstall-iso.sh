@@ -364,16 +364,26 @@ splash() {
   center "$1" '1;97'
 }
 
-# Something went wrong: say so and leave a root shell on tty1 to fix it from.
-# With --keep, below what's on screen: the installer's own error, and the
-# failed command's output, which a cleared screen would lose.
+# give_up [--keep] "Title" "Line"... — something went wrong: say so in plain
+# words, what to do about it, and restart on Enter. No shell and no commands
+# on screen: whoever is installing shouldn't need either. (To dig in, the
+# ISO's other consoles are still there: Alt+F2, root, no password.) With
+# --keep, below what's on screen: the installer's own error, which a
+# cleared screen would lose.
 give_up() {
   if [[ $1 == --keep ]]; then shift; printf '\e[0m\n'; center "$1" '1;97'; else splash "$1"; fi
-  echo; center "Run this once it's fixed:" 97
-  center "curl -fsSL $BOOTSTRAP_URL | REPO=$REPO BRANCH=$BRANCH bash" 90
-  printf '\e[?25h\n'
-  exec zsh -l
+  shift
+  echo
+  local line
+  for line; do center "$line" 97; done
+  echo; center "Press Enter to restart" 90
+  printf '\e[?25l'
+  read -r _ || true
+  systemctl reboot
 }
+NO_INTERNET=("No internet connection"
+  "Plug in a network cable, or make sure you're near a Wi-Fi network,"
+  "then restart your computer.")
 
 # under_logo "Text" — a line just under the big logo: two text rows below
 # its bottom edge, which fb-logo.py reports in pixels. With the text splash
@@ -410,11 +420,51 @@ checking=$!
 # a machine with Wi-Fi, the Wi-Fi screen (phases/wifi.sh, from the copy of
 # the installer above) lists the networks to pick from, then the splash
 # comes back. Without Wi-Fi either, it waits for a cable, up to 30 s.
-online() { ping -c1 -W1 archlinux.org &>/dev/null; }
-for (( waited = 0; waited < 8; waited++ )); do online && break; sleep 1; done
-if ! online && compgen -G '/sys/class/net/*/wireless' > /dev/null; then
+#
+# The waits go by the clock, and each try is capped at 3 s: ping's -W only
+# covers waiting for the reply, not looking up the name first, which on a
+# network with no way out (a cable, an address, no internet) can hang for
+# many seconds a try.
+online() { timeout 3 ping -c1 -W2 archlinux.org &>/dev/null; }
+wait_online() {   # wait_online SECONDS
+  local until=$(( SECONDS + $1 ))
+  until online; do
+    (( SECONDS < until )) || return 1
+    sleep 1
+  done
+}
+# ── TEMPORARY (Wi-Fi test): revert after testing ─────────────────────────
+# Three simulated Wi-Fi radios (mac80211_hwsim); two become access points,
+# "TestNet" (secret123) and "Neighbours WiFi" (whatever99), the third is
+# the one the Wi-Fi screen uses. The screen is shown even with a cable,
+# which is what then reaches the internet once "connected".
+export WIFI_TEST=1
+modprobe mac80211_hwsim radios=3
+iwd_devices() {
+  busctl --json=short call net.connman.iwd / org.freedesktop.DBus.ObjectManager GetManagedObjects 2>/dev/null \
+    | python3 -c 'import json, sys
+print("\n".join(sorted(i["net.connman.iwd.Device"]["Name"]["data"]
+                        for i in json.load(sys.stdin)["data"][0].values() if "net.connman.iwd.Device" in i)))'
+}
+for _ in {1..20}; do
+  mapfile -t radios < <(iwd_devices)
+  (( ${#radios[@]} >= 3 )) && break
+  sleep 0.5
+done
+if (( ${#radios[@]} >= 3 )); then
+  iwctl device "${radios[1]}" set-property Mode ap && iwctl ap "${radios[1]}" start "TestNet" "secret123"
+  iwctl device "${radios[2]}" set-property Mode ap && iwctl ap "${radios[2]}" start "Neighbours WiFi" "whatever99"
+  sleep 1
+fi &> /dev/null
+# ── end TEMPORARY ──────────────────────────────────────────────────────────
+
+started=$SECONDS network=0
+if (( ! ${WIFI_TEST:-0} )); then   # TEMPORARY (Wi-Fi test): only the line inside was here
+  wait_online 8 && network=1
+fi                                 # TEMPORARY (Wi-Fi test)
+if (( ! network )) && compgen -G '/sys/class/net/*/wireless' > /dev/null; then
   kill "$checking" 2>/dev/null; wait "$checking" 2>/dev/null
-  bash "$share/installer/setup.sh" wifi || give_up --keep "Couldn't get online."
+  bash "$share/installer/setup.sh" wifi || give_up "${NO_INTERNET[@]}"
   printf '\e[2J\e[H'
   if geometry=$(python3 "$share/fb-logo.py" "$share/logo-hd.txt" "$share/logo-hd.colors" \
                   "${CONSOLE_PALETTE[0]}" "${CONSOLE_PALETTE[6]}" "${CONSOLE_PALETTE[2]}" 2>/dev/null); then
@@ -424,13 +474,15 @@ if ! online && compgen -G '/sys/class/net/*/wireless' > /dev/null; then
   fi
   under_logo "Checking if this computer is ready..."
   SPLASH_SINCE=$EPOCHSECONDS
+  network=1   # the Wi-Fi screen only returns online
 fi
-for (( ; waited < 30; waited++ )); do online && break; sleep 1; done
-online || { kill "$checking" 2>/dev/null; give_up "No network after 30s. Plug in a network cable."; }
+(( network )) || wait_online $(( 30 - (SECONDS - started) )) \
+  || { kill "$checking" 2>/dev/null
+       give_up "${NO_INTERNET[@]}"; }
 
 curl -fsSL "$BOOTSTRAP_URL" | SPLASH_SINCE=$SPLASH_SINCE REPO=$REPO BRANCH=$BRANCH bash \
   || { kill "$checking" 2>/dev/null
-       give_up --keep "The installer stopped. Its log: /tmp/arch-setup/setup.log, then /mnt/home/*/.arch-setup/setup.log"; }
+       give_up --keep "The installation stopped" "Something went wrong. Restart to try again."; }
 EOF
 } > "$work/airootfs/usr/local/bin/archauto"
 chmod +x "$work/airootfs/usr/local/bin/archauto"

@@ -54,8 +54,10 @@ range instead, strongest first, each with its signal and whether it's
 secured: pick one with the arrow keys, type its password, and the splash
 comes back. The new system gets the same network (as a NetworkManager
 connection), so it's online from its first boot. If there's no Wi-Fi
-either, it waits up to 30 seconds for a cable; if the installer can't be
-fetched, it says so and leaves a root shell on tty1.
+either, it waits up to 30 seconds for a cable. Whatever goes wrong, it says
+so in plain words, what to do about it, and restarts on Enter: no shell or
+commands on screen. (To dig in: Alt+F2 for another console, root, no
+password.)
 
     sudo pacman -S --needed libisoburn squashfs-tools devtools git curl gum
     sudo tools/build-autoinstall-iso.sh
@@ -109,7 +111,7 @@ deletes it, leaving only `~/arch-setup.log`.
 
 Every command that goes through `run()` is logged there, with its full
 output shown on the terminal only if it fails. `VERBOSE=1` streams
-everything live instead: from the USB's recovery shell, rerun the installer
+everything live instead: from another console (Alt+F2), rerun the installer
 with `curl -fsSL <bootstrap.sh URL> | VERBOSE=1 bash`.
 
 ## Configuration

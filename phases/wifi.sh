@@ -22,7 +22,7 @@ phase_wifi() {
   local -a names kinds bars items
   local scan_again='── scan again ──' i pick password
   while :; do
-    online && return 0
+    (( ${WIFI_TEST:-0} )) || { online && return 0; }   # TEMPORARY (Wi-Fi test): was "online && return 0"
     wifi_scan "$station"
     if (( ${#names[@]} == 0 )); then
       header "No Wi-Fi networks found"
@@ -61,7 +61,9 @@ phase_wifi() {
   done
 }
 
-online() { ping -c1 -W2 archlinux.org &>/dev/null; }
+# Each try capped at 3 s: ping's -W doesn't cover the name lookup, which can
+# hang far longer on a network with no way out.
+online() { timeout 3 ping -c1 -W2 archlinux.org &>/dev/null; }
 
 # wifi_station — prints the iwd station's D-Bus path and its device name
 # (wlan0...), the first Wi-Fi adapter's; nothing without one.
@@ -128,9 +130,11 @@ wifi_connect() {
   iwctl "${args[@]}" station "$1" connect "$2"
 }
 
-# wait_online — up to 20 s for an address and the internet.
+# wait_online — up to 20 s, by the clock, for an address and the internet.
 wait_online() {
-  local i
-  for (( i = 0; i < 20; i++ )); do online && return 0; sleep 1; done
-  return 1
+  local until=$(( SECONDS + 20 ))
+  until online; do
+    (( SECONDS < until )) || return 1
+    sleep 1
+  done
 }
