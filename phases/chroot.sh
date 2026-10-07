@@ -23,12 +23,19 @@ configure_locale() {
   [[ $TIMEZONE != auto && -f /usr/share/zoneinfo/$TIMEZONE ]] || TIMEZONE=UTC
   ln -sf "/usr/share/zoneinfo/$TIMEZONE" /etc/localtime
   hwclock --systohc
-  local locale
-  for locale in "${LOCALES[@]}"; do
-    sed -i "s/^#\($locale\)/\1/" /etc/locale.gen
+  # One language for everything (LOCALE), Plasma's too, which follows LANG;
+  # dates and times the country's way (TIME_LOCALE, settled by the install
+  # phase), when this glibc has that locale. Each enabled in locale.gen by
+  # its exact line ("name charset"): a bare prefix would also catch other
+  # charsets of it.
+  [[ $TIME_LOCALE != auto ]] && grep -q "^#\?$TIME_LOCALE UTF-8 *\$" /etc/locale.gen || TIME_LOCALE=$LOCALE
+  local name
+  for name in "$LOCALE" "$TIME_LOCALE"; do
+    sed -i "s/^#\($name UTF-8 *\)\$/\1/" /etc/locale.gen   # (its lines end in spaces)
   done
   run locale-gen
-  printf 'LANG=%s\nLC_MESSAGES=%s\n' "$LANG_LOCALE" "$MESSAGES_LOCALE" > /etc/locale.conf
+  printf 'LANG=%s\n' "$LOCALE" > /etc/locale.conf
+  [[ $TIME_LOCALE == "$LOCALE" ]] || printf 'LC_TIME=%s\n' "$TIME_LOCALE" >> /etc/locale.conf
   echo "KEYMAP=$KEYMAP" > /etc/vconsole.conf
 }
 
@@ -153,6 +160,7 @@ run_desktop_phase() {
   local -a progress
   mapfile -t progress < <(progress_env)
   runuser -u "$USER_NAME" -- env TERM="$TERM" VERBOSE="$VERBOSE" \
+    X11_LAYOUT="$X11_LAYOUT" X11_VARIANT="$X11_VARIANT" X11_OPTIONS="$X11_OPTIONS" \
     PATCHED_FONT="${PATCHED_FONT:-0}" "${progress[@]}" \
     bash "$home/.arch-setup/setup.sh" desktop
   rm -f "$rule"

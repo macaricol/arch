@@ -55,7 +55,7 @@ phase_wifi() {
       password=''
       if [[ ${kinds[pick]} == psk ]]; then
         header "Connect to $name"
-        input password "Password" '' --secret
+        wifi_password password || break   # Esc: back to the list
       fi
       header "Connecting to $name"
       info "This can take up to half a minute."
@@ -89,6 +89,52 @@ phase_wifi() {
 # Each try capped at 3 s: ping's -W doesn't cover the name lookup, which can
 # hang far longer on a network with no way out.
 online() { timeout 3 ping -c1 -W2 archlinux.org &>/dev/null; }
+
+# wifi_password VAR — the network's password, into VAR. Its own field, not
+# lib/prompt.sh's: it's typed before the keyboard question (that comes once
+# the installer is downloaded), so on a US layout, and gum's password field
+# can't be shown. Says so, and Tab shows and hides what's typed. Wi-Fi
+# passwords are 8 to 63 characters: anything else is refused at once,
+# rather than after a failed connection. Esc returns 1 (back to the list).
+wifi_password() {
+  local LC_ALL=C.UTF-8 __var=$1 __pw='' __shown=0 __key __rest __mask __note=''   # ${#} in characters
+  __mask=$(mask_char)
+  info "The keyboard works as English (US) here: yours is picked after this. Press Tab to see what you're typing."
+  ask "Password >"
+  printf '\e7'   # the field starts here; everything below is redrawn from it
+  cursor on
+  while :; do
+    printf '\e8\e[J'
+    if (( __shown )); then printf '%s' "$__pw"; else repeat "$__mask" "${#__pw}"; fi
+    printf '\e7\n\n'
+    if [[ -n $__note ]]; then
+      printf '%s%s%s%s\n' "$MARGIN" "$C_YELLOW" "$__note" "$C_RESET"
+    fi
+    printf '%s%sTab %s the password · Esc goes back to the list%s' "$MARGIN" "$C_GREY" \
+      "$( (( __shown )) && echo hides || echo shows )" "$C_RESET"
+    printf '\e8'
+    IFS= read -rsn1 __key || die "Input closed"
+    __note=''
+    case $__key in
+      '')
+        if (( ${#__pw} >= 8 && ${#__pw} <= 63 )); then break; fi
+        __note="Wi-Fi passwords are 8 to 63 characters; this one has ${#__pw}." ;;
+      $'\t')         __shown=$(( 1 - __shown )) ;;
+      $'\x7f'|$'\b') __pw=${__pw%?} ;;
+      $'\x15')       __pw='' ;;                                       # Ctrl+U
+      $'\e')
+        # Esc alone, or the start of a key's code (arrows: Esc [ A...),
+        # which is read to its end (a letter or ~) and ignored.
+        __rest=''; read -rsn1 -t 0.05 __rest || true
+        [[ -n $__rest ]] || { cursor off; printf '\e[J\n'; return 1; }
+        while [[ $__rest != [A-Za-z~] ]] && read -rsn1 -t 0.05 __rest; do :; done ;;
+      *)             __pw+=$__key ;;
+    esac
+  done
+  cursor off
+  printf '\e8\e[J\n'
+  printf -v "$__var" '%s' "$__pw"
+}
 
 # wifi_station — prints the iwd station's D-Bus path and its device name
 # (wlan0...), the first Wi-Fi adapter's; nothing without one.

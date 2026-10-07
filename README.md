@@ -7,7 +7,8 @@
 An installer on a USB stick, the ARCHMAN USB, for a UEFI machine: Btrfs root with `@`/`@home`
 subvolumes, RAM-sized swap with working hibernation, GRUB, a minimal KDE
 Plasma desktop, GPU drivers (64- and 32-bit), Steam, and a handful of AUR
-packages. Tuned for Portuguese locale/keyboard by default — see `config.sh`.
+packages. In English (US), with the timezone, date formats and keyboard of
+where it's installed (the keyboard is asked, that one first) — see `config.sh`.
 
 ## Quick start
 
@@ -20,7 +21,8 @@ the computer from it:
     sudo dd if=archlinux-autoinstall.iso of=/dev/sdX bs=4M status=progress oflag=sync
 
 It boots straight into the installer. Without a cable, pick your Wi-Fi
-network from the list it shows. Then answer three prompts (hostname, username, and one password used for both
+network from the list it shows. Then pick your keyboard layout (the one of
+where you are comes first) and answer three prompts (hostname, username, and one password used for both
 your user and root),
 pick the drive from an arrow-key menu, type `YES`, and walk away. The
 installer sets up everything, desktop included, then asks one last thing:
@@ -117,7 +119,7 @@ with `curl -fsSL <bootstrap.sh URL> | VERBOSE=1 bash`.
 ## Configuration
 
 Everything lives in `config.sh`: the installer's tagline and console
-palette (`TAGLINE`, `CONSOLE_PALETTE`), timezone (detected by default), keymaps, locales, mirror
+palette (`TAGLINE`, `CONSOLE_PALETTE`), timezone and date formats (both detected by default), language (`LOCALE`), mirror
 countries, EFI size, Btrfs mount options, the package lists (`BASE_`,
 `KDE_`, `EXTRA_`, `GAMING_`, `AUR_PACKAGES`, per-vendor `GPU_PACKAGES_*`),
 the surround-upmix settings (`UPMIX_*`), the SDDM theme and wallpaper, icon
@@ -168,6 +170,30 @@ Things that look odd but are deliberate:
   lookup that fails, or a zone the system doesn't know, gives UTC; it can be
   changed later in System Settings. A VPN shows its own location. A fixed
   zone in `config.sh`, e.g. `'Europe/Lisbon'`, is used as it is.
+- **The keyboard layout is asked, the local one first.** The list is
+  Omarchy's (its shared setup form), less its Lao and Azerbaijani entries,
+  whose keymaps there belong to other layouts. The layout of the country
+  from the location lookup (`COUNTRY_KEYBOARD`) leads, then English (US),
+  then the rest alphabetically; English (US) leads where there's no match.
+  It's loaded on the console at once, so the password that follows is typed
+  with it. Each layout carries its console keymap and its X11 layout and
+  variant (from systemd's `kbd-model-map`), for Plasma and the login screen;
+  layouts without Latin letters come with US as a second one (both Shift
+  keys switch), so a Latin password still works at the login screen. The
+  Wi-Fi password is asked before any of this, so on a US layout: its field
+  says so, and Tab shows what's typed (its own field, as gum's password
+  field can't be shown); one that isn't 8 to 63 characters is refused at
+  once.
+- **English everywhere, dates the local way.** The language is English (US)
+  throughout (`LOCALE`: `LANG=en_US.UTF-8`), never asked. Dates and times
+  alone (`LC_TIME`, `TIME_LOCALE='auto'`) follow the country from the same
+  lookup: its locale in its main language if glibc has one (`pt_PT`,
+  `es_ES`), else its English one (`en_GB`, `en_IN`), else the first glibc
+  lists, with a short table (`MAIN_LANGUAGE`) for countries where that
+  first isn't the main language (Brazil, China, Ukraine...). So day/month
+  order, 24-hour time and the first day of the week are local; written-out
+  month and day names come in that locale's language. Unknown country, or a
+  locale the new system lacks: US formats.
 - **Mirrors are picked by location.** With `MIRROR_COUNTRIES='auto'` (the
   default), the install phase takes the country of the machine's public IP
   from the same ipinfo.io lookup as the timezone and has reflector rank that
@@ -207,7 +233,7 @@ Things that look odd but are deliberate:
   last user, or on the first login the only one, into the default session.
   The astronaut theme is still installed: the wallpapers come from it, and
   it can be picked in System Settings. SDDM's greeter runs on X11 and
-  ignores Plasma's keyboard setting, so `X11_LAYOUT` is also written to
+  ignores Plasma's keyboard setting, so the chosen layout is also written to
   `/etc/X11/xorg.conf.d/00-keyboard.conf`, or the password would be typed
   on a US layout.
 - **The Wi-Fi screen runs from the USB, not from GitHub**: without a

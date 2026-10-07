@@ -122,20 +122,27 @@ configure_login_screen() {
   sudo kwriteconfig6 --file "$conf" --group Users   --key MaximumUid 60513
 }
 
-# X11_LAYOUT for the login screen and for Plasma, both read when they start.
+# The keyboard layout chosen in the install phase (X11_LAYOUT, X11_VARIANT,
+# X11_OPTIONS) for the login screen and for Plasma, both read when they
+# start.
 configure_keyboard() {
   # SDDM's greeter runs on X11 and ignores Plasma's keyboard setting
   # (kxkbrc): without this, the first password is typed on a US layout, and
   # one with characters that move between layouts is refused.
   sudo mkdir -p /etc/X11/xorg.conf.d
-  sudo tee /etc/X11/xorg.conf.d/00-keyboard.conf > /dev/null <<EOF
-Section "InputClass"
-    Identifier "system-keyboard"
-    MatchIsKeyboard "on"
-    Option "XkbLayout" "$X11_LAYOUT"
-EndSection
-EOF
+  {
+    printf 'Section "InputClass"\n    Identifier "system-keyboard"\n    MatchIsKeyboard "on"\n'
+    printf '    Option "XkbLayout" "%s"\n' "$X11_LAYOUT"
+    [[ -z $X11_VARIANT ]] || printf '    Option "XkbVariant" "%s"\n' "$X11_VARIANT"
+    [[ -z $X11_OPTIONS ]] || printf '    Option "XkbOptions" "%s"\n' "$X11_OPTIONS"
+    printf 'EndSection\n'
+  } | sudo tee /etc/X11/xorg.conf.d/00-keyboard.conf > /dev/null
   kwriteconfig6 --file kxkbrc --group Layout --key LayoutList "$X11_LAYOUT"
+  kwriteconfig6 --file kxkbrc --group Layout --key VariantList "$X11_VARIANT"
+  if [[ -n $X11_OPTIONS ]]; then
+    kwriteconfig6 --file kxkbrc --group Layout --key Options "$X11_OPTIONS"
+    kwriteconfig6 --file kxkbrc --group Layout --key ResetOldOptions true
+  fi
   kwriteconfig6 --file kxkbrc --group Layout --key Use true
 }
 

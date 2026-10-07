@@ -4,7 +4,6 @@
 phase_install() {
   # Piped in via curl | bash, fd 0 is the script itself, not the keyboard.
   exec < /dev/tty
-  loadkeys "$KEYMAP" 2>/dev/null || warn "Couldn't load keymap $KEYMAP"
 
   # The USB's splash is on screen (tools/build-autoinstall-iso.sh): the big
   # logo, and under it "Checking if this computer is ready...". The USB has
@@ -16,6 +15,7 @@ phase_install() {
   # the mirrors, and its timezone.
   geolocate
   resolve_timezone
+  resolve_time_locale
   local shown=$(( EPOCHSECONDS - ${SPLASH_SINCE:-$EPOCHSECONDS} ))
   (( shown >= 4 )) || sleep $(( 4 - shown ))
   setup_console
@@ -30,6 +30,7 @@ phase_install() {
   # no way out of them but answering, or turning the computer off: leaving
   # would end the USB's start-up and leave the screen black.
   while :; do
+    choose_keyboard
     header "Set up your account"
     input HOST_NAME "Hostname" valid_hostname
     input USER_NAME "Username" valid_username
@@ -40,7 +41,7 @@ phase_install() {
 
     header "Review & confirm"
     printf "$MARGIN %s\n" "Hostname:  $HOST_NAME" "Username:  $USER_NAME" "Drive:     $DRIVE" \
-      "Timezone:  $TIMEZONE" "Keymap:    $KEYMAP"
+      "Timezone:  $TIMEZONE" "Keyboard:  $KEYBOARD_LABEL"
     echo
     warn "Everything on $DRIVE will be erased. This can't be undone."
     ask "Type YES to continue >"; cursor on; read -r ack; cursor off
@@ -208,6 +209,101 @@ resolve_timezone() {
   fi
 }
 
+# The keyboard layouts offered, as "label|console keymap|X11 layout|X11
+# variant": Omarchy's list (basecamp/omarchy, install/provisioning/
+# setup-form.sh), less its Lao and Azerbaijani, whose keymaps there are
+# other layouts' (la-latin1 is Latin American Spanish, azerty French). The
+# X11 side is systemd's (kbd-model-map, what localectl uses), filled in by
+# hand where it has no line. Layouts without Latin letters come with US as
+# a second one, so a Latin password can still be typed at the login screen.
+KEYBOARD_LAYOUTS=(
+  "English (US)|us|us|" "English (UK)|uk|gb|" "English (US, Dvorak)|dvorak|us|dvorak"
+  "English (US, Colemak)|colemak|us|colemak" "Belarusian|by|by,us|" "Belgian|be-latin1|be|"
+  "Bulgarian|bg-cp1251|bg,us|" "Croatian|croat|hr|" "Czech|cz|cz|" "Danish|dk-latin1|dk|"
+  "Dutch|nl|nl|" "Estonian|et|ee|" "Finnish|fi|fi|" "French|fr|fr|" "French (Canada)|cf|ca|"
+  "French (Switzerland)|fr_CH|ch|fr" "Georgian|ge|ge,us|" "German|de|de|"
+  "German (Switzerland)|de_CH-latin1|ch|" "Greek|gr|gr,us|" "Hebrew|il|il|" "Hungarian|hu|hu|"
+  "Icelandic|is-latin1|is|" "Irish|ie|ie|" "Italian|it|it|" "Japanese|jp106|jp|"
+  "Kazakh|kazakh|kz,us|" "Kyrgyz|kyrgyz|kg,us|" "Latvian|lv|lv|apostrophe" "Lithuanian|lt|lt|"
+  "Macedonian|mk-utf|mk,us|" "Norwegian|no-latin1|no|" "Polish|pl|pl|" "Portuguese|pt-latin1|pt|"
+  "Portuguese (Brazil)|br-abnt2|br|" "Romanian|ro|ro|" "Russian|ru|ru,us|"
+  "Serbian|sr-latin|rs|latin" "Slovak|sk-qwertz|sk|" "Slovenian|slovene|si|" "Spanish|es|es|"
+  "Spanish (Latin American)|la-latin1|latam|" "Swedish|sv-latin1|se|" "Tajik|tj_alt-UTF8|tj|"
+  "Turkish|trq|tr|" "Ukrainian|ua|ua,us|"
+)
+# The layout people type on, by country (geolocate's); any other country,
+# and those typing on US keyboards (US, Canada, Australia, India, the
+# Netherlands...), English (US).
+declare -A COUNTRY_KEYBOARD=(
+  [GB]="English (UK)" [IE]="English (UK)" [PT]="Portuguese" [BR]="Portuguese (Brazil)"
+  [ES]="Spanish" [FR]="French" [BE]="Belgian" [CH]="German (Switzerland)"
+  [DE]="German" [AT]="German" [LI]="German" [IT]="Italian" [SM]="Italian"
+  [DK]="Danish" [NO]="Norwegian" [SE]="Swedish" [FI]="Finnish" [IS]="Icelandic"
+  [EE]="Estonian" [LV]="Latvian" [LT]="Lithuanian" [PL]="Polish" [CZ]="Czech"
+  [SK]="Slovak" [SI]="Slovenian" [HR]="Croatian" [RS]="Serbian" [HU]="Hungarian"
+  [RO]="Romanian" [BG]="Bulgarian" [GR]="Greek" [CY]="Greek" [TR]="Turkish"
+  [RU]="Russian" [UA]="Ukrainian" [BY]="Belarusian" [KZ]="Kazakh" [KG]="Kyrgyz"
+  [TJ]="Tajik" [GE]="Georgian" [MK]="Macedonian" [IL]="Hebrew" [JP]="Japanese"
+)
+for _country in MX AR CO CL PE VE EC GT CU BO DO HN PY SV NI CR PA UY PR; do
+  COUNTRY_KEYBOARD[$_country]="Spanish (Latin American)"
+done
+unset _country
+
+# choose_keyboard — asks for the keyboard layout: the one of where this
+# machine is (geolocate) first, then English (US), then the rest by name.
+# Loads it on the console at once, so the password that follows is typed
+# with it, and sets KEYBOARD_LABEL, KEYMAP and the X11_* that the later
+# phases use. Esc shows the list again.
+choose_keyboard() {
+  local detected=${COUNTRY_KEYBOARD[${GEO_COUNTRY:-none}]:-English (US)} entry label   # (an empty key is an error)
+  local -a labels=("$detected") rest=()
+  [[ $detected == "English (US)" ]] || labels+=("English (US)")
+  for entry in "${KEYBOARD_LAYOUTS[@]}"; do
+    label=${entry%%|*}
+    [[ $label == "$detected" || $label == "English (US)" ]] || rest+=("$label")
+  done
+  mapfile -t rest < <(printf '%s\n' "${rest[@]}" | LC_ALL=C sort)
+  labels+=("${rest[@]}")
+  until menu "Select your keyboard layout" "${labels[@]}"; do :; done
+  KEYBOARD_LABEL=$MENU_CHOICE
+  for entry in "${KEYBOARD_LAYOUTS[@]}"; do
+    if [[ ${entry%%|*} == "$KEYBOARD_LABEL" ]]; then IFS='|' read -r _ KEYMAP X11_LAYOUT X11_VARIANT <<< "$entry"; fi
+  done
+  # Two layouts: both Shift keys switch between them.
+  X11_OPTIONS=''
+  [[ $X11_LAYOUT != *,* ]] || X11_OPTIONS=grp:shifts_toggle
+  loadkeys "$KEYMAP" 2>/dev/null || true
+  printf 'Keyboard: %s (%s; X11 %s %s %s)\n' "$KEYBOARD_LABEL" "$KEYMAP" "$X11_LAYOUT" "$X11_VARIANT" "$X11_OPTIONS" >> "$LOG_FILE"
+}
+
+# TIME_LOCALE, settled: with auto (config.sh), the locale whose dates and
+# times are the country's geolocate found, one glibc has (its list,
+# /usr/share/i18n/SUPPORTED): in the country's main language (pt_PT,
+# es_ES, de_DE), else in English (en_GB, en_IN, en_CA), else the first
+# there is. For countries whose first isn't their main language, the
+# language is given (MAIN_LANGUAGE). LOCALE's when there's no country, or
+# no locale for it. A fixed one is kept as it is.
+declare -A MAIN_LANGUAGE=(
+  [BR]=pt [CN]=zh [TW]=zh [UA]=uk [IR]=fa [PE]=es [PK]=ur [NP]=ne [MM]=my
+  [ET]=am [ER]=ti [KE]=sw [BE]=nl [CH]=de [LU]=fr [NO]=nb [AW]=nl [SN]=wo
+)
+resolve_time_locale() {
+  [[ $TIME_LOCALE == auto ]] || return 0
+  TIME_LOCALE=$LOCALE
+  [[ -n $GEO_COUNTRY ]] || return 0
+  local cc=$GEO_COUNTRY lang name
+  local -a candidates=()
+  mapfile -t candidates < <(sed -nE "s/^([a-z]{2,3}_${cc}(\.UTF-8)?) UTF-8\$/\1/p" /usr/share/i18n/SUPPORTED 2>/dev/null)
+  (( ${#candidates[@]} )) || return 0
+  for lang in ${MAIN_LANGUAGE[$cc]:-} "${cc,,}" en; do
+    for name in "${candidates[@]}"; do
+      [[ $name == "${lang}_${cc}" || $name == "${lang}_${cc}.UTF-8" ]] && { TIME_LOCALE=$name; return 0; }
+    done
+  done
+  TIME_LOCALE=${candidates[0]}
+}
+
 # Prints the countries to rank mirrors in: MIRROR_COUNTRIES, or with auto
 # the one geolocate found, or nothing if it found none.
 mirror_countries() {
@@ -312,7 +408,8 @@ configure_new_system() {
   # The bar carries on in the chroot phase, and from there in the desktop phase.
   local -a progress
   mapfile -t progress < <(progress_env)
-  arch-chroot /mnt env HOST_NAME="$HOST_NAME" USER_NAME="$USER_NAME" VERBOSE="$VERBOSE" TIMEZONE="$TIMEZONE" \
+  arch-chroot /mnt env HOST_NAME="$HOST_NAME" USER_NAME="$USER_NAME" VERBOSE="$VERBOSE" TIMEZONE="$TIMEZONE" TIME_LOCALE="$TIME_LOCALE" \
+    KEYMAP="$KEYMAP" X11_LAYOUT="$X11_LAYOUT" X11_VARIANT="$X11_VARIANT" X11_OPTIONS="$X11_OPTIONS" \
     PATCHED_FONT="${PATCHED_FONT:-0}" "${progress[@]}" \
     bash /root/arch-setup/setup.sh chroot
   # The desktop phase has done every step, and logged the last one's time: the
