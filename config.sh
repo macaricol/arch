@@ -78,8 +78,7 @@ EXTRA_PACKAGES=(
 GAMING_PACKAGES=(steam)  # only installed when a supported GPU was detected, see desktop phase
 # From the AUR, installed in this order; their dependencies must be in the
 # official repos (makepkg). paru first: the AUR helper, which then keeps them
-# all up to date (paru -Syu), itself included. (Apdatifier, if added to the
-# panel, shows their updates too once "AUR" is ticked in its settings.)
+# all up to date (paru -Syu, or Apdatifier in the panel), itself included.
 # Those built from source (all but -bin) come prebuilt on the USB.
 AUR_PACKAGES=(paru zen-browser-bin qview)
 

@@ -111,7 +111,7 @@ mirror is `ISO_MIRROR` in `config.sh`.
     phases/desktop.sh        the desktop, as the user in the chroot: Plasma, theming, Samba, Steam, AUR
     phases/look.sh           the chosen look, system-wide: login screen, default wallpaper
     phases/wifi.sh           live ISO: the Wi-Fi network list, run by the USB before the installer
-    phases/plasma-tweaks.sh  first Plasma session: kwin, theme, widgets, panel, icons
+    phases/plasma-tweaks.sh  first Plasma session: kwin, theme, widgets (Apdatifier in the panel), panel, icons
 
 The installer directory travels with the install: `/tmp/arch-setup` on the
 ISO → `/root/arch-setup` in the chroot → `~/.arch-setup` for the desktop
@@ -465,8 +465,7 @@ userspace onto an AMD or Intel machine.
 - `base-devel` — Build tools, required to compile anything from the AUR
   (built with `MAKEFLAGS=-j$(nproc)`: makepkg.conf leaves it to one core)
 - `paru` (AUR) — the AUR helper: keeps the AUR packages (Zen, qView, and
-  itself) up to date with `paru -Syu`; installed first, prebuilt on the USB.
-  Apdatifier, once added to the panel, finds it on its own, but shows AUR
-  updates only with "AUR" ticked in its settings
+  itself) up to date with `paru -Syu`, or from Apdatifier in the panel;
+  installed first, prebuilt on the USB
 - `zen-browser-bin` (AUR) — Firefox-based privacy-focused browser
 - `qview` (AUR) — Lightweight, fast image viewer

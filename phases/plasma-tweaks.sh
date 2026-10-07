@@ -116,6 +116,42 @@ configure_desktop_layout() {
   applets --group Containments --group 2 --group Applets --group 5 \
     --group Configuration --group General \
     --key launchers "applications:systemsettings.desktop,preferred://filemanager,preferred://browser"
+
+  # Apdatifier (installed by install_plasmoids) in the panel, right after the
+  # task manager: updates counted in a badge, the AUR's too, through paru
+  # (installed by the desktop phase), upgrades run in Konsole.
+  local apdatifier=(--group Containments --group 2 --group Applets --group 101)
+  local settings=("${apdatifier[@]}" --group Configuration)
+  applets "${apdatifier[@]}" --key immutability 1
+  applets "${apdatifier[@]}" --key plugin com.github.exequtic.apdatifier
+  applets "${settings[@]}" --key popupWidth 560
+  applets "${settings[@]}" --key popupHeight 400
+  applets "${settings[@]}" --group General --key aur true
+  applets "${settings[@]}" --group Upgrade --key wrapper paru
+  applets "${settings[@]}" --group Upgrade --key terminal /usr/bin/konsole
+  applets "${settings[@]}" --group Appearance --key counterMode badge
+  applets "${settings[@]}" --group Appearance --key counterBadgePosition bottomRight
+  applets "${settings[@]}" --group Appearance --key selectedIcon apdatifier-package
+  applets "${settings[@]}" --group Appearance --key hideIconPolicy 10
+  panel_insert 101 5
+}
+
+# panel_insert ID AFTER — puts applet ID in the panel's (containment 2)
+# order right after applet AFTER, or last without it. The order is Plasma's
+# AppletOrder; when it hasn't written one, the panel's applets by ID, which
+# is the order it shows them in then.
+panel_insert() {
+  local file=$HOME/.config/plasma-org.kde.plasma.desktop-appletsrc order
+  order=$(kreadconfig6 --file plasma-org.kde.plasma.desktop-appletsrc \
+            --group Containments --group 2 --group General --key AppletOrder)
+  if [[ -z $order ]]; then
+    order=$(sed -nE 's/^\[Containments\]\[2\]\[Applets\]\[([0-9]+)\]$/\1/p' "$file" | sort -nu | paste -sd';')
+  fi
+  order=";$order;"
+  order=${order//;$1;/;}                               # once only, wherever it was
+  if [[ $order == *";$2;"* ]]; then order=${order/;$2;/;$2;$1;}; else order+="$1;"; fi
+  order=${order#;} order=${order%;}
+  applets --group Containments --group 2 --group General --key AppletOrder "$order"
 }
 
 # The icon theme: the copy the USB brought (extras/icons) when there is
