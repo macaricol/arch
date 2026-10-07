@@ -45,10 +45,10 @@ phase_install() {
     select_drive
 
     header "Review & confirm"
-    printf "$MARGIN %s\n" "Hostname:  $HOST_NAME" "Username:  $USER_NAME" "Drive:     $DRIVE" \
+    printf "$MARGIN %s\n" "Hostname:  $HOST_NAME" "Username:  $USER_NAME" "Drive:     $DRIVE_LABEL" \
       "Timezone:  $TIMEZONE" "Keyboard:  $KEYBOARD_LABEL"
     echo
-    warn "Everything on $DRIVE will be erased. This can't be undone."
+    warn "Everything on $DRIVE_LABEL will be erased. This can't be undone."
     ask "Type YES to continue >"; cursor on; read -r ack; cursor off
     [[ $ack == YES ]] && break
     buttons "Nothing has been changed" 0 \
@@ -119,28 +119,41 @@ wait_for_usb_removal() {
   done
 }
 
-# Arrow-key menu over the machine's disks, minus the live USB we booted from.
+# Arrow-key menu over the machine's disks, minus the live USB we booted from,
+# each shown by name and size, "CT1000P310SSD8 (931.5G)": its model, or its
+# device name when it reports none, and the device name too when two drives
+# would read the same. Sets DRIVE (/dev/...) and DRIVE_LABEL.
 select_drive() {
   local live_disk=''
   live_disk=$(live_usb_disk) || true
 
-  local -a drives
-  mapfile -t drives < <(
-    lsblk -dpno PATH,SIZE,MODEL,TYPE \
-      | awk -v skip="$live_disk" '$NF == "disk" && $1 != skip { $NF = ""; print }'
-  )
-  (( ${#drives[@]} )) || die "No disks found"
+  local -a paths labels
+  local path size type model i j
+  while read -r path size type model; do
+    [[ $type == disk && $path != "$live_disk" ]] || continue
+    model=${model%%+([[:space:]])}
+    paths+=("$path") labels+=("${model:-${path#/dev/}} ($size)")
+  done < <(lsblk -dpno PATH,SIZE,TYPE,MODEL)
+  (( ${#paths[@]} )) || die "No disks found"
+  local -a plain=("${labels[@]}")
+  for i in "${!plain[@]}"; do
+    for j in "${!plain[@]}"; do
+      if (( i != j )) && [[ ${plain[i]} == "${plain[j]}" ]]; then
+        labels[i]="${plain[i]%)}, ${paths[i]#/dev/})"
+        break
+      fi
+    done
+  done
 
   # A drive, then a second look at it: the list is easy to slip on. Esc
   # shows the list again; there's no cancelling (see phase_install).
-  local size model
   while :; do
-    until menu "Select the installation drive" "${drives[@]}"; do :; done
-    DRIVE=${MENU_CHOICE%% *}
-    read -r _ size model <<< "$MENU_CHOICE"
-    model=${model%%+([[:space:]])}
-    buttons "Install on ${model:-$DRIVE} ($size)?" 0 \
-      "Use this drive" "$DRIVE: everything on it will be erased." \
+    until menu "Select the installation drive" "${labels[@]}"; do :; done
+    for i in "${!labels[@]}"; do
+      if [[ ${labels[i]} == "$MENU_CHOICE" ]]; then DRIVE=${paths[i]} DRIVE_LABEL=${labels[i]}; fi
+    done
+    buttons "Install on $DRIVE_LABEL?" 0 \
+      "Use this drive" "Everything on it will be erased." \
       "Choose another" "Back to the list of drives."
     (( PICKED == 0 )) && break
   done

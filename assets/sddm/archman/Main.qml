@@ -74,16 +74,19 @@ Rectangle {
         border.color: config.border
         border.width: root.s
 
-        // A dot per character typed, a cell each, centred in the box.
+        // A dot per character typed, centred in the box, as many as fit
+        // inside it (a cell's margin each side). dot.png is the 12x22 font's
+        // dot, half as big again as the 8x16's, shown at the same scale.
         Row {
           anchors.centerIn: parent
           Repeater {
-            model: Math.min(password.text.length, 34)
+            id: dots
+            model: Math.min(password.text.length, Math.floor(root.cellW * 36 / (12 * root.s)))
             Image {
               source: "dot.png"
               smooth: false
-              width: root.cellW
-              height: root.cellH
+              width: sourceSize.width * root.s
+              height: sourceSize.height * root.s
             }
           }
         }
