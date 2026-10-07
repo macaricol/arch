@@ -22,7 +22,9 @@ phase_wifi() {
   local -a names kinds bars items
   local scan_again='── scan again ──' i pick name password
   while :; do
-    online && return 0
+    # (In a USB built --wifi-test, the cable is online all along: the
+    # screen stays until a network is connected.)
+    (( ${WIFI_TEST:-0} )) || { online && return 0; }
     header "Choose your Wi-Fi network"
     info "Looking for Wi-Fi networks..."
     wifi_scan "$station"

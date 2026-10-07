@@ -3,8 +3,10 @@
 # image again from the official Arch ISO, and creates and starts a new VM
 # with it.
 #
-#   tools/rebuild-test.sh [OFFICIAL_ISO]
+#   tools/rebuild-test.sh [--wifi-test] [OFFICIAL_ISO]
 #
+# --wifi-test builds the image with simulated Wi-Fi networks, for trying the
+# Wi-Fi screen in the VM (see tools/build-autoinstall-iso.sh).
 # OFFICIAL_ISO defaults to archlinux-2026.10.01-x86_64.iso. Run it as your
 # user, not with sudo: VirtualBox VMs belong to the user who made them. It
 # asks for your password for the build, which needs root.
@@ -15,6 +17,8 @@
 set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
+build_options=()
+if [[ ${1:-} == --wifi-test ]]; then build_options+=(--wifi-test); shift; fi
 official=${1:-archlinux-2026.10.01-x86_64.iso}
 image=archlinux-autoinstall.iso
 vm=archman-test
@@ -50,7 +54,7 @@ echo "==> Deleting $image"
 sudo rm -f "$image"
 
 echo "==> Building $image from $official, for branch $branch"
-sudo BRANCH="$branch" tools/build-autoinstall-iso.sh "$official" "$image"
+sudo BRANCH="$branch" tools/build-autoinstall-iso.sh "${build_options[@]}" "$official" "$image"
 sudo chown "$(id -u):$(id -g)" "$image"   # yours, so the next round needn't sudo to delete it
 
 echo "==> Creating the test VM"
