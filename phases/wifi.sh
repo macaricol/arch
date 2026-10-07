@@ -22,7 +22,7 @@ phase_wifi() {
   local -a names kinds bars items
   local scan_again='── scan again ──' i pick name password
   while :; do
-    (( ${WIFI_TEST:-0} )) || { online && return 0; }   # TEMPORARY (Wi-Fi test): was "online && return 0"
+    online && return 0
     header "Choose your Wi-Fi network"
     info "Looking for Wi-Fi networks..."
     wifi_scan "$station"

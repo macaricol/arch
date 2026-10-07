@@ -433,35 +433,8 @@ wait_online() {   # wait_online SECONDS
     sleep 1
   done
 }
-# ── TEMPORARY (Wi-Fi test): revert after testing ─────────────────────────
-# Three simulated Wi-Fi radios (mac80211_hwsim); two become access points,
-# "TestNet" (secret123) and "Neighbours WiFi" (whatever99), the third is
-# the one the Wi-Fi screen uses. The screen is shown even with a cable,
-# which is what then reaches the internet once "connected".
-export WIFI_TEST=1
-modprobe mac80211_hwsim radios=3
-iwd_devices() {
-  busctl --json=short call net.connman.iwd / org.freedesktop.DBus.ObjectManager GetManagedObjects 2>/dev/null \
-    | python3 -c 'import json, sys
-print("\n".join(sorted(i["net.connman.iwd.Device"]["Name"]["data"]
-                        for i in json.load(sys.stdin)["data"][0].values() if "net.connman.iwd.Device" in i)))'
-}
-for _ in {1..20}; do
-  mapfile -t radios < <(iwd_devices)
-  (( ${#radios[@]} >= 3 )) && break
-  sleep 0.5
-done
-if (( ${#radios[@]} >= 3 )); then
-  iwctl device "${radios[1]}" set-property Mode ap && iwctl ap "${radios[1]}" start "TestNet" "secret123"
-  iwctl device "${radios[2]}" set-property Mode ap && iwctl ap "${radios[2]}" start "Neighbours WiFi" "whatever99"
-  sleep 1
-fi &> /dev/null
-# ── end TEMPORARY ──────────────────────────────────────────────────────────
-
 started=$SECONDS network=0
-if (( ! ${WIFI_TEST:-0} )); then   # TEMPORARY (Wi-Fi test): only the line inside was here
-  wait_online 8 && network=1
-fi                                 # TEMPORARY (Wi-Fi test)
+wait_online 8 && network=1
 if (( ! network )) && compgen -G '/sys/class/net/*/wireless' > /dev/null; then
   kill "$checking" 2>/dev/null; wait "$checking" 2>/dev/null
   bash "$share/installer/setup.sh" wifi || give_up "${NO_INTERNET[@]}"
