@@ -480,9 +480,12 @@ fi
   || { kill "$checking" 2>/dev/null
        give_up "${NO_INTERNET[@]}"; }
 
-curl -fsSL "$BOOTSTRAP_URL" | SPLASH_SINCE=$SPLASH_SINCE REPO=$REPO BRANCH=$BRANCH bash \
-  || { kill "$checking" 2>/dev/null
-       give_up --keep "The installation stopped" "Something went wrong. Restart to try again."; }
+# The installer ends by restarting the computer: if it comes back here at
+# all, failed or not, it stopped early. Never a black screen: say so, and
+# restart on Enter.
+curl -fsSL "$BOOTSTRAP_URL" | SPLASH_SINCE=$SPLASH_SINCE REPO=$REPO BRANCH=$BRANCH bash
+kill "$checking" 2>/dev/null
+give_up --keep "The installation stopped" "Restart to try again."
 EOF
 } > "$work/airootfs/usr/local/bin/archauto"
 chmod +x "$work/airootfs/usr/local/bin/archauto"

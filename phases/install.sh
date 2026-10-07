@@ -22,21 +22,30 @@ phase_install() {
   PROGRESS_TOTAL=$(( $(step_weights "$SETUP_DIR/phases/install.sh") + $(step_weights "$SETUP_DIR/phases/desktop.sh")
                      + $(aur_weight "$ISO_PACKAGES") ))
 
-  header "Set up your account"
-  input HOST_NAME "Hostname" valid_hostname
-  input USER_NAME "Username" valid_username
-  # One password for both the user and root.
-  password PASSWORD "Password"
+  # The questions, until they end in YES: nothing is touched before. There's
+  # no way out of them but answering, or turning the computer off: leaving
+  # would end the USB's start-up and leave the screen black.
+  while :; do
+    header "Set up your account"
+    input HOST_NAME "Hostname" valid_hostname
+    input USER_NAME "Username" valid_username
+    # One password for both the user and root.
+    password PASSWORD "Password"
 
-  select_drive
+    select_drive
 
-  header "Review & confirm"
-  printf "$MARGIN %s\n" "Hostname:  $HOST_NAME" "Username:  $USER_NAME" "Drive:     $DRIVE" \
-    "Timezone:  $TIMEZONE" "Keymap:    $KEYMAP"
-  echo
-  warn "Everything on $DRIVE will be erased. This can't be undone."
-  ask "Type YES to continue >"; cursor on; read -r ack; cursor off
-  [[ $ack == YES ]] || { info "Nothing was changed. Run the installer again whenever you're ready."; exit 0; }
+    header "Review & confirm"
+    printf "$MARGIN %s\n" "Hostname:  $HOST_NAME" "Username:  $USER_NAME" "Drive:     $DRIVE" \
+      "Timezone:  $TIMEZONE" "Keymap:    $KEYMAP"
+    echo
+    warn "Everything on $DRIVE will be erased. This can't be undone."
+    ask "Type YES to continue >"; cursor on; read -r ack; cursor off
+    [[ $ack == YES ]] && break
+    buttons "Nothing has been changed" 0 \
+      "Start over" "Answer the questions again." \
+      "Turn off" "Switch the computer off. Nothing on it has been touched."
+    (( PICKED == 0 )) || { clear; systemctl poweroff; sleep infinity; }   # until it's off
+  done
   # Bash's own clock; it keeps running through arch-chroot and the desktop
   # phase.
   local started=$SECONDS
@@ -112,17 +121,20 @@ select_drive() {
   )
   (( ${#drives[@]} )) || die "No disks found"
 
-  local cancel='── cancel ──'
-  menu "Select the installation drive" "$cancel" "${drives[@]}" && [[ $MENU_CHOICE != "$cancel" ]] \
-    || { clear; info "Cancelled."; exit 0; }
-
-  DRIVE=${MENU_CHOICE%% *}
-  [[ -b $DRIVE ]] || die "Not a block device: $DRIVE"
+  # A drive, then a second look at it: the list is easy to slip on. Esc
+  # shows the list again; there's no cancelling (see phase_install).
   local size model
-  read -r _ size model <<< "$MENU_CHOICE"
-  model=${model%%+([[:space:]])}
-  echo
-  info "Installing to $DRIVE (${model:-disk}, $size)"
+  while :; do
+    until menu "Select the installation drive" "${drives[@]}"; do :; done
+    DRIVE=${MENU_CHOICE%% *}
+    read -r _ size model <<< "$MENU_CHOICE"
+    model=${model%%+([[:space:]])}
+    buttons "Install on ${model:-$DRIVE} ($size)?" 0 \
+      "Use this drive" "$DRIVE: everything on it will be erased." \
+      "Choose another" "Back to the list of drives."
+    (( PICKED == 0 )) && break
+  done
+  [[ -b $DRIVE ]] || die "Not a block device: $DRIVE"
 }
 
 partition_and_mount() {
