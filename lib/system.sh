@@ -47,21 +47,10 @@ aur_weight() {
   echo "$weight"
 }
 
-# aur_has_newer PACKAGE FILE — true when the AUR has a newer version of
-# PACKAGE than the prebuilt FILE; false when it can't tell (no network...).
-aur_has_newer() {
-  local aur ours
-  aur=$(curl -fsS --max-time 10 "https://aur.archlinux.org/rpc/v5/info?arg[]=$1" 2>/dev/null \
-    | grep -oE '"Version":"[^"]+"' | cut -d'"' -f4) || return 1
-  ours=$(pacman -Qp "$2" 2>/dev/null | cut -d' ' -f2) || return 1
-  [[ -n $aur && -n $ours ]] && (( $(vercmp "$aur" "$ours") > 0 ))
-}
-
 # aur_install PACKAGE — installs an AUR package: the prebuilt one the USB
-# brought (in the installer's packages/), unless the AUR has a newer
-# version; otherwise, or if that fails, built with makepkg here. No
-# AUR helper: building one (paru is Rust) took longer than the packages
-# themselves. Its dependencies must be in the official repos (makepkg -s
+# brought (in the installer's packages/), even when the AUR has a newer
+# one by now, as paru (installed first, AUR_PACKAGES) brings it up to date
+# with the rest; otherwise, or if that fails, built with makepkg here. Its dependencies must be in the official repos (makepkg -s
 # installs them; -r removes the build-only ones afterwards). Built on disk:
 # in the installer's chroot, /tmp is in RAM; and on every core, which
 # makepkg.conf leaves to the user (MAKEFLAGS). Both the clone (from
@@ -75,12 +64,8 @@ aur_has_newer() {
 aur_install() {
   local prebuilt
   if prebuilt=$(prebuilt_package "$SETUP_DIR/packages" "$1"); then
-    if aur_has_newer "$1" "$prebuilt"; then
-      info "The AUR has a newer $1 than this USB's, building it"
-    else
-      run as_root pacman -U --needed --noconfirm "$prebuilt" && return 0
-      warn "Couldn't install the prebuilt $1, building it instead"
-    fi
+    run as_root pacman -U --needed --noconfirm "$prebuilt" && return 0
+    warn "Couldn't install the prebuilt $1, building it instead"
   fi
   local build from=$PROGRESS_FROM to=$PROGRESS_TO
   build=$(mktemp -d -p /var/tmp)

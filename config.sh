@@ -76,7 +76,12 @@ EXTRA_PACKAGES=(
 )
 
 GAMING_PACKAGES=(steam)  # only installed when a supported GPU was detected, see desktop phase
-AUR_PACKAGES=(zen-browser-bin qview)   # built with makepkg: dependencies must be in the official repos
+# From the AUR, installed in this order; their dependencies must be in the
+# official repos (makepkg). paru first: the AUR helper, which then keeps them
+# all up to date (paru -Syu), itself included. (Apdatifier, if added to the
+# panel, shows their updates too once "AUR" is ticked in its settings.)
+# Those built from source (all but -bin) come prebuilt on the USB.
+AUR_PACKAGES=(paru zen-browser-bin qview)
 
 # The lib32-* packages are what Steam needs. Installing the right ones up
 # front matters: steam depends on virtual lib32-vulkan-driver / lib32-libgl,

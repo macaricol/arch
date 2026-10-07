@@ -65,13 +65,13 @@ password.)
     sudo tools/build-autoinstall-iso.sh
 
 The AUR packages that compile from source (`AUR_PACKAGES` without the
-`-bin` ones: qview) are built into the USB, in a clean chroot with
+`-bin` ones: paru and qview) are built into the USB, in a clean chroot with
 devtools' `makechrootpkg` (created once in `/var/lib/archman-build`, about
 200 MB, and updated on every run), so installs from it don't spend minutes
-compiling them. Without devtools, or when run as root rather than through
-sudo, that step is skipped and installs compile them as before. An install
-still builds a package itself when the AUR has a newer version than the
-USB's, or if the prebuilt one won't install.
+compiling them. An install uses the USB's even when the AUR has a newer
+version by then: paru, installed first, brings them up to date with the rest
+(`paru -Syu`). It builds a package itself only if the prebuilt one won't
+install.
 
 Run with no arguments it asks whether to fetch the current official ISO or
 use one you already have. `--download` skips the question for scripted use,
@@ -458,5 +458,9 @@ userspace onto an AMD or Intel machine.
   the install phase enables.
 - `base-devel` — Build tools, required to compile anything from the AUR
   (built with `MAKEFLAGS=-j$(nproc)`: makepkg.conf leaves it to one core)
+- `paru` (AUR) — the AUR helper: keeps the AUR packages (Zen, qView, and
+  itself) up to date with `paru -Syu`; installed first, prebuilt on the USB.
+  Apdatifier, once added to the panel, finds it on its own, but shows AUR
+  updates only with "AUR" ticked in its settings
 - `zen-browser-bin` (AUR) — Firefox-based privacy-focused browser
 - `qview` (AUR) — Lightweight, fast image viewer
