@@ -19,6 +19,8 @@ phase_chroot() {
 
 configure_locale() {
   info "Setting language, time zone and keyboard..."
+  # Settled by the install phase (resolve_timezone); never left at auto.
+  [[ $TIMEZONE != auto && -f /usr/share/zoneinfo/$TIMEZONE ]] || TIMEZONE=UTC
   ln -sf "/usr/share/zoneinfo/$TIMEZONE" /etc/localtime
   hwclock --systohc
   local locale

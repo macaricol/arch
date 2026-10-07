@@ -117,7 +117,7 @@ with `curl -fsSL <bootstrap.sh URL> | VERBOSE=1 bash`.
 ## Configuration
 
 Everything lives in `config.sh`: the installer's tagline and console
-palette (`TAGLINE`, `CONSOLE_PALETTE`), timezone, keymaps, locales, mirror
+palette (`TAGLINE`, `CONSOLE_PALETTE`), timezone (detected by default), keymaps, locales, mirror
 countries, EFI size, Btrfs mount options, the package lists (`BASE_`,
 `KDE_`, `EXTRA_`, `GAMING_`, `AUR_PACKAGES`, per-vendor `GPU_PACKAGES_*`),
 the surround-upmix settings (`UPMIX_*`), the SDDM theme and wallpaper, icon
@@ -161,9 +161,16 @@ Things that look odd but are deliberate:
   `channelmix.upmix = true`. Nothing is set for mpv on purpose — forcing
   `audio-channels=7.1` makes mpv pad the extra channels itself, so PipeWire
   sees 8 channels and skips the upmix.
+- **The timezone is where the machine is, never asked.** With
+  `TIMEZONE='auto'` (the default), the install phase looks the machine's
+  public IP up at ipinfo.io once, under the splash, and takes the timezone
+  it gives (the country from the same answer ranks the mirrors, below). A
+  lookup that fails, or a zone the system doesn't know, gives UTC; it can be
+  changed later in System Settings. A VPN shows its own location. A fixed
+  zone in `config.sh`, e.g. `'Europe/Lisbon'`, is used as it is.
 - **Mirrors are picked by location.** With `MIRROR_COUNTRIES='auto'` (the
-  default), the install phase looks up the country of the machine's public
-  IP at ipinfo.io (just its two-letter code) and has reflector rank that
+  default), the install phase takes the country of the machine's public IP
+  from the same ipinfo.io lookup as the timezone and has reflector rank that
   country's HTTPS mirrors; if the lookup fails or the country has none, it
   ranks mirrors worldwide. A list such as `'PT,ES'` pins the countries.
   Only mirrors at most 4 hours behind Arch are used (`--delay 4`): pacman

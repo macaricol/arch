@@ -12,6 +12,10 @@ phase_install() {
   # The splash stays up at least 4 seconds in all (since SPLASH_SINCE);
   # only then the console's font and colours, which redraw the screen, and
   # the first question.
+  # Where this machine is, while the splash is still up: its country, for
+  # the mirrors, and its timezone.
+  geolocate
+  resolve_timezone
   local shown=$(( EPOCHSECONDS - ${SPLASH_SINCE:-$EPOCHSECONDS} ))
   (( shown >= 4 )) || sleep $(( 4 - shown ))
   setup_console
@@ -178,17 +182,40 @@ partition_and_mount() {
   run swapon "$swap"
 }
 
-# Prints the countries to rank mirrors in: MIRROR_COUNTRIES, or with auto the
-# two-letter code of this machine's public IP's country (ipinfo.io), or
-# nothing if that lookup fails.
+# Where this machine is, by its public IP (ipinfo.io), in GEO_COUNTRY (a
+# two-letter code) and GEO_TIMEZONE (e.g. Europe/Lisbon); each empty when
+# the lookup fails or doesn't say. One lookup for both: the mirrors
+# (mirror_countries) and the clock (resolve_timezone).
+geolocate() {
+  local json country='"country": *"([A-Z]{2})"' zone='"timezone": *"([A-Za-z0-9_+/-]+)"'
+  GEO_COUNTRY='' GEO_TIMEZONE=''
+  json=$(curl -fsS --max-time 5 https://ipinfo.io/json 2>/dev/null) || true
+  [[ $json =~ $country ]] && GEO_COUNTRY=${BASH_REMATCH[1]}
+  [[ $json =~ $zone ]] && GEO_TIMEZONE=${BASH_REMATCH[1]}
+  printf 'Location: country %s, timezone %s\n' "${GEO_COUNTRY:-unknown}" "${GEO_TIMEZONE:-unknown}" >> "$LOG_FILE"
+  return 0
+}
+
+# TIMEZONE, settled: with auto (config.sh), the one geolocate found, if it's
+# one the system knows (a file in /usr/share/zoneinfo); UTC otherwise. A
+# fixed one is kept as it is.
+resolve_timezone() {
+  [[ $TIMEZONE == auto ]] || return 0
+  if [[ -n $GEO_TIMEZONE && -f /usr/share/zoneinfo/$GEO_TIMEZONE ]]; then
+    TIMEZONE=$GEO_TIMEZONE
+  else
+    TIMEZONE=UTC
+  fi
+}
+
+# Prints the countries to rank mirrors in: MIRROR_COUNTRIES, or with auto
+# the one geolocate found, or nothing if it found none.
 mirror_countries() {
   if [[ $MIRROR_COUNTRIES != auto ]]; then
     echo "$MIRROR_COUNTRIES"
-    return
+  elif [[ -n $GEO_COUNTRY ]]; then
+    echo "$GEO_COUNTRY"
   fi
-  local code
-  code=$(curl -fsS --max-time 5 https://ipinfo.io/country 2>/dev/null | tr -d '[:space:]') || true
-  [[ $code =~ ^[A-Z]{2}$ ]] && echo "$code"
   return 0
 }
 
@@ -285,7 +312,7 @@ configure_new_system() {
   # The bar carries on in the chroot phase, and from there in the desktop phase.
   local -a progress
   mapfile -t progress < <(progress_env)
-  arch-chroot /mnt env HOST_NAME="$HOST_NAME" USER_NAME="$USER_NAME" VERBOSE="$VERBOSE" \
+  arch-chroot /mnt env HOST_NAME="$HOST_NAME" USER_NAME="$USER_NAME" VERBOSE="$VERBOSE" TIMEZONE="$TIMEZONE" \
     PATCHED_FONT="${PATCHED_FONT:-0}" "${progress[@]}" \
     bash /root/arch-setup/setup.sh chroot
   # The desktop phase has done every step, and logged the last one's time: the
