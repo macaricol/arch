@@ -1,6 +1,6 @@
 [SddmGreeterTheme]
 Name=ARCHMAN
-Description=The ARCHMAN installer's unlock screen, as a login screen
+Description=ARCHMAN's login screen: an Omarchy-style unlock screen in the installer's look
 Author=arch-setup
 Type=sddm-theme
 Version=1.0

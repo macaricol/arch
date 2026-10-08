@@ -105,7 +105,7 @@ install_look_files() {
   sudo cp -r "$astronaut"/Fonts/* /usr/share/fonts/
   run sudo fc-cache -f
 
-  # The unlock screen's look (assets/sddm/archman).
+  # The ARCHMAN login screen (assets/sddm/archman).
   local theme_dir=/usr/share/sddm/themes/$SDDM_THEME
   sudo rm -rf "$theme_dir"
   sudo install -Dm644 -t "$theme_dir" "$SETUP_DIR/assets/sddm/archman"/*

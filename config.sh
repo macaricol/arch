@@ -35,7 +35,7 @@ CONSOLE_PALETTE=(
 # Never asked. (The install phase hands its answer on, hence the ${...:-}.)
 TIMEZONE=${TIMEZONE:-auto}
 # The keyboard is asked, the layout of where this machine is first (the
-# list: phases/install.sh's KEYBOARD_LAYOUTS). These are its answer, handed
+# list: lib/keyboard.sh's KEYBOARD_LAYOUTS). These are its answer, handed
 # on to the later phases, or US until it's given.
 KEYMAP=${KEYMAP:-us}                 # the console's: live ISO and installed system
 X11_LAYOUT=${X11_LAYOUT:-us}         # Plasma's and the login screen's
@@ -114,8 +114,8 @@ UPMIX_FC_CUTOFF=12000     # Hz and below go to the centre speaker
 UPMIX_REAR_DELAY=12.0     # ms of Haas delay on the rears, so they stay behind you
 
 # ── Look & feel ────────────────────────────────────────────────────────
-# The login screen: the archman theme (assets/sddm/archman), the installer's
-# unlock screen as an SDDM theme (rebuild with tools/make-sddm-theme.py).
+# The login screen: the archman theme (assets/sddm/archman), an Omarchy-style
+# unlock screen in the installer's look (rebuild with tools/make-sddm-theme.py).
 SDDM_THEME='archman'
 # Installed too: the wallpapers come from it, and it stays available as an
 # alternative login theme in System Settings.

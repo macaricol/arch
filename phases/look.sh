@@ -17,7 +17,7 @@ phase_look() {
   local conf=/etc/sddm.conf.d/kde_settings.conf
   mkdir -p /etc/sddm.conf.d
   if [[ $LOOK == archman ]]; then
-    # The login screen in the unlock screen's look (assets/sddm/archman),
+    # The ARCHMAN login screen (assets/sddm/archman),
     # and the wallpaper as the system-wide default, so the first Plasma
     # session starts with it.
     kwriteconfig6 --file "$conf" --group Theme --key Current "$SDDM_THEME"

@@ -169,9 +169,9 @@ install_icon_theme() {
   kwriteconfig6 --file kdeglobals --group Icons --key Theme "$ICON_THEME"
 }
 
-# Removes the autostart entry and, when running from the staged copy in the
-# user's home, the installer itself — keeping only the log. A manual run from
-# a git checkout is left alone.
+# Removes the autostart entry and the installer itself, keeping only the
+# log. Only ever the copy the install left in the user's home: the check is
+# a safety net, so this can never delete anything else.
 cleanup() {
   rm -f "$HOME/.config/autostart/arch-plasma-tweaks.desktop"
   if [[ $SETUP_DIR == "$HOME/.arch-setup" ]]; then
