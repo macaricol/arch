@@ -64,10 +64,10 @@ network comes up and through the installer's own checks (UEFI, internet,
 fetching gum), which draw nothing over it, for at least 4 seconds in all;
 the first thing after it is the account screen.
 
-With no cable plugged in, on a machine with Wi-Fi, it shows the networks in
-range instead, strongest first, each with its signal and whether it's
-secured: pick one with the arrow keys, type its password, and the splash
-comes back. The new system gets the same network (as a NetworkManager
+With no cable plugged in, on a machine with Wi-Fi, it asks for the keyboard
+layout and shows the networks in range instead, strongest first, each with
+its signal and whether it's secured: pick one with the arrow keys, type its
+password, and once connected it goes straight on to the installer. The new system gets the same network (as a NetworkManager
 connection), so it's online from its first boot. If there's no Wi-Fi
 either, it waits up to 30 seconds for a cable. Whatever goes wrong, it says
 so in plain words, what to do about it, and restarts on Enter: no shell or

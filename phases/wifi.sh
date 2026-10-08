@@ -87,8 +87,8 @@ phase_wifi() {
           "Try again" "It connected, but the internet didn't answer. Try connecting again." \
           "Other network" "Go back to the list of Wi-Fi networks."
       else
-        info "Connected."
-        sleep 1
+        # Left on screen until the installer's first one replaces it.
+        info "Connected. Getting the installer ready..."
         return 0
       fi
       (( PICKED == 0 )) || break

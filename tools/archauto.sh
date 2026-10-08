@@ -114,8 +114,9 @@ checking=$!
 
 # The network. A cable is usually up within a few seconds; without one, on
 # a machine with Wi-Fi, the Wi-Fi screen (phases/wifi.sh, from the copy of
-# the installer above) lists the networks to pick from, then the splash
-# comes back. Without Wi-Fi either, it waits for a cable, up to 30 s.
+# the installer above) asks for the keyboard layout and lists the networks
+# to pick from, then goes on to the installer. Without Wi-Fi either, it
+# waits for a cable, up to 30 s.
 #
 # The waits go by the clock, and each try is capped at 3 s: ping's -W only
 # covers waiting for the reply, not looking up the name first, which on a
@@ -189,9 +190,10 @@ if (( WIFI_TEST )); then
 fi
 if (( ! network )) && compgen -G '/sys/class/net/*/wireless' > /dev/null; then
   kill "$checking" 2>/dev/null; wait "$checking" 2>/dev/null
+  # The Wi-Fi screen stays up, saying it's connected, until the installer's
+  # first screen replaces it: not the splash again, which would show for
+  # only as long as the download takes, a blink.
   bash "$share/installer/setup.sh" wifi || give_up "${NO_INTERNET[@]}"
-  show_splash
-  under_logo "Checking if this computer is ready..."
   network=1   # the Wi-Fi screen only returns online
 fi
 (( network )) || wait_online $(( 30 - (SECONDS - started) )) \
