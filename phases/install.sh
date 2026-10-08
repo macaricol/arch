@@ -5,17 +5,19 @@ phase_install() {
   # Piped in via curl | bash, fd 0 is the script itself, not the keyboard.
   exec < /dev/tty
 
-  # The USB's splash is on screen (tools/build-autoinstall-iso.sh): the big
-  # logo, and under it "Checking if this computer is ready...". The USB has
-  # checked the network; it booted in UEFI mode, as root, and brought gum.
-  # The splash stays up at least 4 seconds in all (since SPLASH_SINCE);
-  # only then the console's font and colours, which redraw the screen, and
-  # the first question.
+  # The USB's splash is on screen (tools/archauto.sh): the big logo, and
+  # under it "Checking if this computer is ready...". The USB has checked
+  # the network; it booted in UEFI mode, as root, and brought gum.
+
   # Where this machine is, while the splash is still up: its country, for
-  # the mirrors, and its timezone.
+  # the mirrors, the keyboard and the date formats, and its timezone.
   geolocate
   resolve_timezone
   resolve_time_locale
+
+  # The splash stays up at least 4 seconds in all (since SPLASH_SINCE);
+  # only then the console's font and colours, which redraw the screen, and
+  # the first question.
   local shown=$(( EPOCHSECONDS - ${SPLASH_SINCE:-$EPOCHSECONDS} ))
   (( shown >= 4 )) || sleep $(( 4 - shown ))
   setup_console
@@ -331,7 +333,8 @@ install_base() {
 
   share 50 1000
   info "Downloading and installing the core system. This takes a few minutes."
-  # pacstrap downloads into the new system's cache (see lib/ui.sh's measured_progress).
+  # pacstrap downloads into the new system's cache (see lib/ui.sh's
+  # measured_progress).
   local PACMAN_CACHE=/mnt/var/cache/pacman/pkg
   printf 'Packages: %s\n' "${packages[*]}" >> "$LOG_FILE"
   retry 10 run pacstrap -K -P /mnt "${packages[@]}" || die "Couldn't download the core system"

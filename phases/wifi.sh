@@ -102,9 +102,9 @@ online() { timeout 3 ping -c1 -W2 archlinux.org &>/dev/null; }
 
 # wifi_password VAR — the network's password, into VAR. Its own field, not
 # lib/prompt.sh's: gum's password field can't be shown, and here Tab shows
-# and hides what's typed. Wi-Fi
-# passwords are 8 to 63 characters: anything else is refused at once,
-# rather than after a failed connection. Esc returns 1 (back to the list).
+# and hides what's typed. Wi-Fi passwords are 8 to 63 characters: anything
+# else is refused at once, rather than after a failed connection. Esc
+# returns 1 (back to the list).
 wifi_password() {
   local LC_ALL=C.UTF-8 __var=$1 __pw='' __shown=0 __key __rest __mask __note=''   # ${#} in characters
   __mask=$(mask_char)

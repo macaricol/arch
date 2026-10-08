@@ -21,8 +21,9 @@ LAYOUT_WIDTH=79
 
 # The terminal to act on: standard input when it's a virtual console
 # (/dev/ttyN), which is how the installer runs, else the controlling
-# terminal (/dev/tty, as stdin may be the curl pipe). Named explicitly because setfont, left to
-# find a console itself, can settle on another one (or none) in a service.
+# terminal (/dev/tty, as stdin may be the curl pipe). Named explicitly
+# because setfont, left to find a console itself, can settle on another one
+# (or none) in a service.
 console_dev() {
   local dev
   dev=$(tty 2>/dev/null) || dev=
@@ -508,9 +509,8 @@ finish() {
 }
 
 # Runs a command. Its output always goes to LOG_FILE; the terminal shows a
-# spinner. On failure the output is also
-# echoed to stderr so the failure is diagnosable, and the real exit code is
-# returned so set -e still trips.
+# spinner. On failure the output is also echoed to stderr, so the failure
+# can be diagnosed, and the real exit code is returned, so set -e trips.
 run() {
   printf '\n$ %s\n' "$*" >> "$LOG_FILE"
   local out; out=$(mktemp)

@@ -54,8 +54,9 @@ aur_weight() {
 # aur_install PACKAGE — installs an AUR package: the prebuilt one the USB
 # brought (in the installer's packages/), even when the AUR has a newer
 # one by now, as paru (installed first, AUR_PACKAGES) brings it up to date
-# with the rest; otherwise, or if that fails, built with makepkg here. Its dependencies must be in the official repos (makepkg -s
-# installs them; -r removes the build-only ones afterwards). Built on disk:
+# with the rest; otherwise, or if that fails, built with makepkg here. Its
+# dependencies must be in the official repos (makepkg -s installs them; -r
+# removes the build-only ones afterwards). Built on disk:
 # in the installer's chroot, /tmp is in RAM; and on every core, which
 # makepkg.conf leaves to the user (MAKEFLAGS). Both the clone (from
 # aur.archlinux.org, which drops connections now and then) and the build
