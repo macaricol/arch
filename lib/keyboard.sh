@@ -65,36 +65,36 @@ choose_keyboard() {
   mapfile -t rest < <(printf '%s\n' "${rest[@]}" | LC_ALL=C sort)
   labels+=("${rest[@]}")
   until menu "Select your keyboard layout" "${labels[@]}"; do :; done
-  KEYBOARD_LABEL=$MENU_CHOICE
+  use_keyboard "$MENU_CHOICE"
+}
+
+# use_keyboard LABEL — the layout LABEL (of KEYBOARD_LAYOUTS) for this run:
+# KEYBOARD_LABEL, KEYMAP and the X11_* set, and loaded on the console at
+# once. Fails for a label that isn't in the list.
+use_keyboard() {
+  local entry
   for entry in "${KEYBOARD_LAYOUTS[@]}"; do
-    if [[ ${entry%%|*} == "$KEYBOARD_LABEL" ]]; then IFS='|' read -r _ KEYMAP X11_LAYOUT X11_VARIANT <<< "$entry"; fi
+    [[ ${entry%%|*} == "$1" ]] || continue
+    KEYBOARD_LABEL=$1
+    IFS='|' read -r _ KEYMAP X11_LAYOUT X11_VARIANT <<< "$entry"
+    # Two layouts: both Shift keys switch between them.
+    X11_OPTIONS=''
+    [[ $X11_LAYOUT != *,* ]] || X11_OPTIONS=grp:shifts_toggle
+    loadkeys "$KEYMAP" 2>/dev/null || true
+    printf 'Keyboard: %s (%s; X11 %s %s %s)\n' "$KEYBOARD_LABEL" "$KEYMAP" "$X11_LAYOUT" "$X11_VARIANT" "$X11_OPTIONS" >> "$LOG_FILE"
+    return 0
   done
-  # Two layouts: both Shift keys switch between them.
-  X11_OPTIONS=''
-  [[ $X11_LAYOUT != *,* ]] || X11_OPTIONS=grp:shifts_toggle
-  loadkeys "$KEYMAP" 2>/dev/null || true
-  printf 'Keyboard: %s (%s; X11 %s %s %s)\n' "$KEYBOARD_LABEL" "$KEYMAP" "$X11_LAYOUT" "$X11_VARIANT" "$X11_OPTIONS" >> "$LOG_FILE"
+  return 1
 }
 
 # save_keyboard_choice / read_keyboard_choice — the layout picked, kept for
 # the installer (a separate run, downloaded afterwards). read_keyboard_choice
-# sets it up as choose_keyboard would, loaded on the console; it fails when
-# nothing was picked, or the label isn't in the list any more.
+# sets it up as choose_keyboard would (use_keyboard); it fails when nothing
+# was picked, or the label isn't in the list any more.
 save_keyboard_choice() { printf '%s\n' "$KEYBOARD_LABEL" > "$KEYBOARD_CHOICE_FILE"; }
 read_keyboard_choice() {
-  local label entry
+  local label
   [[ -r $KEYBOARD_CHOICE_FILE ]] || return 1
   IFS= read -r label < "$KEYBOARD_CHOICE_FILE" || return 1
-  for entry in "${KEYBOARD_LAYOUTS[@]}"; do
-    if [[ ${entry%%|*} == "$label" ]]; then
-      KEYBOARD_LABEL=$label
-      IFS='|' read -r _ KEYMAP X11_LAYOUT X11_VARIANT <<< "$entry"
-      X11_OPTIONS=''
-      [[ $X11_LAYOUT != *,* ]] || X11_OPTIONS=grp:shifts_toggle
-      loadkeys "$KEYMAP" 2>/dev/null || true
-      printf 'Keyboard (picked on the Wi-Fi screen): %s\n' "$KEYBOARD_LABEL" >> "$LOG_FILE"
-      return 0
-    fi
-  done
-  return 1
+  use_keyboard "$label"
 }
