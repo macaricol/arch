@@ -33,3 +33,33 @@ Linux From Scratch is a book that guides you through building a whole Linux syst
 In 2022, Linux 6.1 became the first version to accept code written in Rust, the first new language in the kernel's history.
 Many people celebrate 25 August, the day Torvalds first announced Linux, as Linux's birthday.
 KDE, the project behind the Plasma desktop you're installing, was started in 1996 by Matthias Ettrich.
+Arch Linux was created by Judd Vinet, a Canadian programmer. Its first release came out on 11 March 2002.
+Judd Vinet named Arch after the word's meaning of "principal" or "chief", as in "archenemy".
+Arch Linux was inspired by CRUX, another small, simple distribution.
+pacman, Arch's package manager, was also written by Judd Vinet, and it's where ARCHMAN gets its name and its Pac-Man.
+Add "ILoveCandy" to /etc/pacman.conf, and pacman's progress bars turn into a Pac-Man eating pellets.
+Arch is a rolling release: there are no versions to upgrade between. One "pacman -Syu" keeps your whole system up to date.
+A new Arch installation image comes out on the first of every month, a snapshot of the packages at that moment.
+The Arch User Repository (AUR) holds tens of thousands of build recipes, called PKGBUILDs, shared by Arch users.
+Arch's guiding principles are simplicity, modernity, pragmatism, user centrality and versatility.
+The Steam Deck's operating system, SteamOS, is based on Arch Linux. So are Manjaro and EndeavourOS.
+Arch Linux dropped support for 32-bit PCs in 2017, to focus on 64-bit ones.
+Since 2021, the official Arch installation image includes archinstall, a guided installer.
+"I use Arch, btw" is one of the best-known jokes in the Linux world.
+Arch Linux switched to systemd, the program that starts and manages the system, in 2012.
+The GNU project, which wrote many of the tools a Linux system runs on, was started by Richard Stallman in 1983.
+Linux 1.0 was released on 14 March 1994, two and a half years after the first announcement.
+The name Tux was suggested by James Hughes, as short for "Torvalds' UniX".
+In 1994, Linus Torvalds recorded himself saying "Hello, this is Linus Torvalds, and I pronounce Linux as Linux".
+The sudo command, which lets you run things as administrator, dates back to around 1980.
+Vim, one of the most loved text editors on Linux, was first released by Bram Moolenaar in 1991, the same year as Linux.
+The render farm behind the visual effects of the movie Titanic (1997) ran on Linux.
+In 2013, the laptops on the International Space Station switched from Windows XP to Debian Linux.
+Chromebooks run ChromeOS, which is built on the Linux kernel.
+Amazon's Kindle e-readers run Linux.
+In 2019, IBM bought Red Hat, a Linux company, for 34 billion dollars.
+In 2012, Linus Torvalds received the Millennium Technology Prize for creating Linux.
+The Linux Foundation, founded in 2007, employs Linus Torvalds so he can work on Linux full time.
+KDE's KHTML web engine was the starting point of Apple's WebKit, which in turn led to Google's Blink.
+KDE Plasma 6, the version you're installing, was released in February 2024.
+The Linux kernel has well over ten thousand configuration options, so it can be tuned for anything from a watch to a supercomputer.
