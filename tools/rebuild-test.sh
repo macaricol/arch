@@ -3,10 +3,12 @@
 # image again from the official Arch ISO, and creates and starts a new VM
 # with it.
 #
-#   tools/rebuild-test.sh [--wifi-test] [OFFICIAL_ISO]
+#   tools/rebuild-test.sh [--wifi-test] [--record] [OFFICIAL_ISO]
 #
 # --wifi-test builds the image with simulated Wi-Fi networks, for trying the
-# Wi-Fi screen in the VM (see tools/build-autoinstall-iso.sh).
+# Wi-Fi screen in the VM (see tools/build-autoinstall-iso.sh). --record
+# records the VM's screen, to archman-test-screen0.webm here (see
+# tools/new-test-vm.sh); the last round's video goes either way.
 # OFFICIAL_ISO defaults to the newest official ISO here (archlinux-
 # YYYY.MM.DD-x86_64.iso, as the builder downloads it). Run it as your
 # user, not with sudo: VirtualBox VMs belong to the user who made them. It
@@ -18,8 +20,15 @@
 set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
-build_options=()
-if [[ ${1:-} == --wifi-test ]]; then build_options+=(--wifi-test); shift; fi
+build_options=() vm_options=()
+while [[ ${1:-} == --* ]]; do
+  case $1 in
+    --wifi-test) build_options+=(--wifi-test) ;;
+    --record) vm_options+=(--record) ;;
+    *) echo "Unknown option: $1" >&2; exit 1 ;;
+  esac
+  shift
+done
 official=${1:-$(ls archlinux-[0-9]*-x86_64.iso 2>/dev/null | sort -V | tail -1)}
 image=archlinux-autoinstall.iso
 vm=archman-test
@@ -60,4 +69,4 @@ sudo BRANCH="$branch" tools/build-autoinstall-iso.sh "${build_options[@]}" "$off
 sudo chown "$(id -u):$(id -g)" "$image"   # yours, so the next round needn't sudo to delete it
 
 echo "==> Creating the test VM"
-tools/new-test-vm.sh "$image" "$vm"
+tools/new-test-vm.sh "${vm_options[@]}" "$image" "$vm"

@@ -3,17 +3,24 @@
 # CPUs, a 20.5 GB disk, EFI (the USB boots in UEFI mode only), booting the
 # ISO that tools/build-autoinstall-iso.sh made. It starts it, too.
 #
-#   tools/new-test-vm.sh [ISO] [NAME]
+#   tools/new-test-vm.sh [--record] [ISO] [NAME]
 #
 # ISO defaults to archlinux-autoinstall.iso, NAME to archman-test. It never
 # replaces a VM: with one of that name already there, it says how to delete
 # it and stops.
+#
+# --record records the VM's screen from its first boot, to NAME-screen0.webm
+# here (VirtualBox's own recording, no sound). The video is complete once
+# the VM powers off, or after: VBoxManage controlvm NAME recording off. A
+# previous round's video is deleted either way.
 #
 # The disk is tried first, then the ISO: the empty disk can't boot, so the
 # first start installs; afterwards the installed system starts, with the
 # ISO still in the drive but no longer in the way.
 set -euo pipefail
 
+record=0
+if [[ ${1:-} == --record ]]; then record=1; shift; fi
 iso=${1:-archlinux-autoinstall.iso}
 name=${2:-archman-test}
 
@@ -28,6 +35,10 @@ fi
 
 folder=$(VBoxManage list systemproperties | sed -n 's/^Default machine folder: *//p')
 disk="$folder/$name/$name.vdi"
+video=$PWD/$name.webm
+
+# The last round's video. VirtualBox adds -screen0 to the name it's given.
+rm -f "$PWD/$name.webm" "$PWD/$name"-screen*.webm
 
 echo "==> Creating $name"
 VBoxManage createvm --name "$name" --ostype ArchLinux_64 --register > /dev/null
@@ -40,6 +51,11 @@ VBoxManage createmedium disk --filename "$disk" --size 21002 --format VDI > /dev
 VBoxManage storagectl "$name" --name SATA --add sata --controller IntelAhci --portcount 2 --bootable on
 VBoxManage storageattach "$name" --storagectl SATA --port 0 --device 0 --type hdd --medium "$disk"
 VBoxManage storageattach "$name" --storagectl SATA --port 1 --device 0 --type dvddrive --medium "$iso"
+if (( record )); then
+  VBoxManage modifyvm "$name" --recording=on --recording-file="$video" \
+    --recording-video-fps=25 --recording-opts=ac_enabled=false
+  echo "==> Recording its screen to ${video%.webm}-screen0.webm"
+fi
 
 echo "==> Starting $name (from $iso)"
 VBoxManage startvm "$name" > /dev/null
