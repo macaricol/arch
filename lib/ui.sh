@@ -10,8 +10,12 @@ C_WHITE=$'\e[97m' C_GREY=$'\e[90m'
 C_BLUE=$'\e[34m' C_PINK=$'\e[95m'
 # ᗧ and ⬤ are Pac-Man, open and closed. On the console they come from the
 # fonts in assets/consolefonts (tools/make-console-fonts.py); in a terminal
-# emulator, from its own font.
-TAG="${C_CYAN}${C_BOLD}ᗧ${C_RESET}"
+# emulator, from its own font. In his yellow: palette slot 3 on the console
+# (not bold, which there turns it into slot 11), elsewhere as RGB, since a
+# terminal emulator doesn't use CONSOLE_PALETTE.
+if [[ $TERM == linux ]]; then C_PAC=$'\e[33m'
+else C_PAC=$'\e[38;2;255;196;0m'; fi
+TAG="${C_PAC}ᗧ${C_RESET}"
 TAG_COLS=2   # the tag and the space after it
 
 # ── Console look ───────────────────────────────────────────────────────
@@ -266,11 +270,11 @@ step_weights() {
 }
 
 # logo_lines — the logo (logo_file) as printable lines in LOGO_LINES, its
-# width in columns in LOGO_WIDTH. Its .colors file gives each cell a digit,
-# fg * 3 + bg, of the colours 0 background, 1 letters, 2 extrusion: on the
-# console the palette's slots 0, 6 and 2 (slots 0-7, as 512-glyph fonts have
-# no others), elsewhere the same colours as 24-bit RGB, since a terminal
-# emulator doesn't use CONSOLE_PALETTE.
+# width in columns in LOGO_WIDTH. Its .colors file gives each cell a hex
+# digit, fg * 4 + bg, of the colours 0 background, 1 letters, 2 extrusion,
+# 3 Pac-Man: on the console the palette's slots 0, 6, 2 and 3 (slots 0-7,
+# as 512-glyph fonts have no others), elsewhere the same colours as 24-bit
+# RGB, since a terminal emulator doesn't use CONSOLE_PALETTE.
 logo_lines() {
   local file colours LC_ALL=C.UTF-8   # ${#} and ${:i:1} count characters, not bytes
   file=$(logo_file) colours=${file%.txt}.colors
@@ -281,8 +285,8 @@ logo_lines() {
   mapfile -t attrs < "$colours"
   LOGO_WIDTH=${#lines[0]}
   local i hex
-  local -a slots=(0 6 2)
-  for i in 0 1 2; do
+  local -a slots=(0 6 2 3)
+  for i in 0 1 2 3; do
     if on_console; then
       fg[i]=$(( 30 + slots[i] )) bg[i]=$(( 40 + slots[i] ))
     else
@@ -297,7 +301,8 @@ logo_lines() {
     out='' prev=''
     for (( col = 0; col < ${#lines[row]}; col++ )); do
       char=${lines[row]:col:1} attr=${attrs[row]:col:1}
-      if [[ $char == ' ' ]]; then sgr=0; else sgr="0;${fg[attr / 3]};${bg[attr % 3]}"; fi
+      attr=$(( 16#$attr ))
+      if [[ $char == ' ' ]]; then sgr=0; else sgr="0;${fg[attr / 4]};${bg[attr % 4]}"; fi
       [[ $sgr != "$prev" ]] && out+=$'\e['"${sgr}m" prev=$sgr
       out+=$char
     done
@@ -636,8 +641,8 @@ run() {
   # Frames at 20 a second, for the bar's animation; Pac-Man chomps, and the
   # progress (which starts processes) is measured, every 4th.
   local pid=$! tick=0
-  local -a frames=("${C_BOLD}${C_CYAN}⬤${C_RESET}${C_WHITE} · · ·${C_RESET}"
-                   "${C_BOLD}${C_CYAN}ᗧ${C_RESET}${C_WHITE}· · · ${C_RESET}")
+  local -a frames=("${C_PAC}⬤${C_RESET}${C_WHITE} · · ·${C_RESET}"
+                   "${C_PAC}ᗧ${C_RESET}${C_WHITE}· · · ${C_RESET}")
   # On a step's screen (FACTS_ON), centred on the line under the title, and
   # left there between commands; elsewhere, where the cursor is.
   local spin=$'\r'"$MARGIN"

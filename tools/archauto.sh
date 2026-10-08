@@ -105,7 +105,8 @@ show_splash() {
   printf '\e[2J\e[H'
   LOGO_BOTTOM=0 SCREEN_HEIGHT=0
   if geometry=$(python3 "$share/fb-logo.py" "$share/logo-hd.txt" "$share/logo-hd.colors" \
-                  "${CONSOLE_PALETTE[0]}" "${CONSOLE_PALETTE[6]}" "${CONSOLE_PALETTE[2]}" 2>/dev/null); then
+                  "${CONSOLE_PALETTE[0]}" "${CONSOLE_PALETTE[6]}" "${CONSOLE_PALETTE[2]}" "${CONSOLE_PALETTE[3]}" \
+                  2>/dev/null); then
     read -r LOGO_BOTTOM SCREEN_HEIGHT <<< "$geometry"
   else
     splash ""

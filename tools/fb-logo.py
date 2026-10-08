@@ -5,11 +5,11 @@ palette's background. The USB's start-up script (tools/build-autoinstall-iso.sh)
 shows it for a few seconds before the installer takes over; the console's
 own characters can't scale the logo to a proportion of the screen.
 
-  fb-logo.py LOGO.txt LOGO.colors BACKGROUND LETTERS EXTRUSION
+  fb-logo.py LOGO.txt LOGO.colors BACKGROUND LETTERS EXTRUSION PACMAN
 
 The colours are RGB hex. The logo files are assets/logo/logo-hd.*: a cell a
 character, 2 x 4 pixels, its pattern the character (U+E100 + bits, or one of
-the block characters) and its two colours a digit, fg * 3 + bg. Only 32-bit
+the block characters) and its two colours a hex digit, fg * 4 + bg. Only 32-bit
 framebuffers are drawn; anything else exits 1, and the caller falls back to
 a text splash. On success it prints the logo's bottom edge and the screen's
 height, in pixels, so the caller can put a line of text just under it.
@@ -22,14 +22,15 @@ CELL_W, CELL_H = 2, 4
 
 
 def logo_pixels(text_path, colour_path):
-    """The logo as rows of colour indices: 0 background, 1 letters, 2 extrusion."""
+    """The logo as rows of colour indices: 0 background, 1 letters, 2 extrusion,
+    3 Pac-Man."""
     lines = open(text_path, encoding="utf-8").read().rstrip("\n").split("\n")
     attrs = open(colour_path).read().rstrip("\n").split("\n")
     rows = [[0] * (len(lines[0]) * CELL_W) for _ in range(len(lines) * CELL_H)]
     for r, line in enumerate(lines):
         for c, char in enumerate(line):
             bits = NAMED.get(char, ord(char) - 0xE100)
-            fg, bg = divmod(int(attrs[r][c]), 3)
+            fg, bg = divmod(int(attrs[r][c], 16), 4)
             for dy in range(CELL_H):
                 for dx in range(CELL_W):
                     on = bits >> (dy * CELL_W + dx) & 1

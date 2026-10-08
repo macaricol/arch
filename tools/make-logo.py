@@ -17,8 +17,8 @@ logo is 158 x 28 pixels in 79 x 7 cells. Cells that are empty, full or a top
 or bottom half use those characters; any other pattern is the private-use
 character U+E100 + its bit pattern (bit 0 top-left, bit 1 top-right, then
 row by row), which tools/make-console-fonts.py draws into the console fonts.
-Each .txt has a .colors file beside it: a digit a cell, its character's
-colour times 3 plus its background's (see DARK, LETTER, SHADE below).
+Each .txt has a .colors file beside it: a hex digit a cell, its character's
+colour times 4 plus its background's (see DARK, LETTER, SHADE, PAC below).
 lib/ui.sh shows logo-hd.txt only on the console, where those fonts are
 loaded, and logo.txt everywhere else: the same design at half the
 resolution, in half blocks only, which every font has, with solid letters
@@ -223,16 +223,17 @@ def erode(g, n):
     return g
 
 
-# Colours: the background, the letters, the extrusion. On the console they
-# are palette slots 0, 6 and 2 (lib/ui.sh's logo_lines).
-DARK, LETTER, SHADE = 0, 1, 2
+# Colours: the background, the letters, the extrusion, and Pac-Man (the C)
+# in his own yellow. On the console they are palette slots 0, 6, 2 and 3
+# (lib/ui.sh's logo_lines).
+DARK, LETTER, SHADE, PAC = 0, 1, 2, 3
 
 
 def compose(unit, top, shadow, outline, width, height):
     """The logo as colours: every letter's extrusion first, then each letter
     over it, inside a dark pixel of outline. R, H, M and N are drawn as an
-    outline with a dark inside; Pac-Man and the A's are solid, Pac-Man with
-    his eye cut out."""
+    outline with a dark inside; Pac-Man and the A's are solid, Pac-Man
+    yellow with his eye cut out."""
     letters = [("A", arch_a(10 * unit, 12 * unit), OUTLINE_A), ("R", letter_r(unit), True),
                ("C", pacman(12 * unit), False), ("H", from_art(ART["H"], unit), True),
                ("M", letter_m(unit), True), ("A", arch_a(10 * unit, 12 * unit), OUTLINE_A),
@@ -268,7 +269,7 @@ def compose(unit, top, shadow, outline, width, height):
         for y in range(h):
             for x in range(w):
                 if body[y][x]:
-                    put(top + y, left + x, DARK if inner[y][x] else LETTER)
+                    put(top + y, left + x, DARK if inner[y][x] else PAC if name == "C" else LETTER)
         if name == "R" and outline:                           # the R's dot and waist
             for x, y in r_inside(unit):
                 put(top + y, left + x, LETTER)
@@ -303,11 +304,12 @@ def limit_patterns(lines, named, bits):
 def cells(canvas, cell_w, cell_h, named):
     """The colour grid as lines of characters and lines of colours, a cell
     each. A cell takes two colours, its character's (fg) and its
-    background's (bg), written as the digit fg * 3 + bg. The character is
-    named[bits] when there is one, else the private-use character for the
-    pattern; bits are the fg pixels. Letter pixels are the fg wherever
-    there are any; a third colour in a cell becomes whichever of the other
-    two it has more of (a pixel or two, behind a letter's edge)."""
+    background's (bg), written as the hex digit fg * 4 + bg. The character
+    is named[bits] when there is one, else the private-use character for
+    the pattern; bits are the fg pixels. Letter pixels (Pac-Man's too) are
+    the fg wherever there are any; a third colour in a cell becomes
+    whichever of the other two it has more of (a pixel or two, behind a
+    letter's edge)."""
     lines, colours, used = [], [], set()
     for row in range(len(canvas) // cell_h):
         line = attrs = ""
@@ -317,12 +319,13 @@ def cells(canvas, cell_w, cell_h, named):
             if present == {DARK}:
                 line, attrs = line + " ", attrs + "0"
                 continue
-            fg = LETTER if LETTER in present else SHADE
+            letters = [c for c in (LETTER, PAC) if c in present]
+            fg = max(letters, key=px.count) if letters else SHADE
             others = [c for c in px if c != fg]
-            bg = max((DARK, SHADE), key=others.count) if others else DARK
+            bg = max((DARK, SHADE, LETTER, PAC), key=others.count) if others else DARK
             bits = sum(1 << i for i, c in enumerate(px) if c == fg)
             line += named.get(bits, chr(PUA + bits))
-            attrs += str(fg * 3 + bg)
+            attrs += f"{fg * 4 + bg:x}"
         lines.append(line)
         colours.append(attrs)
     lines = limit_patterns(lines, named, cell_w * cell_h)

@@ -55,15 +55,15 @@ def png(path, pixels):
 
 def render(font, lines, colours=None, palette=None, rgb=None):
     """Text drawn with the font's glyphs, one cell per character, as colours:
-    rgb for every glyph pixel, or with colours (lines of digits fg * 3 + bg,
-    as lib/ui.sh's logo_lines reads them) the palette's slot for each; the
-    background (0) is transparent."""
+    rgb for every glyph pixel, or with colours (lines of hex digits
+    fg * 4 + bg, as lib/ui.sh's logo_lines reads them) the palette's slot
+    for each; the background (0) is transparent."""
     index = {}
     for i, entry in enumerate(font["table"]):
         for char in fonts.chars_of(entry):
             index.setdefault(char, i)
     w, h = font["width"], font["height"]
-    slots = (None, palette[6], palette[2]) if palette else None   # background, letters, extrusion
+    slots = (None, palette[6], palette[2], palette[3]) if palette else None   # background, letters, extrusion, Pac-Man
     pixels = [[None] * (w * max(map(len, lines))) for _ in range(h * len(lines))]
     for row, line in enumerate(lines):
         for col, char in enumerate(line):
@@ -71,8 +71,8 @@ def render(font, lines, colours=None, palette=None, rgb=None):
                 continue
             fg, bg = rgb, None
             if colours:
-                attr = int(colours[row][col])
-                fg, bg = slots[attr // 3], slots[attr % 3]
+                attr = int(colours[row][col], 16)
+                fg, bg = slots[attr // 4], slots[attr % 4]
             glyph = font["glyphs"][index[char]]
             for y in range(h):
                 for x in range(w):
