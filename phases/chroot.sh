@@ -24,7 +24,7 @@ configure_locale() {
   # Settled by the install phase (resolve_timezone); never left at auto.
   [[ $TIMEZONE != auto && -f /usr/share/zoneinfo/$TIMEZONE ]] || TIMEZONE=UTC
   ln -sf "/usr/share/zoneinfo/$TIMEZONE" /etc/localtime
-  hwclock --systohc
+  run hwclock --systohc   # (through run: it can wait a second or two for the clock)
   # One language for everything (LOCALE), Plasma's too, which follows LANG;
   # dates and times the country's way (TIME_LOCALE, settled by the install
   # phase), when this glibc has that locale. Each enabled in locale.gen by

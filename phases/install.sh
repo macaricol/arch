@@ -350,14 +350,14 @@ configure_new_system() {
   carry_wifi_networks
   local stage=/mnt/root/arch-setup
   rm -rf "$stage"
-  cp -r "$SETUP_DIR" "$stage"
+  run cp -r "$SETUP_DIR" "$stage"
   # The AUR packages this USB brought prebuilt, for the desktop phase.
   if compgen -G "$ISO_PACKAGES/*.pkg.tar.zst" > /dev/null; then
     mkdir -p "$stage/packages"
-    cp "$ISO_PACKAGES"/*.pkg.tar.zst "$stage/packages/"
+    run cp "$ISO_PACKAGES"/*.pkg.tar.zst "$stage/packages/"
   fi
   # And the icon theme and widgets it brought, for the first Plasma session.
-  [[ ! -d $ISO_EXTRAS ]] || cp -r "$ISO_EXTRAS" "$stage/extras"
+  [[ ! -d $ISO_EXTRAS ]] || run cp -r "$ISO_EXTRAS" "$stage/extras"
 
   # Passwords travel in a root-only file, never in argv or the environment.
   # The chroot phase deletes it as its first act; the trap covers the case
