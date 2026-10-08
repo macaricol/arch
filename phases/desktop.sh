@@ -10,34 +10,26 @@ phase_desktop() {
   info "Installing KDE Plasma, the desktop you'll log into, and your apps. This is the big download."
   install_desktop_packages
 
-  step "Tuning the video player" 1
-  info "Scroll to seek, tilt the wheel for volume"
-  configure_mpv
-
-  step "Setting up sound" 1
-  configure_audio
-
-  step "Personalising" 5
-  info "Setting up the login screen, wallpapers and keyboard layout..."
-  install_look_files
-  configure_login_screen
-  configure_keyboard
-
-  step "Setting up file sharing" 1
-  info "Letting you share folders with other devices on your network"
-  configure_samba
-
   # Weight: by whether the USB brought them prebuilt (aur_weight); not a
   # number here, so step_weights leaves it to the totals' callers.
   step "Installing extras from the Arch community" "$(aur_weight "$SETUP_DIR/packages")"
   install_aur_packages
 
-  step "Preparing your first login" 1
-  info "Your desktop layout and theme will be applied the first time you log in"
+  # The settings, a second or so each: one step, not a screen flashing past
+  # for each. Weight: the parts' measured times; the look's files the most.
+  step "Setting up your desktop" 11
+  info "The login screen, wallpapers, keyboard, sound, video player, file sharing and Bluetooth..."
+  share 0 500
+  install_look_files
+  configure_login_screen
+  configure_keyboard
+  share 500 700
+  configure_mpv
+  configure_audio
+  configure_samba
+  share 700 1000
+  # The desktop's layout and theme: applied the first time you log in.
   schedule_plasma_tweaks
-
-  step "Finishing up" 2
-  info "Turning on Bluetooth and the login screen..."
   enable_service bluetooth sddm
 
   # The installer asks for the look, then shows its own last screen and
@@ -62,11 +54,7 @@ EOF
 # native backend), pipewire-pulse.conf.d covers everything speaking PulseAudio.
 # Miss either one and half your applications quietly stay stereo.
 configure_audio() {
-  if (( ! UPMIX_SURROUND )); then
-    info "Keeping standard stereo sound"
-    return
-  fi
-  info "Spreading stereo sound to all your speakers"
+  (( UPMIX_SURROUND )) || return 0
 
   local dir
   for dir in client pipewire-pulse; do
