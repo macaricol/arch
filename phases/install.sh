@@ -292,9 +292,11 @@ rank_mirrors() {
       || warn "Couldn't rank download servers, using the default ones"
   fi
   # Last resort, for a file the mirrors above haven't synced yet: pacman
-  # tries the servers in order for each package. Arch's own CDN is always
-  # current. It goes into the new system's mirrorlist too.
+  # tries the servers in order for each package. Arch's own servers, among
+  # the first to sync. It goes into the new system's mirrorlist too; the
+  # mirrors are logged, for when a download fails.
   echo 'Server = https://geo.mirror.pkgbuild.com/$repo/os/$arch' >> "$mirrorlist"
+  { echo 'Mirrors:'; grep '^Server' "$mirrorlist"; } >> "$LOG_FILE"
 }
 
 install_base() {

@@ -175,6 +175,11 @@ EOF
 # transaction, not one per list: pacman's checks and post-install hooks
 # (font, icon, desktop caches...) then run once. -S, not -Syu: the package
 # lists are the ones pacstrap synced moments ago, so nothing needs updating.
+# Unless a version they list is on none of the mirrors any more: the mirrors
+# sync at different times, so one ahead of the lists has deleted it while
+# one behind never had the new one (seen: dolphin gone from
+# geo.mirror.pkgbuild.com, noto-fonts not yet on glua.ua.pt). Then fresh
+# lists, and -Syu, as packages from newer lists need the system up to date.
 install_desktop_packages() {
   local -a packages=("${KDE_PACKAGES[@]}" "${EXTRA_PACKAGES[@]}" base-devel)
   if [[ -n $(gpu_vendors) ]]; then
@@ -185,7 +190,11 @@ install_desktop_packages() {
     # picking lib32-nvidia-utils. Neither is worth it on a VM.
     warn "Skipping Steam: no gaming graphics card found"
   fi
-  run sudo pacman -S --needed --noconfirm "${packages[@]}"
+  # Its output on failure only to the log (2>/dev/null): this is handled.
+  run sudo pacman -S --needed --noconfirm "${packages[@]}" 2>/dev/null && return 0
+  warn "Some downloads weren't available, getting the latest package lists..."
+  retry 10 run sudo pacman -Syu --needed --noconfirm "${packages[@]}" \
+    || die "Couldn't download the desktop"
 }
 
 install_aur_packages() {
