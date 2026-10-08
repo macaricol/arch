@@ -197,6 +197,14 @@ message() {
   printf '%s' "$end"
 }
 
+# centred_message COLOUR TEXT — TEXT centred in the layout column, in
+# COLOUR, wrapped into even lines.
+centred_message() {
+  local LC_ALL=C.UTF-8 line
+  balanced_wrap "$2" $(( LAYOUT_WIDTH - 10 ))
+  for line in "${WRAPPED[@]}"; do center "$1$line$C_RESET" "${#line}"; done
+}
+
 # Warnings and errors also go to the log: the next step header, or the USB's
 # failure screen, clears the screen. During the steps, info goes only to the
 # log: the screen shows Linux facts instead (see facts_tick).
@@ -204,12 +212,14 @@ info() {
   if (( FACTS_ON )); then printf '[info] %s\n' "$*" >> "$LOG_FILE" 2>/dev/null || true; return 0; fi
   message "$TAG" "$C_WHITE" "$*" $'\n\n'
 }
+# Both centred, without the tag, their lines as even as they can be.
 warn() {
-  message "$C_YELLOW${C_BOLD}ᗧ$C_RESET" "$C_YELLOW$C_BOLD" "$*" $'\n\n' >&2
+  centred_message "$C_YELLOW$C_BOLD" "$*" >&2
+  echo >&2
   printf '[warn] %s\n' "$*" >> "$LOG_FILE" 2>/dev/null || true
 }
 die() {
-  message "$C_RED${C_BOLD}ᗧ$C_RESET" "$C_RED$C_BOLD" "$*" $'\n' >&2
+  centred_message "$C_RED$C_BOLD" "$*" >&2
   printf '[error] %s\n' "$*" >> "$LOG_FILE" 2>/dev/null || true
   exit 1
 }
