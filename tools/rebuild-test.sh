@@ -7,7 +7,8 @@
 #
 # --wifi-test builds the image with simulated Wi-Fi networks, for trying the
 # Wi-Fi screen in the VM (see tools/build-autoinstall-iso.sh).
-# OFFICIAL_ISO defaults to archlinux-2026.10.01-x86_64.iso. Run it as your
+# OFFICIAL_ISO defaults to the newest official ISO here (archlinux-
+# YYYY.MM.DD-x86_64.iso, as the builder downloads it). Run it as your
 # user, not with sudo: VirtualBox VMs belong to the user who made them. It
 # asks for your password for the build, which needs root.
 #
@@ -19,11 +20,12 @@ set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 build_options=()
 if [[ ${1:-} == --wifi-test ]]; then build_options+=(--wifi-test); shift; fi
-official=${1:-archlinux-2026.10.01-x86_64.iso}
+official=${1:-$(ls archlinux-[0-9]*-x86_64.iso 2>/dev/null | sort -V | tail -1)}
 image=archlinux-autoinstall.iso
 vm=archman-test
 
 (( EUID != 0 )) || { echo "Run this as your user, not with sudo (the VM is yours)." >&2; exit 1; }
+[[ -n $official ]] || { echo "No official ISO here: download one with: sudo tools/build-autoinstall-iso.sh --download" >&2; exit 1; }
 [[ -f $official ]] || { echo "No such ISO: $official" >&2; exit 1; }
 
 branch=$(git branch --show-current)
