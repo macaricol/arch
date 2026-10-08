@@ -16,10 +16,6 @@ have_gum() {
   [[ -n ${GUM_OK:-} ]] || { gum --version &>/dev/null && GUM_OK=1 || return 1; }
 }
 
-# gum's arguments for the layout column. Colours are palette indexes, not
-# hex, so on the console they follow CONSOLE_PALETTE.
-gum_padding() { echo "0 0 0 ${#MARGIN}"; }
-
 # gum exits 1 on Esc and 130 on Ctrl+C: Esc asks again, Ctrl+C quits.
 gum_cancelled() { (( $1 == 130 )) && die "Cancelled."; return 0; }
 
@@ -118,20 +114,28 @@ menu() {
   local title=$1; shift
   local -a items=("$@")
   local selected=0 total=${#items[@]} key seq i status
+  # Centred under the title, as a block: the cursor ("> ") and the longest
+  # item, or gum's help line under them ("←↓↑→ navigate • enter submit")
+  # when that's wider.
+  local LC_ALL=C.UTF-8 width=28 indent item
+  for item in "${items[@]}"; do (( ${#item} + 2 > width )) && width=$(( ${#item} + 2 )); done
+  indent=$(( ${#MARGIN} + (width < LAYOUT_WIDTH ? (LAYOUT_WIDTH - width) / 2 : 0) ))
   if have_gum; then
     header "$title"
+    # Colours are palette indexes, not hex: on the console they follow
+    # CONSOLE_PALETTE.
     MENU_CHOICE=$(gum choose --header '' --height $(( total < 10 ? total : 10 )) \
       --cursor '> ' --cursor.foreground 14 --selected.foreground 14 \
-      --padding "$(gum_padding)" -- "${items[@]}") && { cursor off; return 0; }
+      --padding "0 0 0 $indent" -- "${items[@]}") && { cursor off; return 0; }
     status=$?; cursor off; gum_cancelled "$status"; return 1
   fi
   while :; do
     header "$title"
     for ((i = 0; i < total; i++)); do
       if (( i == selected )); then
-        printf '%s %s>%s %s\n' "$MARGIN" "$C_REVERSE" "$C_RESET" "${items[i]}"
+        printf '%*s%s>%s %s\n' "$indent" '' "$C_REVERSE" "$C_RESET" "${items[i]}"
       else
-        printf '%s   %s\n' "$MARGIN" "${items[i]}"
+        printf '%*s  %s\n' "$indent" '' "${items[i]}"
       fi
     done
     echo
