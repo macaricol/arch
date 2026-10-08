@@ -101,12 +101,12 @@ phase_wifi() {
 online() { timeout 3 ping -c1 -W2 archlinux.org &>/dev/null; }
 
 # wifi_password VAR — the network's password, into VAR. Its own field, not
-# lib/prompt.sh's: gum's password field can't be shown, and here Tab shows
-# and hides what's typed. Wi-Fi passwords are 8 to 63 characters: anything
+# lib/prompt.sh's: gum's password field can't be shown, and here what's
+# typed shows while Tab is held. Wi-Fi passwords are 8 to 63 characters: anything
 # else is refused at once, rather than after a failed connection. Esc
 # returns 1 (back to the list).
 wifi_password() {
-  local LC_ALL=C.UTF-8 __var=$1 __pw='' __shown=0 __key __rest __mask __note=''   # ${#} in characters
+  local LC_ALL=C.UTF-8 __var=$1 __pw='' __shown=0 __wait __status __key __rest __mask __note=''   # ${#} in characters
   __mask=$(mask_char)
   ask "Password >"
   # The field starts here: the one cursor position saved (\e7), and never
@@ -122,16 +122,28 @@ wifi_password() {
     if [[ -n $__note ]]; then
       printf '%s%s%s%s\n' "$MARGIN" "$C_YELLOW" "$__note" "$C_RESET"
     fi
-    printf '%s%sTab %s the password · Esc goes back to the list%s' "$MARGIN" "$C_GREY" \
-      "$( (( __shown )) && echo hides || echo shows )" "$C_RESET"
+    printf '%s%sHold Tab to see the password · Esc goes back to the list%s' "$MARGIN" "$C_GREY" "$C_RESET"
     printf '\e8%s' "$__field"
-    IFS= read -rsn1 __key || die "Input closed"
+    # Shown while Tab is held. A terminal never hears a key let go, but a
+    # held key repeats: shown on the press, kept while its repeats come in,
+    # hidden once they stop (none within __wait: longer for the first, as a
+    # key starts repeating only after a moment). So a quick tap shows it for
+    # that moment. Any other key hides it, and counts as usual.
+    if (( __shown )); then
+      __status=0; IFS= read -rsn1 -t "$__wait" __key || __status=$?
+      if (( __status > 128 )); then __shown=0; continue; fi     # no repeat: let go
+      (( __status == 0 )) || die "Input closed"
+      if [[ $__key == $'\t' ]]; then __wait=0.25; continue; fi
+      __shown=0
+    else
+      IFS= read -rsn1 __key || die "Input closed"
+    fi
     __note=''
     case $__key in
       '')
         if (( ${#__pw} >= 8 && ${#__pw} <= 63 )); then break; fi
         __note="Wi-Fi passwords are 8 to 63 characters; this one has ${#__pw}." ;;
-      $'\t')         __shown=$(( 1 - __shown )) ;;
+      $'\t')         __shown=1 __wait=0.6 ;;
       $'\x7f'|$'\b') __pw=${__pw%?} ;;
       $'\x15')       __pw='' ;;                                       # Ctrl+U
       $'\e')
