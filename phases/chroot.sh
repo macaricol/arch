@@ -8,6 +8,9 @@ phase_chroot() {
   IFS= read -r password < "$SETUP_DIR/creds"
   rm -f "$SETUP_DIR/creds"
 
+  # One line for the step ("Setting up your system"), not one per part:
+  # they take seconds. The parts only speak up with a warning.
+  info "Setting up your language, account and startup..."
   configure_locale
   configure_accounts "$password"
   configure_boot_splash
@@ -18,7 +21,6 @@ phase_chroot() {
 }
 
 configure_locale() {
-  info "Setting language, time zone and keyboard..."
   # Settled by the install phase (resolve_timezone); never left at auto.
   [[ $TIMEZONE != auto && -f /usr/share/zoneinfo/$TIMEZONE ]] || TIMEZONE=UTC
   ln -sf "/usr/share/zoneinfo/$TIMEZONE" /etc/localtime
@@ -41,7 +43,6 @@ configure_locale() {
 
 # $1 the password, for root and the user
 configure_accounts() {
-  info "Creating your account..."
   echo "$HOST_NAME" > /etc/hostname
   printf '127.0.0.1 localhost\n::1       localhost\n127.0.1.1 %s\n' "$HOST_NAME" > /etc/hosts
 
@@ -59,7 +60,6 @@ configure_accounts() {
 # configure_hibernation, whose mkinitcpio -P builds the hook in, and before
 # install_bootloader, which writes the kernel options into grub.cfg.
 configure_boot_splash() {
-  info "Adding the boot screen..."
   # Right after the systemd (or udev) hook, so it starts as early as it can.
   grep -q '^HOOKS=.*plymouth' /etc/mkinitcpio.conf \
     || sed -i -E 's/^(HOOKS=\(.*\b(systemd|udev))\b/\1 plymouth/' /etc/mkinitcpio.conf
@@ -76,7 +76,7 @@ configure_boot_splash() {
   if install_splash_theme; then
     run plymouth-set-default-theme archman
   else
-    warn "Using the standard boot screen (the custom one is missing from the installer)"
+    warn "Using the standard boot screen"
     run plymouth-set-default-theme bgrt
   fi
   # vt.global_cursor_default=0: no blinking cursor on the text console, which
@@ -108,7 +108,6 @@ install_splash_theme() {
 # A RAM-sized swap partition alone doesn't enable hibernation: the initramfs
 # needs the resume hook and the kernel needs to be told where the image is.
 configure_hibernation() {
-  info "Enabling hibernation..."
   # The install phase's own swap partition (SWAP_PART): looked up by its
   # label instead, a second disk with an older install could answer first.
   local swap_uuid=''
@@ -134,7 +133,6 @@ add_kernel_option() {
 }
 
 install_bootloader() {
-  info "Making the drive bootable..."
   sed -i 's/^GRUB_TIMEOUT=.*/GRUB_TIMEOUT=0/; s/^GRUB_TIMEOUT_STYLE=.*/GRUB_TIMEOUT_STYLE=hidden/' /etc/default/grub
   run grub-install --target=x86_64-efi --efi-directory=/boot --bootloader-id=GRUB
   regenerate_grub
