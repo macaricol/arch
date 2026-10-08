@@ -1,0 +1,54 @@
+# The ARCHMAN USB image, built every month from the official Arch ISO and
+# published as a release: on the 2nd, as Arch publishes its ISO on the 1st.
+# "Run workflow" (Actions tab) builds one at any time, from the branch picked
+# there; that branch is also the one the image installs from.
+#
+# Only the last 3 releases are kept: each holds a 1.6 GB image.
+#
+# GitHub pauses scheduled workflows in a repository without commits for 60
+# days (and says so by email): the Actions tab re-enables it.
+name: Monthly ISO
+
+on:
+  schedule:
+    - cron: "0 6 2 * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      # The build needs some 8 GB; the runner's preinstalled toolchains,
+      # useless here, take most of its disk.
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          df -h /
+
+      - uses: actions/checkout@v4
+
+      - name: Build the image in an Arch container
+        run: |
+          echo "NAME=archman-$(date -u +%Y.%m.%d)" >> "$GITHUB_ENV"
+          docker run --rm --privileged -v "$PWD:/repo" -w /repo \
+            -e BRANCH="${{ github.ref_name }}" -e REPO="${{ github.repository }}" \
+            archlinux:latest tools/ci-build-iso.sh "archman-$(date -u +%Y.%m.%d).iso"
+
+      - name: Publish it as a release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          official=$(ls archlinux-*-x86_64.iso | head -1)
+          gh release create "$NAME" "$NAME.iso" --title "ARCHMAN ${NAME#archman-}" --notes \
+            "The ARCHMAN USB image: write it to a USB stick (sudo dd if=$NAME.iso of=/dev/sdX bs=4M status=progress oflag=sync) and boot from it. Built from $official; installs from the ${{ github.ref_name }} branch."
+
+      - name: Keep only the last 3 releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release list --limit 100 --json tagName,createdAt --jq 'sort_by(.createdAt) | reverse | .[3:][].tagName' \
+            | grep '^archman-' | xargs -r -n1 gh release delete --yes --cleanup-tag

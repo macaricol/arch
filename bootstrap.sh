@@ -1,19 +1,16 @@
 #!/usr/bin/env bash
-# Live-ISO entry point, meant to be piped into bash:
-#
-#   curl -fsSL https://raw.githubusercontent.com/macaricol/arch/main/bootstrap.sh | bash
+# The ARCHMAN USB's way in: its start-up (tools/build-autoinstall-iso.sh)
+# fetches this and pipes it into bash, quietly, under its splash.
 #
 # Fetches the repo once as a tarball (no per-file downloads), unpacks the
-# installer to /tmp and starts the install phase. Override the source with
-# environment variables, e.g.:  curl ... | BRANCH=clauding bash
+# installer to /tmp and starts the install phase. REPO and BRANCH are baked
+# into the USB from config.sh when it's built.
 set -euo pipefail
 
 REPO=${REPO:-macaricol/arch}
 BRANCH=${BRANCH:-main}
 DEST=/tmp/arch-setup
 
-# QUIET=1: the USB's splash already says what is happening.
-[[ ${QUIET:-0} == 1 ]] || echo "Fetching $REPO@$BRANCH..."
 rm -rf "$DEST"
 mkdir -p "$DEST"
 # GitHub names the tarball's top directory <repo>-<branch>; strip it so

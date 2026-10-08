@@ -4,32 +4,21 @@
 phase_install() {
   # Piped in via curl | bash, fd 0 is the script itself, not the keyboard.
   exec < /dev/tty
-  loadkeys "$KEYMAP" 2>/dev/null || warn "Couldn't load keymap $KEYMAP"
 
-  # Booted from the USB (tools/build-autoinstall-iso.sh), its splash is on
-  # screen: the big logo, and under it "Checking if this computer is
-  # ready...". It stays up through the checks, so nothing is drawn until
-  # they're done, not even run()'s spinner; nor the console's font and
-  # colours set up, which redraw the screen. Then, at least 4 seconds after
-  # the splash appeared, on to the first question. Otherwise (curl | bash
-  # by hand, an older USB), a screen of its own says the same.
-  if [[ -n ${SPLASH_SINCE:-} ]]; then
-    QUIET_RUN=1
-  else
-    setup_console
-    header "Arch Linux installer"
-    info "Checking if this computer is ready..."
-  fi
-  require_root
-  require_uefi
-  require_network
-  install_gum
-  if [[ -n ${SPLASH_SINCE:-} ]]; then
-    QUIET_RUN=0
-    local shown=$(( EPOCHSECONDS - SPLASH_SINCE ))
-    (( shown >= 4 )) || sleep $(( 4 - shown ))
-    setup_console
-  fi
+  # The USB's splash is on screen (tools/build-autoinstall-iso.sh): the big
+  # logo, and under it "Checking if this computer is ready...". The USB has
+  # checked the network; it booted in UEFI mode, as root, and brought gum.
+  # The splash stays up at least 4 seconds in all (since SPLASH_SINCE);
+  # only then the console's font and colours, which redraw the screen, and
+  # the first question.
+  # Where this machine is, while the splash is still up: its country, for
+  # the mirrors, and its timezone.
+  geolocate
+  resolve_timezone
+  resolve_time_locale
+  local shown=$(( EPOCHSECONDS - ${SPLASH_SINCE:-$EPOCHSECONDS} ))
+  (( shown >= 4 )) || sleep $(( 4 - shown ))
+  setup_console
   # The progress bar covers the installing, not the questions before it: the
   # steps below from partitioning on, then the desktop phase's, which the chroot
   # phase runs and which carries the bar on. Weights: see lib/ui.sh's step.
@@ -37,21 +26,36 @@ phase_install() {
   PROGRESS_TOTAL=$(( $(step_weights "$SETUP_DIR/phases/install.sh") + $(step_weights "$SETUP_DIR/phases/desktop.sh")
                      + $(aur_weight "$ISO_PACKAGES") ))
 
-  header "Set up your account"
-  input HOST_NAME "Hostname" valid_hostname
-  input USER_NAME "Username" valid_username
-  # One password for both the user and root.
-  password PASSWORD "Password"
+  # The questions, until they end in YES: nothing is touched before. There's
+  # no way out of them but answering, or turning the computer off: leaving
+  # would end the USB's start-up and leave the screen black.
+  # Picked on the USB's Wi-Fi screen already, the layout isn't asked again,
+  # except on starting over (by then, with the local layout first).
+  local keyboard_picked=0
+  read_keyboard_choice && keyboard_picked=1
+  while :; do
+    (( keyboard_picked )) || choose_keyboard
+    keyboard_picked=0
+    header "Set up your account"
+    input HOST_NAME "Hostname" valid_hostname
+    input USER_NAME "Username" valid_username
+    # One password for both the user and root.
+    password PASSWORD "Password"
 
-  select_drive
+    select_drive
 
-  header "Review & confirm"
-  printf "$MARGIN %s\n" "Hostname:  $HOST_NAME" "Username:  $USER_NAME" "Drive:     $DRIVE" \
-    "Timezone:  $TIMEZONE" "Keymap:    $KEYMAP"
-  echo
-  warn "Everything on $DRIVE will be erased. This can't be undone."
-  ask "Type YES to continue >"; cursor on; read -r ack; cursor off
-  [[ $ack == YES ]] || { info "Nothing was changed. Run the installer again whenever you're ready."; exit 0; }
+    header "Review & confirm"
+    printf "$MARGIN %s\n" "Hostname:  $HOST_NAME" "Username:  $USER_NAME" "Drive:     $DRIVE_LABEL" \
+      "Timezone:  $TIMEZONE" "Keyboard:  $KEYBOARD_LABEL"
+    echo
+    warn "Everything on $DRIVE_LABEL will be erased. This can't be undone."
+    ask "Type YES to continue >"; cursor on; read -r ack; cursor off
+    [[ $ack == YES ]] && break
+    buttons "Nothing has been changed" 0 \
+      "Start over" "Answer the questions again." \
+      "Turn off" "Switch the computer off. Nothing on it has been touched."
+    (( PICKED == 0 )) || { clear; systemctl poweroff; sleep infinity; }   # until it's off
+  done
   # Bash's own clock; it keeps running through arch-chroot and the desktop
   # phase.
   local started=$SECONDS
@@ -115,36 +119,45 @@ wait_for_usb_removal() {
   done
 }
 
-# gum draws the prompts (lib/prompt.sh). The live ISO's root is a RAM
-# overlay, so this costs a few MB of RAM and nothing on the target disk.
-install_gum() {
-  command -v gum &>/dev/null && return 0
-  run pacman -Sy --noconfirm --needed gum || warn "Using simple prompts (couldn't download the fancy ones)"
-}
-
-# Arrow-key menu over the machine's disks, minus the live USB we booted from.
+# Arrow-key menu over the machine's disks, minus the live USB we booted from,
+# each shown by name and size, "CT1000P310SSD8 (931.5G)": its model, or its
+# device name when it reports none, and the device name too when two drives
+# would read the same. Sets DRIVE (/dev/...) and DRIVE_LABEL.
 select_drive() {
   local live_disk=''
   live_disk=$(live_usb_disk) || true
 
-  local -a drives
-  mapfile -t drives < <(
-    lsblk -dpno PATH,SIZE,MODEL,TYPE \
-      | awk -v skip="$live_disk" '$NF == "disk" && $1 != skip { $NF = ""; print }'
-  )
-  (( ${#drives[@]} )) || die "No disks found"
+  local -a paths labels
+  local path size type model i j
+  while read -r path size type model; do
+    [[ $type == disk && $path != "$live_disk" ]] || continue
+    model=${model%%+([[:space:]])}
+    paths+=("$path") labels+=("${model:-${path#/dev/}} ($size)")
+  done < <(lsblk -dpno PATH,SIZE,TYPE,MODEL)
+  (( ${#paths[@]} )) || die "No disks found"
+  local -a plain=("${labels[@]}")
+  for i in "${!plain[@]}"; do
+    for j in "${!plain[@]}"; do
+      if (( i != j )) && [[ ${plain[i]} == "${plain[j]}" ]]; then
+        labels[i]="${plain[i]%)}, ${paths[i]#/dev/})"
+        break
+      fi
+    done
+  done
 
-  local cancel='── cancel ──'
-  menu "Select the installation drive" "$cancel" "${drives[@]}" && [[ $MENU_CHOICE != "$cancel" ]] \
-    || { clear; info "Cancelled."; exit 0; }
-
-  DRIVE=${MENU_CHOICE%% *}
+  # A drive, then a second look at it: the list is easy to slip on. Esc
+  # shows the list again; there's no cancelling (see phase_install).
+  while :; do
+    until menu "Select the installation drive" "${labels[@]}"; do :; done
+    for i in "${!labels[@]}"; do
+      if [[ ${labels[i]} == "$MENU_CHOICE" ]]; then DRIVE=${paths[i]} DRIVE_LABEL=${labels[i]}; fi
+    done
+    buttons "Install on $DRIVE_LABEL?" 0 \
+      "Use this drive" "Everything on it will be erased." \
+      "Choose another" "Back to the list of drives."
+    (( PICKED == 0 )) && break
+  done
   [[ -b $DRIVE ]] || die "Not a block device: $DRIVE"
-  local size model
-  read -r _ size model <<< "$MENU_CHOICE"
-  model=${model%%+([[:space:]])}
-  echo
-  info "Installing to $DRIVE (${model:-disk}, $size)"
 }
 
 partition_and_mount() {
@@ -188,17 +201,67 @@ partition_and_mount() {
   run swapon "$swap"
 }
 
-# Prints the countries to rank mirrors in: MIRROR_COUNTRIES, or with auto the
-# two-letter code of this machine's public IP's country (ipinfo.io), or
-# nothing if that lookup fails.
+# Where this machine is, by its public IP (ipinfo.io), in GEO_COUNTRY (a
+# two-letter code) and GEO_TIMEZONE (e.g. Europe/Lisbon); each empty when
+# the lookup fails or doesn't say. One lookup for both: the mirrors
+# (mirror_countries) and the clock (resolve_timezone).
+geolocate() {
+  local json country='"country": *"([A-Z]{2})"' zone='"timezone": *"([A-Za-z0-9_+/-]+)"'
+  GEO_COUNTRY='' GEO_TIMEZONE=''
+  json=$(curl -fsS --max-time 5 https://ipinfo.io/json 2>/dev/null) || true
+  [[ $json =~ $country ]] && GEO_COUNTRY=${BASH_REMATCH[1]}
+  [[ $json =~ $zone ]] && GEO_TIMEZONE=${BASH_REMATCH[1]}
+  printf 'Location: country %s, timezone %s\n' "${GEO_COUNTRY:-unknown}" "${GEO_TIMEZONE:-unknown}" >> "$LOG_FILE"
+  return 0
+}
+
+# TIMEZONE, settled: with auto (config.sh), the one geolocate found, if it's
+# one the system knows (a file in /usr/share/zoneinfo); UTC otherwise. A
+# fixed one is kept as it is.
+resolve_timezone() {
+  [[ $TIMEZONE == auto ]] || return 0
+  if [[ -n $GEO_TIMEZONE && -f /usr/share/zoneinfo/$GEO_TIMEZONE ]]; then
+    TIMEZONE=$GEO_TIMEZONE
+  else
+    TIMEZONE=UTC
+  fi
+}
+
+# TIME_LOCALE, settled: with auto (config.sh), the locale whose dates and
+# times are the country's geolocate found, one glibc has (its list,
+# /usr/share/i18n/SUPPORTED): in the country's main language (pt_PT,
+# es_ES, de_DE), else in English (en_GB, en_IN, en_CA), else the first
+# there is. For countries whose first isn't their main language, the
+# language is given (MAIN_LANGUAGE). LOCALE's when there's no country, or
+# no locale for it. A fixed one is kept as it is.
+declare -A MAIN_LANGUAGE=(
+  [BR]=pt [CN]=zh [TW]=zh [UA]=uk [IR]=fa [PE]=es [PK]=ur [NP]=ne [MM]=my
+  [ET]=am [ER]=ti [KE]=sw [BE]=nl [CH]=de [LU]=fr [NO]=nb [AW]=nl [SN]=wo
+)
+resolve_time_locale() {
+  [[ $TIME_LOCALE == auto ]] || return 0
+  TIME_LOCALE=$LOCALE
+  [[ -n $GEO_COUNTRY ]] || return 0
+  local cc=$GEO_COUNTRY lang name
+  local -a candidates=()
+  mapfile -t candidates < <(sed -nE "s/^([a-z]{2,3}_${cc}(\.UTF-8)?) UTF-8\$/\1/p" /usr/share/i18n/SUPPORTED 2>/dev/null)
+  (( ${#candidates[@]} )) || return 0
+  for lang in ${MAIN_LANGUAGE[$cc]:-} "${cc,,}" en; do
+    for name in "${candidates[@]}"; do
+      [[ $name == "${lang}_${cc}" || $name == "${lang}_${cc}.UTF-8" ]] && { TIME_LOCALE=$name; return 0; }
+    done
+  done
+  TIME_LOCALE=${candidates[0]}
+}
+
+# Prints the countries to rank mirrors in: MIRROR_COUNTRIES, or with auto
+# the one geolocate found, or nothing if it found none.
 mirror_countries() {
   if [[ $MIRROR_COUNTRIES != auto ]]; then
     echo "$MIRROR_COUNTRIES"
-    return
+  elif [[ -n $GEO_COUNTRY ]]; then
+    echo "$GEO_COUNTRY"
   fi
-  local code
-  code=$(curl -fsS --max-time 5 https://ipinfo.io/country 2>/dev/null | tr -d '[:space:]') || true
-  [[ $code =~ ^[A-Z]{2}$ ]] && echo "$code"
   return 0
 }
 
@@ -275,6 +338,7 @@ install_base() {
 
 # Copies this installer into the new root and re-invokes it there.
 configure_new_system() {
+  carry_wifi_networks
   local stage=/mnt/root/arch-setup
   rm -rf "$stage"
   cp -r "$SETUP_DIR" "$stage"
@@ -283,6 +347,8 @@ configure_new_system() {
     mkdir -p "$stage/packages"
     cp "$ISO_PACKAGES"/*.pkg.tar.zst "$stage/packages/"
   fi
+  # And the icon theme and widgets it brought, for the first Plasma session.
+  [[ ! -d $ISO_EXTRAS ]] || cp -r "$ISO_EXTRAS" "$stage/extras"
 
   # Passwords travel in a root-only file, never in argv or the environment.
   # The chroot phase deletes it as its first act; the trap covers the case
@@ -294,7 +360,8 @@ configure_new_system() {
   # The bar carries on in the chroot phase, and from there in the desktop phase.
   local -a progress
   mapfile -t progress < <(progress_env)
-  arch-chroot /mnt env HOST_NAME="$HOST_NAME" USER_NAME="$USER_NAME" VERBOSE="$VERBOSE" \
+  arch-chroot /mnt env HOST_NAME="$HOST_NAME" USER_NAME="$USER_NAME" TIMEZONE="$TIMEZONE" TIME_LOCALE="$TIME_LOCALE" \
+    KEYMAP="$KEYMAP" X11_LAYOUT="$X11_LAYOUT" X11_VARIANT="$X11_VARIANT" X11_OPTIONS="$X11_OPTIONS" \
     PATCHED_FONT="${PATCHED_FONT:-0}" "${progress[@]}" \
     bash /root/arch-setup/setup.sh chroot
   # The desktop phase has done every step, and logged the last one's time: the
@@ -307,4 +374,37 @@ live_usb_disk() {
   local name
   name=$(lsblk -no PKNAME "$(findmnt -no SOURCE /run/archiso/bootmnt 2>/dev/null)" 2>/dev/null) || return 1
   [[ -n $name ]] && echo "/dev/$name"
+}
+
+# The Wi-Fi networks the live ISO connected to (its iwd remembers them, in
+# /var/lib/iwd: phases/wifi.sh's) as NetworkManager
+# connections on the new system, so it's online from its first boot: the
+# first Plasma session downloads its widgets and icons. Root-only files, as
+# they hold the passwords. iwd names a file by the network's name, or "="
+# and the name in hex when it has other characters than letters, digits,
+# - and _; NetworkManager then gets the name as its bytes.
+carry_wifi_networks() {
+  local file base ssid name security secret dir=/mnt/etc/NetworkManager/system-connections
+  for file in /var/lib/iwd/*.psk /var/lib/iwd/*.open; do
+    [[ -f $file ]] || continue
+    base=${file##*/} base=${base%.*}
+    if [[ $base == =* ]]; then
+      [[ ${base#=} =~ ^([0-9a-fA-F]{2})+$ ]] || continue
+      printf -v name '%b' "$(sed 's/../\\x&/g' <<< "${base#=}")"
+      ssid=$(sed 's/../&\n/g' <<< "${base#=}" | while read -r byte; do [[ -z $byte ]] || printf '%d;' "0x$byte"; done)
+    else
+      name=$base ssid=$base
+    fi
+    security=''
+    if [[ $file == *.psk ]]; then
+      secret=$(sed -n 's/^Passphrase=//p' "$file" | head -1)
+      [[ -n $secret ]] || secret=$(sed -n 's/^PreSharedKey=//p' "$file" | head -1)
+      [[ -n $secret ]] || continue
+      printf -v security '[wifi-security]\nkey-mgmt=wpa-psk\npsk=%s\n' "$secret"
+    fi
+    mkdir -p "$dir"
+    printf '[connection]\nid=%s\ntype=wifi\n\n[wifi]\nmode=infrastructure\nssid=%s\n\n%s\n[ipv4]\nmethod=auto\n\n[ipv6]\nmethod=auto\n' \
+      "$name" "$ssid" "$security" | install -m 600 /dev/stdin "$dir/${name//\//_}.nmconnection"
+    printf 'Wi-Fi carried over: %s\n' "$name" >> "$LOG_FILE"
+  done
 }

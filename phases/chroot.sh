@@ -2,7 +2,6 @@
 # Phase 2 — runs inside arch-chroot; "/" is the freshly installed system.
 
 phase_chroot() {
-  require_root
   : "${HOST_NAME:?}" "${USER_NAME:?}"
   # One password, for both the user and root.
   local password
@@ -20,14 +19,23 @@ phase_chroot() {
 
 configure_locale() {
   info "Setting language, time zone and keyboard..."
+  # Settled by the install phase (resolve_timezone); never left at auto.
+  [[ $TIMEZONE != auto && -f /usr/share/zoneinfo/$TIMEZONE ]] || TIMEZONE=UTC
   ln -sf "/usr/share/zoneinfo/$TIMEZONE" /etc/localtime
   hwclock --systohc
-  local locale
-  for locale in "${LOCALES[@]}"; do
-    sed -i "s/^#\($locale\)/\1/" /etc/locale.gen
+  # One language for everything (LOCALE), Plasma's too, which follows LANG;
+  # dates and times the country's way (TIME_LOCALE, settled by the install
+  # phase), when this glibc has that locale. Each enabled in locale.gen by
+  # its exact line ("name charset"): a bare prefix would also catch other
+  # charsets of it.
+  [[ $TIME_LOCALE != auto ]] && grep -q "^#\?$TIME_LOCALE UTF-8 *\$" /etc/locale.gen || TIME_LOCALE=$LOCALE
+  local name
+  for name in "$LOCALE" "$TIME_LOCALE"; do
+    sed -i "s/^#\($name UTF-8 *\)\$/\1/" /etc/locale.gen   # (its lines end in spaces)
   done
   run locale-gen
-  printf 'LANG=%s\nLC_MESSAGES=%s\n' "$LANG_LOCALE" "$MESSAGES_LOCALE" > /etc/locale.conf
+  printf 'LANG=%s\n' "$LOCALE" > /etc/locale.conf
+  [[ $TIME_LOCALE == "$LOCALE" ]] || printf 'LC_TIME=%s\n' "$TIME_LOCALE" >> /etc/locale.conf
   echo "KEYMAP=$KEYMAP" > /etc/vconsole.conf
 }
 
@@ -41,9 +49,7 @@ configure_accounts() {
   # chpasswd reads stdin, so the passwords never appear in argv or env.
   printf 'root:%s\n%s:%s\n' "$1" "$USER_NAME" "$1" | chpasswd
 
-  # No lecture on first use: when the desktop phase is run by hand, its first
-  # sudo is the unlock screen, which is the prompt.
-  write_sudoers /etc/sudoers.d/10-wheel '%wheel ALL=(ALL:ALL) ALL' 'Defaults lecture = never'
+  write_sudoers /etc/sudoers.d/10-wheel '%wheel ALL=(ALL:ALL) ALL'
 
   run systemctl enable NetworkManager
 }
@@ -153,8 +159,9 @@ run_desktop_phase() {
   trap 'rm -f '"$rule" EXIT
   local -a progress
   mapfile -t progress < <(progress_env)
-  runuser -u "$USER_NAME" -- env TERM="$TERM" VERBOSE="$VERBOSE" \
-    PATCHED_FONT="${PATCHED_FONT:-0}" IN_CHROOT=1 "${progress[@]}" \
+  runuser -u "$USER_NAME" -- env TERM="$TERM" \
+    X11_LAYOUT="$X11_LAYOUT" X11_VARIANT="$X11_VARIANT" X11_OPTIONS="$X11_OPTIONS" \
+    PATCHED_FONT="${PATCHED_FONT:-0}" "${progress[@]}" \
     bash "$home/.arch-setup/setup.sh" desktop
   rm -f "$rule"
 }

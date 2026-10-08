@@ -2,10 +2,9 @@
 # Phase 4 — first Plasma session, as the user. Desktop look & layout, then
 # self-cleanup. Autostarted by the desktop phase; runs once. The look's tweaks
 # only with the ARCHMAN look (phases/look.sh leaves the choice in
-# $SETUP_DIR/look; without it, as when run by hand, ARCHMAN).
+# $SETUP_DIR/look; without it, ARCHMAN).
 
 phase_plasma_tweaks() {
-  require_user
   # Cleanup runs even if a tweak fails: better one missed setting (it's in
   # the log) than the autostart entry firing again on every login.
   trap cleanup EXIT
@@ -62,15 +61,23 @@ set_lock_screen_wallpaper() {
 }
 
 # Installs each repo's package/ directory as a Plasma applet (into
-# ~/.local/share/plasma/plasmoids); upgrades it if it's already there.
+# ~/.local/share/plasma/plasmoids); upgrades it if it's already there. The
+# copy the USB brought (extras/plasmoids/<repo name>) when there is one, so
+# no internet is needed; otherwise downloaded.
 install_plasmoids() {
-  local repo tmp
+  local repo name tmp package
   for repo in "${PLASMOID_REPOS[@]}"; do
-    tmp=$(mktemp -d)
-    git_clone "$repo" "$tmp"
-    run kpackagetool6 --type Plasma/Applet --install "$tmp/package" \
-      || run kpackagetool6 --type Plasma/Applet --upgrade "$tmp/package"
-    rm -rf "$tmp"
+    name=${repo##*/} name=${name%.git}
+    tmp=''
+    package=$SETUP_DIR/extras/plasmoids/$name/package
+    if [[ ! -d $package ]]; then
+      tmp=$(mktemp -d)
+      git_clone "$repo" "$tmp"
+      package=$tmp/package
+    fi
+    run kpackagetool6 --type Plasma/Applet --install "$package" \
+      || run kpackagetool6 --type Plasma/Applet --upgrade "$package"
+    [[ -z $tmp ]] || rm -rf "$tmp"
   done
 }
 
@@ -109,14 +116,56 @@ configure_desktop_layout() {
   applets --group Containments --group 2 --group Applets --group 5 \
     --group Configuration --group General \
     --key launchers "applications:systemsettings.desktop,preferred://filemanager,preferred://browser"
+
+  # Apdatifier (installed by install_plasmoids) in the panel, right after the
+  # task manager: updates counted in a badge, the AUR's too, through paru
+  # (installed by the desktop phase), upgrades run in Konsole.
+  local apdatifier=(--group Containments --group 2 --group Applets --group 101)
+  local settings=("${apdatifier[@]}" --group Configuration)
+  applets "${apdatifier[@]}" --key immutability 1
+  applets "${apdatifier[@]}" --key plugin com.github.exequtic.apdatifier
+  applets "${settings[@]}" --key popupWidth 560
+  applets "${settings[@]}" --key popupHeight 400
+  applets "${settings[@]}" --group General --key aur true
+  applets "${settings[@]}" --group Upgrade --key wrapper paru
+  applets "${settings[@]}" --group Upgrade --key terminal /usr/bin/konsole
+  applets "${settings[@]}" --group Appearance --key counterMode badge
+  applets "${settings[@]}" --group Appearance --key counterBadgePosition bottomRight
+  applets "${settings[@]}" --group Appearance --key selectedIcon apdatifier-package
+  applets "${settings[@]}" --group Appearance --key hideIconPolicy 10
+  panel_insert 101 5
 }
 
+# panel_insert ID AFTER — puts applet ID in the panel's (containment 2)
+# order right after applet AFTER, or last without it. The order is Plasma's
+# AppletOrder; when it hasn't written one, the panel's applets by ID, which
+# is the order it shows them in then.
+panel_insert() {
+  local file=$HOME/.config/plasma-org.kde.plasma.desktop-appletsrc order
+  order=$(kreadconfig6 --file plasma-org.kde.plasma.desktop-appletsrc \
+            --group Containments --group 2 --group General --key AppletOrder)
+  if [[ -z $order ]]; then
+    order=$(sed -nE 's/^\[Containments\]\[2\]\[Applets\]\[([0-9]+)\]$/\1/p' "$file" | sort -nu | paste -sd';')
+  fi
+  order=";$order;"
+  order=${order//;$1;/;}                               # once only, wherever it was
+  if [[ $order == *";$2;"* ]]; then order=${order/;$2;/;$2;$1;}; else order+="$1;"; fi
+  order=${order#;} order=${order%;}
+  applets --group Containments --group 2 --group General --key AppletOrder "$order"
+}
+
+# The icon theme: the copy the USB brought (extras/icons) when there is
+# one, so no internet is needed; otherwise downloaded.
 install_icon_theme() {
-  local tmp; tmp=$(mktemp -d)
-  git_clone "$ICON_THEME_REPO" "$tmp"
   mkdir -p "$HOME/.local/share/icons"
-  cp -r "$tmp/$ICON_THEME" "$HOME/.local/share/icons/"
-  rm -rf "$tmp"
+  if [[ -d $SETUP_DIR/extras/icons/$ICON_THEME ]]; then
+    cp -r "$SETUP_DIR/extras/icons/$ICON_THEME" "$HOME/.local/share/icons/"
+  else
+    local tmp; tmp=$(mktemp -d)
+    git_clone "$ICON_THEME_REPO" "$tmp"
+    cp -r "$tmp/$ICON_THEME" "$HOME/.local/share/icons/"
+    rm -rf "$tmp"
+  fi
   kwriteconfig6 --file kdeglobals --group Icons --key Theme "$ICON_THEME"
 }
 

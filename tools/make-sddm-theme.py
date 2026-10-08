@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """Builds the images and settings of the archman SDDM theme
-(assets/sddm/archman), the login screen made to look like the installer's
-unlock screen (lib/prompt.sh's unlock_screen).
+(assets/sddm/archman): an Omarchy-style unlock screen in the installer's
+look, the logo over a padlock and a password box.
 
 The images are rendered with the patched 8x16 console font, exactly as the
 console draws them: logo.png from logo-hd.txt, lock.png from the padlock's
-15 tiles, dot.png from the round bullet. Main.qml shows them at a whole-number
+15 tiles, dot.png from the round bullet (the 12x22 font's: bigger). Main.qml shows them at a whole-number
 scale with smoothing off. theme.conf carries the colours and tagline from
 config.sh (CONSOLE_PALETTE, TAGLINE).
 
@@ -98,7 +98,9 @@ def main():
     png(ROOT / "assets" / "logo" / "banner.png", banner)
     lock = ["".join(fonts.LOCK[r * fonts.LOCK_COLS:(r + 1) * fonts.LOCK_COLS]) for r in range(fonts.LOCK_ROWS)]
     png(OUT / "lock.png", render(font, lock, rgb=accent))
-    png(OUT / "dot.png", render(font, [fonts.DOT], rgb=text))
+    # The password dots from the 12x22 font: its dot is 7 px across to the
+    # 8x16's 5, the nearest a crisp round dot gets to half as big again.
+    png(OUT / "dot.png", render(fonts.load(fonts.OUT / "sun12x22.psfu.gz"), [fonts.DOT], rgb=text))
 
     # The roles lib/ui.sh gives the palette's slots.
     (OUT / "theme.conf").write_text(f"""[General]

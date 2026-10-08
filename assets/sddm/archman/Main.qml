@@ -1,8 +1,8 @@
-// ARCHMAN login screen: the installer's unlock screen (lib/prompt.sh's
-// unlock_screen) as an SDDM theme. logo.png, lock.png and dot.png are renders
+// ARCHMAN login screen: an Omarchy-style unlock screen in the installer's
+// look, as an SDDM theme. logo.png, lock.png and dot.png are renders
 // of the console font (tools/make-sddm-theme.py), shown at a whole-number
 // scale with smoothing off, so they keep the console's pixels; the layout is
-// the unlock screen's, measured in console cells (8 x 16 at scale 1).
+// laid out in console cells (8 x 16 at scale 1), like the installer's screens.
 // Colours and tagline: theme.conf.
 import QtQuick 2.15
 
@@ -74,16 +74,19 @@ Rectangle {
         border.color: config.border
         border.width: root.s
 
-        // A dot per character typed, a cell each, centred in the box.
+        // A dot per character typed, centred in the box, as many as fit
+        // inside it (a cell's margin each side). dot.png is the 12x22 font's
+        // dot, half as big again as the 8x16's, shown at the same scale.
         Row {
           anchors.centerIn: parent
           Repeater {
-            model: Math.min(password.text.length, 34)
+            id: dots
+            model: Math.min(password.text.length, Math.floor(root.cellW * 36 / (12 * root.s)))
             Image {
               source: "dot.png"
               smooth: false
-              width: root.cellW
-              height: root.cellH
+              width: sourceSize.width * root.s
+              height: sourceSize.height * root.s
             }
           }
         }

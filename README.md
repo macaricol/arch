@@ -4,18 +4,25 @@
 
 # Arch Linux + KDE Plasma installer
 
-Unattended-ish installer for a UEFI machine: Btrfs root with `@`/`@home`
+An installer on a USB stick, the ARCHMAN USB, for a UEFI machine: Btrfs root with `@`/`@home`
 subvolumes, RAM-sized swap with working hibernation, GRUB, a minimal KDE
 Plasma desktop, GPU drivers (64- and 32-bit), Steam, and a handful of AUR
-packages. Tuned for Portuguese locale/keyboard by default — see `config.sh`.
+packages. In English (US), with the timezone, date formats and keyboard of
+where it's installed (the keyboard is asked, that one first) — see `config.sh`.
 
 ## Quick start
 
-Boot the official Arch ISO, connect to the network, and run:
+The ARCHMAN USB is the only way to install. On an Arch machine, build it
+from the official Arch ISO (fetched for you), write it to a stick and boot
+the computer from it:
 
-    curl -fsSL https://raw.githubusercontent.com/macaricol/arch/main/bootstrap.sh | bash
+    sudo pacman -S --needed libisoburn squashfs-tools devtools git curl gum
+    sudo tools/build-autoinstall-iso.sh
+    sudo dd if=archlinux-autoinstall.iso of=/dev/sdX bs=4M status=progress oflag=sync
 
-Answer three prompts (hostname, username, and one password used for both
+It boots straight into the installer. Without a cable, pick your Wi-Fi
+network from the list it shows. Then pick your keyboard layout (the one of
+where you are comes first) and answer three prompts (hostname, username, and one password used for both
 your user and root),
 pick the drive from an arrow-key menu, type `YES`, and walk away. The
 installer sets up everything, desktop included, then asks one last thing:
@@ -26,36 +33,64 @@ Enter): straight into SDDM, where the first Plasma session applies the
 desktop tweaks. One reboot, and no prompts between the first screens and
 that last question.
 
-To install from a different branch: `curl ... | BRANCH=clauding bash`.
+The installer itself is fetched from this repo at boot, from the `REPO`
+and `BRANCH` in `config.sh` baked into the USB. For a USB that installs
+from another branch: `sudo BRANCH=clauding tools/build-autoinstall-iso.sh`.
 
 **This erases the selected drive.** Test in a VM first.
 
-### No-typing USB
+### Monthly builds
 
-`tools/build-autoinstall-iso.sh` turns an official ISO into a USB that runs
-the command above by itself. It has no boot menu (on UEFI): it boots
+GitHub builds the image every month (`.github/workflows/iso.yml`): on the
+2nd, from the official ISO Arch publishes on the 1st, and publishes it as a
+release, `archman-YYYY.MM.DD`, with the image to download. The last three are
+kept. "Run workflow" in the Actions tab builds one at any time, from the
+branch picked there, which is also the branch that image installs from. The
+build runs `tools/ci-build-iso.sh` in a fresh `archlinux` container
+(privileged, to loop-mount the EFI image), which prebuilds the AUR packages
+with plain makepkg (`--build-user`) rather than in a devtools chroot, as
+that runs a container of its own. GitHub pauses scheduled workflows in a
+repository without commits for 60 days; the Actions tab turns it back on.
+
+### The USB
+
+`tools/build-autoinstall-iso.sh` turns the official Arch ISO into the
+ARCHMAN USB. It has no boot menu (on UEFI): it boots
 straight in, quietly — no kernel or systemd messages and no login text —
 and shows the ARCHMAN logo across two thirds of the screen
 (`tools/fb-logo.py`, drawn on the framebuffer), with "Checking if this
 computer is ready..." under it 2 seconds in. The logo stays up while the
 network comes up and through the installer's own checks (UEFI, internet,
 fetching gum), which draw nothing over it, for at least 4 seconds in all;
-the first thing after it is the account screen. If the network never comes
-up, or the installer can't be fetched, it says so and leaves a root shell
-on tty1. The stock ISO's other
-boot entries (the live system, memtest...) are removed.
+the first thing after it is the account screen.
 
-    sudo pacman -S --needed libisoburn squashfs-tools devtools git curl
+With no cable plugged in, on a machine with Wi-Fi, it shows the networks in
+range instead, strongest first, each with its signal and whether it's
+secured: pick one with the arrow keys, type its password, and the splash
+comes back. The new system gets the same network (as a NetworkManager
+connection), so it's online from its first boot. If there's no Wi-Fi
+either, it waits up to 30 seconds for a cable. Whatever goes wrong, it says
+so in plain words, what to do about it, and restarts on Enter: no shell or
+commands on screen. (To dig in: Alt+F2 for another console, root, no
+password.)
+
+    sudo pacman -S --needed libisoburn squashfs-tools devtools git curl gum
     sudo tools/build-autoinstall-iso.sh
 
 The AUR packages that compile from source (`AUR_PACKAGES` without the
-`-bin` ones: qview) are built into the USB, in a clean chroot with
+`-bin` ones: paru and qview) are built into the USB, in a clean chroot with
 devtools' `makechrootpkg` (created once in `/var/lib/archman-build`, about
 200 MB, and updated on every run), so installs from it don't spend minutes
-compiling them. Without devtools, or when run as root rather than through
-sudo, that step is skipped and installs compile them as before. An install
-still builds a package itself when the AUR has a newer version than the
-USB's, or if the prebuilt one won't install.
+compiling them. An install uses the USB's even when the AUR has a newer
+version by then: paru, installed first, brings them up to date with the rest
+(`paru -Syu`). It builds a package itself only if the prebuilt one won't
+install.
+
+The USB also carries what the first Plasma session would otherwise
+download: the icon theme and the widgets (`ICON_THEME`, `PLASMOID_REPOS`),
+fetched when it's built (about 7 MB in the image). So the ARCHMAN look comes
+out whole even if the new system has no internet at its first login; from
+an older USB without them, that session downloads them as before.
 
 Run with no arguments it asks whether to fetch the current official ISO or
 use one you already have. `--download` skips the question for scripted use,
@@ -71,23 +106,25 @@ mirror is `ISO_MIRROR` in `config.sh`.
 
 ## How it fits together
 
-    bootstrap.sh             fetches the repo tarball to /tmp, runs setup.sh install
+    bootstrap.sh             fetched by the USB at boot: the repo tarball to /tmp, then setup.sh install
     setup.sh <phase>         single entry point; loads config + lib, runs one phase
     config.sh                every tunable value: locale, disk, package lists, theme
     assets/logo/             the logo drawn above every step (tools/make-logo.py): logo.txt,
                              logo-hd.txt at double resolution for the console, their .colors,
                              and banner.png for this README (tools/make-sddm-theme.py)
     assets/plymouth/         the boot splash theme: script, logo, spinner
-    assets/sddm/archman/     the login screen: the unlock screen as an SDDM theme (tools/make-sddm-theme.py)
+    assets/sddm/archman/     the login screen: an Omarchy-style unlock screen, as an SDDM theme (tools/make-sddm-theme.py)
     assets/consolefonts/     the console fonts, with Pac-Man, a padlock and the bar's eighths added (tools/make-console-fonts.py)
     lib/ui.sh                console font/palette, centred step screens, run() spinner + setup.log
-    lib/prompt.sh            validated input, passwords, confirm, arrow-key menu
-    lib/system.sh            checks, CPU/GPU detection, pacman/AUR/service helpers
+    lib/prompt.sh            validated input, passwords, arrow-key menu, buttons
+    lib/system.sh            CPU/GPU detection, pacman/AUR/service helpers
+    lib/keyboard.sh          the keyboard layouts and their question (Wi-Fi screen or install phase)
     phases/install.sh        live ISO: partition, format, pacstrap (+ CPU/GPU drivers), hand off to chroot
     phases/chroot.sh         locale, accounts, sudo, hibernation, GRUB, then runs desktop.sh as the user
-    phases/desktop.sh        the desktop: Plasma, theming, Samba, Steam, AUR
+    phases/desktop.sh        the desktop, as the user in the chroot: Plasma, theming, Samba, Steam, AUR
     phases/look.sh           the chosen look, system-wide: login screen, default wallpaper
-    phases/plasma-tweaks.sh  first Plasma session: kwin, theme, widgets, panel, icons
+    phases/wifi.sh           live ISO: the Wi-Fi network list, run by the USB before the installer
+    phases/plasma-tweaks.sh  first Plasma session: kwin, theme, widgets (Apdatifier in the panel), panel, icons
 
 The installer directory travels with the install: `/tmp/arch-setup` on the
 ISO → `/root/arch-setup` in the chroot → `~/.arch-setup` for the desktop
@@ -95,24 +132,12 @@ phase (still in the chroot) and the Plasma first-login step, which then
 deletes it, leaving only `~/arch-setup.log`.
 
 Every command that goes through `run()` is logged there, with its full
-output shown on the terminal only if it fails. `VERBOSE=1 setup.sh <phase>`
-streams everything live instead.
-
-## Running phases by hand
-
-From a local checkout, phases can be run directly — useful for re-applying
-the desktop setup or iterating on it:
-
-    ./setup.sh desktop          # as your user; idempotent (--needed everywhere); asks for your password
-    ./setup.sh plasma-tweaks    # as your user, inside a Plasma session
-
-Running from a checkout never deletes it; only the staged `~/.arch-setup`
-copy cleans itself up.
+output shown on the terminal only if it fails.
 
 ## Configuration
 
 Everything lives in `config.sh`: the installer's tagline and console
-palette (`TAGLINE`, `CONSOLE_PALETTE`), timezone, keymaps, locales, mirror
+palette (`TAGLINE`, `CONSOLE_PALETTE`), timezone and date formats (both detected by default), language (`LOCALE`), mirror
 countries, EFI size, Btrfs mount options, the package lists (`BASE_`,
 `KDE_`, `EXTRA_`, `GAMING_`, `AUR_PACKAGES`, per-vendor `GPU_PACKAGES_*`),
 the surround-upmix settings (`UPMIX_*`), the SDDM theme and wallpaper, icon
@@ -138,12 +163,11 @@ Things that look odd but are deliberate:
   transaction that brings Steam.
 - **The desktop phase installs from the official repos in one pacman
   transaction**: `KDE_PACKAGES`, `EXTRA_PACKAGES`, `GAMING_PACKAGES` (when
-  there's a GPU), plus gum and base-devel. The lists stay separate in
+  there's a GPU), plus base-devel. The lists stay separate in
   `config.sh`; one transaction means pacman's checks and post-install hooks
   (font, icon and desktop caches) run once instead of once per list. From
   the installer it's `pacman -S`: pacstrap synced the package lists moments
-  before, so there's nothing to update. Run by hand, it's `-Syu`. The
-  installer also has pacman download `PARALLEL_DOWNLOADS` files at once
+  before, so there's nothing to update. The installer also has pacman download `PARALLEL_DOWNLOADS` files at once
   (10; pacman's default is 5), set in the USB's `pacman.conf`, which
   pacstrap copies into the new system.
 - **Surround upmixing is written twice**, to
@@ -157,9 +181,42 @@ Things that look odd but are deliberate:
   `channelmix.upmix = true`. Nothing is set for mpv on purpose — forcing
   `audio-channels=7.1` makes mpv pad the extra channels itself, so PipeWire
   sees 8 channels and skips the upmix.
+- **The timezone is where the machine is, never asked.** With
+  `TIMEZONE='auto'` (the default), the install phase looks the machine's
+  public IP up at ipinfo.io once, under the splash, and takes the timezone
+  it gives (the country from the same answer ranks the mirrors, below). A
+  lookup that fails, or a zone the system doesn't know, gives UTC; it can be
+  changed later in System Settings. A VPN shows its own location. A fixed
+  zone in `config.sh`, e.g. `'Europe/Lisbon'`, is used as it is.
+- **The keyboard layout is asked, the local one first.** The list is
+  Omarchy's (its shared setup form), less its Lao and Azerbaijani entries,
+  whose keymaps there belong to other layouts. The layout of the country
+  from the location lookup (`COUNTRY_KEYBOARD`) leads, then English (US),
+  then the rest alphabetically; English (US) leads where there's no match.
+  It's loaded on the console at once, so the password that follows is typed
+  with it. Each layout carries its console keymap and its X11 layout and
+  variant (from systemd's `kbd-model-map`), for Plasma and the login screen;
+  layouts without Latin letters come with US as a second one (both Shift
+  keys switch), so a Latin password still works at the login screen.
+  Without a cable, the question comes first on the USB's Wi-Fi screen
+  instead, so the Wi-Fi password is typed with the right layout: with no
+  network there's no location yet, so English (US) leads, then the rest
+  alphabetically. The installer keeps that choice (`/run/archman-keyboard`)
+  and asks again only on starting over. The Wi-Fi password field shows what
+  is typed on Tab, and refuses a password that isn't 8 to 63 characters.
+- **English everywhere, dates the local way.** The language is English (US)
+  throughout (`LOCALE`: `LANG=en_US.UTF-8`), never asked. Dates and times
+  alone (`LC_TIME`, `TIME_LOCALE='auto'`) follow the country from the same
+  lookup: its locale in its main language if glibc has one (`pt_PT`,
+  `es_ES`), else its English one (`en_GB`, `en_IN`), else the first glibc
+  lists, with a short table (`MAIN_LANGUAGE`) for countries where that
+  first isn't the main language (Brazil, China, Ukraine...). So day/month
+  order, 24-hour time and the first day of the week are local; written-out
+  month and day names come in that locale's language. Unknown country, or a
+  locale the new system lacks: US formats.
 - **Mirrors are picked by location.** With `MIRROR_COUNTRIES='auto'` (the
-  default), the install phase looks up the country of the machine's public
-  IP at ipinfo.io (just its two-letter code) and has reflector rank that
+  default), the install phase takes the country of the machine's public IP
+  from the same ipinfo.io lookup as the timezone and has reflector rank that
   country's HTTPS mirrors; if the lookup fails or the country has none, it
   ranks mirrors worldwide. A list such as `'PT,ES'` pins the countries.
   Only mirrors at most 4 hours behind Arch are used (`--delay 4`): pacman
@@ -177,35 +234,37 @@ Things that look odd but are deliberate:
   that config into the new system.
 - **The desktop phase runs inside the chroot, not on a first boot.** Nothing
   it does needs the new system running: packages install from the live
-  system's network, services are enabled without being started (`--now`
-  is dropped in a chroot), and AUR builds run as the user (`runuser`), on
+  system's network, services are enabled without being started (the
+  first boot starts them), and AUR builds run as the user (`runuser`), on
   disk rather than in the chroot's RAM-backed `/tmp`. A temporary
   `NOPASSWD` sudo rule (`/etc/sudoers.d/90-arch-setup-install`, removed
-  afterwards) stands in for the password, and the progress bar carries on
-  from the install phase's. Run by hand later, the phase opens with an
-  Omarchy-style unlock screen instead, whose password goes to `sudo -S` on
-  stdin; sudo's first-use lecture is off (`/etc/sudoers.d/10-wheel`).
+  afterwards) stands in for the password, also for makepkg's own sudo
+  calls, and the progress bar carries on from the install phase's.
 - **The live ISO reboots with `systemctl reboot --force --force`**, after
   the new system is unmounted and synced: nothing on the ISO needs a clean
   shutdown, and one was screens of status lines and a 90 s wait for the
   Wi-Fi daemon, which ignores SIGTERM. The double force reboots at once.
-- **The login screen is the unlock screen, as an SDDM theme.**
-  `assets/sddm/archman` recreates `unlock_screen`'s look in QML: the logo,
-  padlock and password dots are images rendered with the patched console
+- **The login screen is an Omarchy-style unlock screen, in the installer's
+  look.** `assets/sddm/archman` is an SDDM theme in QML: the logo, padlock
+  and password dots are images rendered with the patched console
   font (`tools/make-sddm-theme.py`), shown at a whole-number scale with
   smoothing off, and colours and tagline come from `config.sh`. Rerun the
   tool after changing the logo, fonts, palette or tagline. It logs in the
   last user, or on the first login the only one, into the default session.
   The astronaut theme is still installed: the wallpapers come from it, and
   it can be picked in System Settings. SDDM's greeter runs on X11 and
-  ignores Plasma's keyboard setting, so `X11_LAYOUT` is also written to
+  ignores Plasma's keyboard setting, so the chosen layout is also written to
   `/etc/X11/xorg.conf.d/00-keyboard.conf`, or the password would be typed
   on a US layout.
-- **The desktop phase enables SDDM without `--now`.** Run by hand, it would
-  take over tty1, where the phase is still running. The reboot starts it.
-- **Passwordless `sudo pacman`** exists only during the AUR step (makepkg's
-  own sudo calls don't see the cached ticket) and is removed right after,
-  with the EXIT trap as backstop.
+- **The Wi-Fi screen runs from the USB, not from GitHub**: without a
+  network the installer can't be downloaded, so the USB carries a copy of
+  what the screen needs (`setup.sh`, `config.sh`, `lib/`,
+  `phases/wifi.sh`, the logo and fonts) and gum. The networks come from
+  iwd over D-Bus (`busctl`, read with python3), which gives each one's
+  name, kind and signal as data rather than `iwctl`'s coloured table;
+  connecting goes through `iwctl`, with the password passed in a variable,
+  not on `run`'s logged command line. The install phase turns every
+  network iwd remembers (`/var/lib/iwd`) into a root-only NetworkManager connection on the new system.
 - **The look is chosen at the very end**, after everything is installed,
   so the install itself stays unattended, and its time doesn't count the
   wait for an answer. Both looks' files are installed either way (they stay
@@ -227,7 +286,7 @@ Things that look odd but are deliberate:
   are copies from `assets/consolefonts` with two unused glyphs redrawn as
   Pac-Man: `ᗧ`, the tag on every message, and `⬤`, its closed mouth, which
   the spinner alternates with it while eating a row of pellets. They also
-  carry the unlock screen's padlock, Omarchy's lock shape
+  carry the login screen's padlock, Omarchy's lock shape
   redrawn as a block of 5×3 tiles (U+E000–U+E00E), 80% as tall as the
   password box beside it. No stock console font has any of these;
   `tools/make-console-fonts.py` rebuilds the copies.
@@ -301,14 +360,11 @@ Things that look odd but are deliberate:
   add themselves up (`step_weights`). Each step's real duration goes into
   the log next to its weight, and a split step's shares too, for tuning:
   `grep '\[time\]' setup.log`.
-- **Prompts use [gum](https://github.com/charmbracelet/gum) when it runs.**
-  The install phase fetches it onto the live ISO (`pacman -Sy gum`, a few
-  MB of RAM) and the desktop phase installs it on the new system, for runs by
-  hand. That first
-  install is a partial upgrade, so gum is only used after `gum --version`
-  succeeds; if it can't be fetched or won't start, the plain prompts in
-  `lib/prompt.sh` take over. Esc asks again, Ctrl+C aborts. Typing `YES` to
-  erase the drive stays plain typed text on purpose.
+- **Prompts use [gum](https://github.com/charmbracelet/gum), which the USB
+  carries** (copied from the machine that builds it; it needs only glibc).
+  It's used once `gum --version` succeeds; should it not start, the plain
+  prompts in `lib/prompt.sh` take over. Esc asks again, Ctrl+C aborts.
+  Typing `YES` to erase the drive stays plain typed text on purpose.
 - **Boot is quiet, behind a Plymouth splash.** The chroot phase adds the
   `plymouth` hook right after `systemd`/`udev`, `quiet splash` to the kernel
   options, and its own `archman` theme (`assets/plymouth`): Arch's logo
@@ -421,5 +477,8 @@ userspace onto an AMD or Intel machine.
   the install phase enables.
 - `base-devel` — Build tools, required to compile anything from the AUR
   (built with `MAKEFLAGS=-j$(nproc)`: makepkg.conf leaves it to one core)
+- `paru` (AUR) — the AUR helper: keeps the AUR packages (Zen, qView, and
+  itself) up to date with `paru -Syu`, or from Apdatifier in the panel;
+  installed first, prebuilt on the USB
 - `zen-browser-bin` (AUR) — Firefox-based privacy-focused browser
 - `qview` (AUR) — Lightweight, fast image viewer

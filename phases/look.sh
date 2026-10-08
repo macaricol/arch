@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 # Phase — the desktop's look, as chosen at the end of the install
-# (lib/prompt.sh's choose_look), as root on the new system: from the
-# installer through arch-chroot, or from a desktop phase run by hand through
-# sudo. LOOK is archman or plain.
+# (lib/prompt.sh's choose_look), as root on the new system, from the
+# installer through arch-chroot. LOOK is archman or plain.
 #
 # Everything for both looks is installed by then; this only picks one. The
 # system-wide part happens here: the login screen and the default
@@ -10,7 +9,6 @@
 # choice is left in $SETUP_DIR/look for plasma-tweaks to read.
 
 phase_look() {
-  require_root
   case ${LOOK:-} in
     archman|plain) ;;
     *) die "LOOK must be archman or plain" ;;
