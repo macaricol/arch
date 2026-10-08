@@ -31,6 +31,10 @@ for font in default8x16 sun12x22 latarcyrheb-sun32; do
   (( diff < best_diff )) && { best=$font; best_diff=$diff; }
 done
 setfont -C /dev/tty1 "${best:-default8x16}" 2>/dev/null
+# For the Wi-Fi screen and the installer: they keep this font rather than
+# trying them all again, which would flash the screen in each (the logo
+# wiped, the text re-laid in another font's grid).
+[[ -z $best ]] || export CONSOLE_FONT=$best
 
 for i in "${!CONSOLE_PALETTE[@]}"; do printf '\e]P%X%s' "$i" "${CONSOLE_PALETTE[i]}"; done
 printf '\e[0m\e[?25l'

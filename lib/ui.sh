@@ -68,9 +68,17 @@ set_console_palette() {
 # from kbd if that copy is missing.
 #
 # Root only: the desktop phase, run as the user from the installer, keeps the
-# font the install phase loaded.
+# font the install phase loaded. And not again when the USB's start-up has
+# already picked and loaded one (CONSOLE_FONT, one of its patched copies):
+# each font tried redraws the whole screen, the splash's logo wiped and its
+# text re-laid in that font's grid, a flash with the text out of place.
 scale_console_font() {
   on_console && (( EUID == 0 )) && command -v setfont &>/dev/null || return 0
+  if [[ -n ${CONSOLE_FONT:-} && -f $CONSOLE_FONT ]]; then
+    PATCHED_FONT=1
+    update_margin
+    return 0
+  fi
   local target=48 best='' best_diff=99999 font diff dev errors i
   dev=$(console_dev) errors=$(mktemp)
   # With a quiet boot, the console may have no font support yet: the kernel
