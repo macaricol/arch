@@ -153,6 +153,23 @@ wrap() {
   WRAPPED+=("$line")
 }
 
+# balanced_wrap TEXT WIDTH — wrap's lines, but as even as they can be: as
+# few lines as at WIDTH, at the narrowest width that still needs no more, so
+# centred they start and end at roughly the same columns, rather than a full
+# line over a short one.
+balanced_wrap() {
+  local lines width=$2
+  wrap "$1" "$width"
+  lines=${#WRAPPED[@]}
+  (( lines > 1 )) || return 0
+  while (( width > 1 )); do
+    wrap "$1" $(( width - 1 ))
+    (( ${#WRAPPED[@]} == lines )) || break
+    width=$(( width - 1 ))
+  done
+  wrap "$1" "$width"
+}
+
 # plural N WORD — "1 minute", "3 minutes".
 plural() { (( $1 == 1 )) && echo "$1 $2" || echo "$1 ${2}s"; }
 
@@ -169,8 +186,12 @@ message() {
 }
 
 # Warnings and errors also go to the log: the next step header, or the USB's
-# failure screen, clears the screen.
-info() { message "$TAG" "$C_WHITE" "$*" $'\n\n'; }
+# failure screen, clears the screen. During the steps, info goes only to the
+# log: the screen shows Linux facts instead (see facts_tick).
+info() {
+  if (( FACTS_ON )); then printf '[info] %s\n' "$*" >> "$LOG_FILE" 2>/dev/null || true; return 0; fi
+  message "$TAG" "$C_WHITE" "$*" $'\n\n'
+}
 warn() {
   message "$C_YELLOW${C_BOLD}ᗧ$C_RESET" "$C_YELLOW$C_BOLD" "$*" $'\n\n' >&2
   printf '[warn] %s\n' "$*" >> "$LOG_FILE" 2>/dev/null || true
@@ -221,12 +242,12 @@ PROGRESS_TARGET=0
 PROGRESS_WIDTH=40
 
 # progress_env — the bar's state as NAME=value lines, for env: a phase
-# started from this one carries on the same bar.
+# started from this one carries on the same bar, and the same Linux fact.
 progress_env() {
   local var
   for var in PROGRESS_DONE PROGRESS_STEP PROGRESS_TOTAL PROGRESS_PERMILLE PROGRESS_SHOWN \
              PROGRESS_FROM PROGRESS_TO PROGRESS_SINCE PROGRESS_TICK PROGRESS_CREEP \
-             PROGRESS_TITLE PROGRESS_STARTED BAR_ROW; do
+             PROGRESS_TITLE PROGRESS_STARTED BAR_ROW FACTS_ON FACT_INDEX FACT_STRIDE FACT_SINCE; do
     printf '%s=%s\n' "$var" "${!var}"
   done
 }
@@ -445,8 +466,11 @@ measured_progress() {
 }
 
 # header "Title" [colour] — clears the screen and draws logo, progress bar
-# and title for the current step. menu() redraws it on every keypress.
+# and title for the current step. menu() redraws it on every keypress. The
+# facts are a step's (step turns them back on): any other screen shows its
+# info lines.
 header() {
+  FACTS_ON=0
   clear
   update_margin
   draw_logo
@@ -468,6 +492,7 @@ step() {
   PROGRESS_TITLE=$1 PROGRESS_STARTED=${EPOCHREALTIME//[!0-9]/}
   share 0 1000
   header "$1"
+  facts_start
 }
 
 # share FROM TO — the commands that follow make up this share of the
@@ -508,6 +533,83 @@ finish() {
   header "$1" "$C_GREEN"
 }
 
+# ── Linux facts ────────────────────────────────────────────────────────
+# While the steps run, the screen under the title shows Pac-Man chomping
+# (run's spinner, on the line right under it) and, under that, a Linux fact
+# (assets/linux-facts.txt), not the steps' info lines; their warnings and
+# errors still show, below the fact, and go with their step's screen. The
+# facts keep their own time: each stays up for as long as it takes to read
+# (4 s, and about 15 characters a second), whatever the steps do, carrying
+# on across their screens and into the later phases (progress_env). The
+# file's first, Linux's birth, always comes first; then the others in a
+# random order, without repeats until all have been shown: from a random
+# one, every FACT_STRIDE'th, a stride with no factor in common with how
+# many there are.
+FACTS_ON=${FACTS_ON:-0}         # the current screen is a step's, with the facts
+FACT_INDEX=${FACT_INDEX:--1}    # the one shown; -1: none yet
+FACT_STRIDE=${FACT_STRIDE:-1}
+FACT_SINCE=${FACT_SINCE:-0}     # µs, when it went up
+FACT_LINES=4                    # the most a fact takes, wrapped
+FACTS=()
+# The rows under the bar (BAR_ROW): a blank, the title, the spinner, a
+# blank, the fact, a blank, then the warnings.
+SPIN_ROW_OFFSET=3 FACT_ROW_OFFSET=5
+
+# facts_start — a step's screen has been drawn: the fact on it (the same one
+# as before, unless its time is up), and the cursor under it, for the
+# step's warnings. Not on a screen too short for it all, nor without the
+# logo's layout (BAR_ROW), nor without the facts file.
+facts_start() {
+  (( BAR_ROW > 0 && BAR_ROW + FACT_ROW_OFFSET + FACT_LINES + 4 <= ROWS )) || return 0
+  load_facts
+  (( ${#FACTS[@]} )) || return 0
+  FACTS_ON=1
+  facts_tick draw
+  printf '\e[%d;1H' $(( BAR_ROW + FACT_ROW_OFFSET + FACT_LINES + 1 ))
+}
+
+load_facts() {
+  (( ${#FACTS[@]} )) || mapfile -t FACTS < <(grep -v '^[[:space:]]*\(#\|$\)' "$SETUP_DIR/assets/linux-facts.txt" 2>/dev/null)
+}
+
+# facts_tick [draw] — the next fact, once the one shown has had its time
+# (run's spinner asks 5 times a second), or the same one again with draw.
+facts_tick() {
+  (( FACTS_ON )) || return 0
+  load_facts   # in a later phase, carrying on the facts of the one that started it
+  local LC_ALL=C.UTF-8 n=${#FACTS[@]} now=${EPOCHREALTIME//[!0-9]/} draw=${1:-}
+  (( n )) || return 0
+  # The others: m of them, from 1.
+  local m=$(( n - 1 ))
+  if (( FACT_INDEX < 0 || FACT_INDEX >= n )); then
+    FACT_INDEX=0 FACT_STRIDE=1 FACT_SINCE=$now draw=1
+    local -a strides=() ; local s a b t
+    for (( s = 1; s < m; s++ )); do
+      a=$s b=$m; while (( b )); do t=$(( a % b )) a=$b b=$t; done
+      (( a == 1 )) && strides+=("$s")
+    done
+    (( ${#strides[@]} )) && FACT_STRIDE=${strides[RANDOM % ${#strides[@]}]}
+  elif (( m > 0 && now - FACT_SINCE >= 4000000 + 1000000 * ${#FACTS[FACT_INDEX]} / 15 )); then
+    if (( FACT_INDEX == 0 )); then
+      FACT_INDEX=$(( 1 + RANDOM % m ))
+    else
+      FACT_INDEX=$(( 1 + (FACT_INDEX - 1 + FACT_STRIDE) % m ))
+    fi
+    FACT_SINCE=$now draw=1
+  fi
+  [[ -n $draw ]] || return 0
+  balanced_wrap "${FACTS[FACT_INDEX]}" $(( LAYOUT_WIDTH - 10 ))
+  local out=$'\e7' row=$(( BAR_ROW + FACT_ROW_OFFSET )) i line
+  for (( i = 0; i < FACT_LINES; i++ )); do
+    out+=$'\e['"$(( row + i ))"$';1H\e[2K'
+    (( i < ${#WRAPPED[@]} )) || continue
+    line=${WRAPPED[i]}
+    printf -v line '%s%*s\e[37m%s%s' "$MARGIN" $(( (LAYOUT_WIDTH - ${#line}) / 2 )) '' "$line" "$C_RESET"
+    out+=$line
+  done
+  printf '%s\e8' "$out"
+}
+
 # Runs a command. Its output always goes to LOG_FILE; the terminal shows a
 # spinner. On failure the output is also echoed to stderr, so the failure
 # can be diagnosed, and the real exit code is returned, so set -e trips.
@@ -528,22 +630,41 @@ run() {
   local pid=$! tick=0
   local -a frames=("${C_BOLD}${C_CYAN}⬤${C_RESET}${C_WHITE} · · ·${C_RESET}"
                    "${C_BOLD}${C_CYAN}ᗧ${C_RESET}${C_WHITE}· · · ${C_RESET}")
+  # On a step's screen (FACTS_ON), centred on the line under the title, and
+  # left there between commands; elsewhere, where the cursor is.
+  local spin=$'\r'"$MARGIN"
+  (( FACTS_ON )) && spin=$'\e7\e['"$(( BAR_ROW + SPIN_ROW_OFFSET ))"';'"$(( ${#MARGIN} + (LAYOUT_WIDTH - 7) / 2 + 1 ))H"
   printf '\e[?25l'   # no cursor blinking after the pellets
   while kill -0 "$pid" 2>/dev/null; do
     if (( tick % 4 == 0 )); then
-      printf '\r%s%s' "$MARGIN" "${frames[tick / 4 % 2]}"
+      printf '%s%s' "$spin" "${frames[tick / 4 % 2]}"
+      (( FACTS_ON )) && printf '\e8'
       update_progress "$out"
+      facts_tick
     fi
     animate_progress
     tick=$(( tick + 1 ))
     sleep 0.05
   done
-  printf '\r\e[K'
+  (( FACTS_ON )) || printf '\r\e[K'
   on_console || printf '\e[?25h'   # see cursor()
   local status=0
   wait "$pid" || status=$?
   cat "$out" >> "$LOG_FILE"
-  (( status == 0 )) || { printf '%sFailed (%s): %s%s\n' "$C_RED" "$status" "$*" "$C_RESET" >&2; cat "$out" >&2; }
+  # On a step's screen, only the output's last lines: a long one would
+  # scroll the screen, and the bar, spinner and fact are drawn by row.
+  if (( status != 0 )); then
+    local command=$*
+    (( ! FACTS_ON || ${#command} <= 60 )) || command="${command:0:57}..."
+    if (( FACTS_ON )); then
+      printf '%s%sFailed (%s): %s%s\n' "$MARGIN" "$C_RED" "$status" "$command" "$C_RESET" >&2
+      tail -n 5 "$out" | cut -c1-"$LAYOUT_WIDTH" | sed "s/^/$MARGIN/" >&2
+      echo >&2
+    else
+      printf '%sFailed (%s): %s%s\n' "$C_RED" "$status" "$command" "$C_RESET" >&2
+      cat "$out" >&2
+    fi
+  fi
   rm -f "$out"
   return "$status"
 }

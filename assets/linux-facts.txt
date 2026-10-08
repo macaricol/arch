@@ -1,0 +1,35 @@
+# Linux facts, shown one at a time while the installer works (lib/ui.sh's
+# facts_tick), each for as long as it takes to read: the first one here
+# always first, then the others in a random order. One per line; lines
+# starting with # and empty ones are skipped. Plain ASCII punctuation: the
+# console fonts have no curly quotes or long dashes.
+On 25 August 1991, a 21-year-old student in Helsinki, Linus Torvalds, announced a new operating system: "just a hobby, won't be big and professional".
+Linux was almost called Freax. The admin of the server hosting it named the folder "linux" instead, and the name stuck.
+The first Linux release, in September 1991, was about 10,000 lines of code. Today's kernel has more than 30 million.
+At first, Linux's licence banned selling it. In 1992 it moved to the GNU GPL, which it still uses today.
+In 1992, Andrew Tanenbaum, creator of MINIX, posted "LINUX is obsolete". Linux went on to run most of the world's computers.
+Tux the penguin exists because Linus Torvalds says a little penguin nipped him at a zoo in Australia.
+Since November 2017, every one of the world's 500 fastest supercomputers has run Linux.
+Every Android phone runs a Linux kernel, which makes Linux the most widely used kernel on the planet.
+In 2021, NASA's Ingenuity helicopter made the first powered flight on another planet. It ran Linux.
+Git was written by Linus Torvalds in 2005, in about two weeks, to manage the Linux kernel's code.
+A new version of the Linux kernel comes out roughly every nine or ten weeks.
+Most of the code in the Linux kernel is written by people paid by companies such as Intel, Red Hat, Google, AMD and Meta.
+In Linux, almost everything is a file: your disks, your keyboard and even your processor's details appear as files.
+Linux 3.11 was nicknamed "Linux for Workgroups", a nod to Windows 3.11 for Workgroups.
+Linux version numbers are mostly arbitrary: Torvalds moves to a new major number when the minor one gets too big to count on fingers and toes.
+The kernel's golden rule is "don't break userspace": an update must never break programs that already work.
+Linux servers can get security fixes while running, without a restart, thanks to live patching.
+On a frozen Linux system, holding Alt+SysRq and typing R, E, I, S, U, B restarts it safely: "Reboot Even If System Utterly Broken".
+When a Linux system runs out of memory, the "OOM killer" picks a program to close so that everything else survives.
+Linux runs on more kinds of processors than any other mainstream operating system, from watches and routers to mainframes.
+Many cars run Linux: Automotive Grade Linux powers the dashboards of vehicles from Toyota, Subaru, Mazda and others.
+Most of the world's web servers run Linux, and so does most of the cloud.
+Windows can run a real Linux kernel, built by Microsoft itself, through the Windows Subsystem for Linux.
+Slackware and Debian, both from 1993, are the oldest Linux distributions still maintained today.
+Debian's releases are named after Toy Story characters, and its unstable branch is always "Sid", the kid who breaks toys.
+Arch Linux's wiki is so thorough that people using other distributions rely on it too.
+Linux From Scratch is a book that guides you through building a whole Linux system yourself, from source code.
+In 2022, Linux 6.1 became the first version to accept code written in Rust, the first new language in the kernel's history.
+Many people celebrate 25 August, the day Torvalds first announced Linux, as Linux's birthday.
+KDE, the project behind the Plasma desktop you're installing, was started in 1996 by Matthias Ettrich.
