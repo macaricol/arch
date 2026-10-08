@@ -43,10 +43,13 @@ rm -f "$PWD/$name.webm" "$PWD/$name"-screen*.webm
 echo "==> Creating $name"
 VBoxManage createvm --name "$name" --ostype ArchLinux_64 --register > /dev/null
 # vmsvga: the graphics with an EFI framebuffer, which the USB's splash
-# draws on. The clock in UTC, as Linux keeps it.
+# draws on. The clock in UTC, as Linux keeps it. Names looked up the way
+# this machine does (natdnshostresolver): otherwise VirtualBox copies its
+# nameservers, and garbles an IPv6 one into a bogus IPv4 address that
+# half the VM's lookups then go to, so the USB finds no internet.
 VBoxManage modifyvm "$name" --memory 4096 --cpus 8 --firmware efi \
   --graphicscontroller vmsvga --vram 128 --rtc-use-utc on \
-  --nic1 nat --boot1 disk --boot2 dvd --boot3 none --boot4 none
+  --nic1 nat --natdnshostresolver1 on --boot1 disk --boot2 dvd --boot3 none --boot4 none
 VBoxManage createmedium disk --filename "$disk" --size 21002 --format VDI > /dev/null   # 20.51 GB
 VBoxManage storagectl "$name" --name SATA --add sata --controller IntelAhci --portcount 2 --bootable on
 VBoxManage storageattach "$name" --storagectl SATA --port 0 --device 0 --type hdd --medium "$disk"
