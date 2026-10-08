@@ -530,36 +530,41 @@ EOF
 } > "$work/airootfs/usr/local/bin/archauto"
 chmod +x "$work/airootfs/usr/local/bin/archauto"
 
-# The AUR packages that compile from source (all but -bin), built here,
-# in a clean chroot (devtools' makechrootpkg, as SUDO_USER: makepkg won't
-# build as root), and put in the live system for the installer (lib/
-# system.sh's aur_install). The chroot is kept between runs, updated each
-# time. A build that fails is skipped; installs then build it themselves.
+# The AUR packages that compile from source (all but -bin), built here and
+# put in the live system for the installer (lib/system.sh's aur_install).
+# Built as a regular user (makepkg won't build as root): SUDO_USER, in a
+# clean chroot (devtools' makechrootpkg), kept between runs and updated each
+# time; or, with --build-user, that user with plain makepkg, on this system,
+# which is then the clean one (a fresh container: makechrootpkg runs its own
+# container, which doesn't work inside Docker). A build that fails is
+# skipped; installs then build it themselves.
+AUR_CHROOT=/var/lib/archman-build
 prebuild_aur_packages() {
-  local dest=$1 chroot=/var/lib/archman-build pkg dir
+  local dest=$1 user pkg dir
   local -a from_source=()
   for pkg in "${AUR_PACKAGES[@]}"; do [[ $pkg == *-bin ]] || from_source+=("$pkg"); done
   (( ${#from_source[@]} )) || return 0
   echo "==> Prebuilding AUR packages: ${from_source[*]}..."
   if [[ -n $BUILD_USER ]]; then
-    prebuild_with_makepkg "$dest" "${from_source[@]}"
-    return 0
-  fi
-  if [[ -z ${SUDO_USER:-} || $SUDO_USER == root ]]; then
-    echo "    skipped: run this through sudo as a regular user (makepkg won't build as root)"
-    return 0
-  fi
-  if [[ ! -d $chroot/root ]]; then
-    echo "    creating the clean build chroot in $chroot (once)..."
-    mkdir -p "$chroot"
-    run mkarchroot "$chroot/root" base-devel || { echo "    skipped: couldn't create the chroot"; return 0; }
+    user=$BUILD_USER
+  else
+    if [[ -z ${SUDO_USER:-} || $SUDO_USER == root ]]; then
+      echo "    skipped: run this through sudo as a regular user (makepkg won't build as root)"
+      return 0
+    fi
+    user=$SUDO_USER
+    if [[ ! -d $AUR_CHROOT/root ]]; then
+      echo "    creating the clean build chroot in $AUR_CHROOT (once)..."
+      mkdir -p "$AUR_CHROOT"
+      run mkarchroot "$AUR_CHROOT/root" base-devel || { echo "    skipped: couldn't create the chroot"; return 0; }
+    fi
   fi
   mkdir -p "$dest"
   for pkg in "${from_source[@]}"; do
-    dir=$(sudo -u "$SUDO_USER" mktemp -d)
-    sudo -u "$SUDO_USER" mkdir "$dir/out"
-    if sudo -u "$SUDO_USER" git clone -q --depth 1 "https://aur.archlinux.org/$pkg.git" "$dir/$pkg" \
-       && (cd "$dir/$pkg" && PKGDEST="$dir/out" MAKEFLAGS="-j$(nproc)" run makechrootpkg -c -u -r "$chroot"); then
+    dir=$(sudo -u "$user" mktemp -d)
+    sudo -u "$user" mkdir "$dir/out"
+    if sudo -u "$user" git clone -q --depth 1 "https://aur.archlinux.org/$pkg.git" "$dir/$pkg" \
+       && build_aur_package "$user" "$dir/$pkg" "$dir/out"; then
       find "$dir/out" -name '*.pkg.tar.zst' ! -name '*-debug-*' -exec install -m644 -t "$dest" {} +
       echo "    $pkg: $(cd "$dest" && ls "$pkg"-[0-9]*.pkg.tar.zst 2>/dev/null)"
     else
@@ -568,24 +573,13 @@ prebuild_aur_packages() {
     rm -rf "$dir"
   done
 }
-# --build-user: the same, with plain makepkg as that user, on this system,
-# which is then the clean one (a fresh container): makechrootpkg runs its
-# own container, which doesn't work inside Docker.
-prebuild_with_makepkg() {
-  local dest=$1 pkg dir; shift
-  mkdir -p "$dest"
-  for pkg; do
-    dir=$(sudo -u "$BUILD_USER" mktemp -d)
-    if sudo -u "$BUILD_USER" git clone -q --depth 1 "https://aur.archlinux.org/$pkg.git" "$dir/$pkg" \
-       && run sudo -u "$BUILD_USER" env -C "$dir/$pkg" PKGDEST="$dir/out" MAKEFLAGS="-j$(nproc)" \
-            makepkg --syncdeps --noconfirm; then
-      find "$dir/out" -name '*.pkg.tar.zst' ! -name '*-debug-*' -exec install -m644 -t "$dest" {} +
-      echo "    $pkg: $(cd "$dest" && ls "$pkg"-[0-9]*.pkg.tar.zst 2>/dev/null)"
-    else
-      echo "    $pkg: build failed, skipped; installs will compile it"
-    fi
-    rm -rf "$dir"
-  done
+# build_aur_package USER RECIPE_DIR OUT_DIR — one package, on every core.
+build_aur_package() {
+  if [[ -n $BUILD_USER ]]; then
+    run sudo -u "$1" env -C "$2" PKGDEST="$3" MAKEFLAGS="-j$(nproc)" makepkg --syncdeps --noconfirm
+  else
+    (cd "$2" && PKGDEST="$3" MAKEFLAGS="-j$(nproc)" run makechrootpkg -c -u -r "$AUR_CHROOT")
+  fi
 }
 prebuild_aur_packages "$work/airootfs/usr/local/share/archauto/packages"
 
