@@ -111,7 +111,9 @@ if (( ${#missing_commands[@]} )); then
 fi
 (( EUID == 0 )) || { echo "Must be run as root (needed to loop-mount the EFI image): sudo $0 $*" >&2; exit 1; }
 
-work=$(mktemp -d)
+# On disk (/var/tmp), not in /tmp: that's usually RAM (tmpfs), and the live
+# system unpacked is some 3.5 GB, then repacked beside itself.
+work=$(mktemp -d -p /var/tmp archman-build.XXXXXX)
 trap 'rm -rf "$work"' EXIT
 
 # Prints "<filename> <sha256>" for the current release. sha256sums.txt lists
