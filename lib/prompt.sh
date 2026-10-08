@@ -114,28 +114,34 @@ menu() {
   local title=$1; shift
   local -a items=("$@")
   local selected=0 total=${#items[@]} key seq i status
-  # Centred under the title, as a block: the cursor ("> ") and the longest
-  # item, or gum's help line under them ("←↓↑→ navigate • enter submit")
-  # when that's wider.
+  # Centred under the title, as a block: the longest item with a space each
+  # side, or gum's help line under them ("←↓↑→ navigate • enter submit")
+  # when that's wider. The current item is a box across the block, in the
+  # buttons' colours (black on the tag colour): every item padded to the
+  # block's width, less the space gum's cursor puts before it, and the
+  # padding taken off the answer.
   local LC_ALL=C.UTF-8 width=28 indent item
   for item in "${items[@]}"; do (( ${#item} + 2 > width )) && width=$(( ${#item} + 2 )); done
   indent=$(( ${#MARGIN} + (width < LAYOUT_WIDTH ? (LAYOUT_WIDTH - width) / 2 : 0) ))
+  local -a padded=()
+  for item in "${items[@]}"; do padded+=("$(printf '%-*s' $(( width - 1 )) "$item")"); done
   if have_gum; then
     header "$title"
     # Colours are palette indexes, not hex: on the console they follow
-    # CONSOLE_PALETTE.
+    # CONSOLE_PALETTE (backgrounds only 0-7 there, with the 512-glyph font).
     MENU_CHOICE=$(gum choose --header '' --height $(( total < 10 ? total : 10 )) \
-      --cursor '> ' --cursor.foreground 14 --selected.foreground 14 \
-      --padding "0 0 0 $indent" -- "${items[@]}") && { cursor off; return 0; }
+      --cursor ' ' --cursor.foreground 0 --cursor.background 6 \
+      --padding "0 0 0 $indent" -- "${padded[@]}") \
+      && { MENU_CHOICE=${MENU_CHOICE%%+( )}; cursor off; return 0; }
     status=$?; cursor off; gum_cancelled "$status"; return 1
   fi
   while :; do
     header "$title"
     for ((i = 0; i < total; i++)); do
       if (( i == selected )); then
-        printf '%*s%s>%s %s\n' "$indent" '' "$C_REVERSE" "$C_RESET" "${items[i]}"
+        printf '%*s\e[30;46m %s%s\n' "$indent" '' "${padded[i]}" "$C_RESET"
       else
-        printf '%*s  %s\n' "$indent" '' "${items[i]}"
+        printf '%*s %s\n' "$indent" '' "${items[i]}"
       fi
     done
     echo
