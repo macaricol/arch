@@ -88,7 +88,11 @@ read_secret() {
     case $__k in
       '')            break ;;
       $'\x7f'|$'\b') [[ -n $__s ]] && { __s=${__s%?}; printf '\b \b'; } ;;
-      $'\e')         read -rsn5 -t 0.01 __rest || true ;;   # arrow keys etc.
+      $'\e')
+        # A key's code (arrows: Esc [ A...), read to its end (a letter or ~)
+        # and ignored, without swallowing the keys typed after it.
+        __rest=''; read -rsn1 -t 0.05 __rest || true
+        while [[ -n $__rest && $__rest != [A-Za-z~] ]] && read -rsn1 -t 0.05 __rest; do :; done ;;
       *)             __s+=$__k; printf '%s' "$__mask" ;;
     esac
   done
@@ -131,8 +135,9 @@ menu() {
       fi
     done
     echo
-    center "${C_GREY}↑↓ navigate · Enter select · Esc cancel${C_RESET}" 39
-    read -rsn1 key
+    center "${C_GREY}↑↓ navigate · Enter select${C_RESET}" 26
+    # A failed read means stdin is gone (EOF); looping would spin forever.
+    IFS= read -rsn1 key || die "Input closed"
     case $key in
       '')   MENU_CHOICE=${items[selected]}; return 0 ;;
       q|Q)  return 1 ;;
