@@ -109,8 +109,10 @@ install_splash_theme() {
 # needs the resume hook and the kernel needs to be told where the image is.
 configure_hibernation() {
   info "Enabling hibernation..."
+  # The install phase's own swap partition (SWAP_PART): looked up by its
+  # label instead, a second disk with an older install could answer first.
   local swap_uuid=''
-  swap_uuid=$(blkid -o value -s UUID -t LABEL=SWAP | head -1) || true
+  [[ -z ${SWAP_PART:-} ]] || swap_uuid=$(blkid -o value -s UUID "$SWAP_PART") || true
   [[ -n $swap_uuid ]] || { warn "No swap space found, hibernation won't be available"; return; }
 
   # The systemd initramfs hook resumes on its own; the udev-based default

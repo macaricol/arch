@@ -199,6 +199,9 @@ partition_and_mount() {
   run mount -o "$BTRFS_MOUNT_OPTS,subvol=@home" "$root" /mnt/home
   run mount "$efi" /mnt/boot
   run swapon "$swap"
+  # For hibernation (the chroot phase): this partition, not one found by its
+  # label, which another disk's older install may carry too.
+  SWAP_PART=$swap
 }
 
 # Where this machine is, by its public IP (ipinfo.io), in GEO_COUNTRY (a
@@ -362,7 +365,7 @@ configure_new_system() {
   mapfile -t progress < <(progress_env)
   arch-chroot /mnt env HOST_NAME="$HOST_NAME" USER_NAME="$USER_NAME" TIMEZONE="$TIMEZONE" TIME_LOCALE="$TIME_LOCALE" \
     KEYMAP="$KEYMAP" X11_LAYOUT="$X11_LAYOUT" X11_VARIANT="$X11_VARIANT" X11_OPTIONS="$X11_OPTIONS" \
-    PATCHED_FONT="${PATCHED_FONT:-0}" "${progress[@]}" \
+    SWAP_PART="$SWAP_PART" PATCHED_FONT="${PATCHED_FONT:-0}" "${progress[@]}" \
     bash /root/arch-setup/setup.sh chroot
   # The desktop phase has done every step, and logged the last one's time: the
   # screens that follow show the bar full.
