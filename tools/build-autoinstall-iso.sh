@@ -415,15 +415,22 @@ under_logo() {
 # 4 seconds in all. 2 seconds in, one line under the logo says what's
 # going on.
 share=/usr/local/share/archauto
-printf '\e[2J\e[H'
-LOGO_BOTTOM=0 SCREEN_HEIGHT=0
-if geometry=$(python3 "$share/fb-logo.py" "$share/logo-hd.txt" "$share/logo-hd.colors" \
-                "${CONSOLE_PALETTE[0]}" "${CONSOLE_PALETTE[6]}" "${CONSOLE_PALETTE[2]}" 2>/dev/null); then
-  read -r LOGO_BOTTOM SCREEN_HEIGHT <<< "$geometry"
-else
-  splash ""
-fi
-SPLASH_SINCE=$EPOCHSECONDS
+# show_splash — the screen cleared and the big logo drawn (fb-logo.py, which
+# reports where it ends: LOGO_BOTTOM, SCREEN_HEIGHT), or the text splash;
+# SPLASH_SINCE is when.
+show_splash() {
+  local geometry
+  printf '\e[2J\e[H'
+  LOGO_BOTTOM=0 SCREEN_HEIGHT=0
+  if geometry=$(python3 "$share/fb-logo.py" "$share/logo-hd.txt" "$share/logo-hd.colors" \
+                  "${CONSOLE_PALETTE[0]}" "${CONSOLE_PALETTE[6]}" "${CONSOLE_PALETTE[2]}" 2>/dev/null); then
+    read -r LOGO_BOTTOM SCREEN_HEIGHT <<< "$geometry"
+  else
+    splash ""
+  fi
+  SPLASH_SINCE=$EPOCHSECONDS
+}
+show_splash
 ( sleep 2; under_logo "Checking if this computer is ready..." ) &
 checking=$!
 
@@ -505,15 +512,8 @@ fi
 if (( ! network )) && compgen -G '/sys/class/net/*/wireless' > /dev/null; then
   kill "$checking" 2>/dev/null; wait "$checking" 2>/dev/null
   bash "$share/installer/setup.sh" wifi || give_up "${NO_INTERNET[@]}"
-  printf '\e[2J\e[H'
-  if geometry=$(python3 "$share/fb-logo.py" "$share/logo-hd.txt" "$share/logo-hd.colors" \
-                  "${CONSOLE_PALETTE[0]}" "${CONSOLE_PALETTE[6]}" "${CONSOLE_PALETTE[2]}" 2>/dev/null); then
-    read -r LOGO_BOTTOM SCREEN_HEIGHT <<< "$geometry"
-  else
-    splash ""
-  fi
+  show_splash
   under_logo "Checking if this computer is ready..."
-  SPLASH_SINCE=$EPOCHSECONDS
   network=1   # the Wi-Fi screen only returns online
 fi
 (( network )) || wait_online $(( 30 - (SECONDS - started) )) \
