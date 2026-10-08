@@ -83,7 +83,7 @@ phase_install() {
   # gets loaded into memory now while it can still be read. If it can't be
   # run anyway, sysrq reboots directly — safe, as the target is unmounted.
   swapoff -a 2>/dev/null || true
-  umount -R /mnt || warn "Couldn't unmount /mnt, leave the USB in until the reboot starts"
+  unmount_new_system || warn "Couldn't finish closing the new system. Leave the USB stick in until your device restarts."
   systemctl --version > /dev/null
 
   finish "All done! Remove the USB stick"
@@ -99,6 +99,29 @@ phase_install() {
   # own "Rebooting." goes nowhere.
   dmesg -n 1 2>/dev/null || true
   systemctl reboot --force --force &>/dev/null || echo b > /proc/sysrq-trigger
+}
+
+# Unmounts the new system. Whatever the install left running with files
+# open in it would keep it busy ("target is busy"): gpg's agents for
+# pacman's keyring (started by pacstrap from here, and by pacman inside),
+# anything else started inside arch-chroot. So they're stopped first; and
+# if it's still busy, a lazy unmount, which finishes once they're gone.
+# umount's own complaints go to the log, not the screen.
+unmount_new_system() {
+  gpgconf --homedir /mnt/etc/pacman.d/gnupg --kill all &>/dev/null || true
+  # Only real mount points: fuser -m takes the whole filesystem a path is
+  # on, which for an unmounted /mnt would be the live system, this
+  # installer included.
+  local mounts=() m users
+  for m in /mnt /mnt/boot; do mountpoint -q "$m" && mounts+=("$m"); done
+  (( ${#mounts[@]} )) || return 0
+  users=$(fuser -m "${mounts[@]}" 2>/dev/null | tr -s ' ') || true
+  if [[ -n ${users// } ]]; then
+    printf 'Still using the new system, stopped:%s\n' "$users" >> "$LOG_FILE"
+    fuser -km "${mounts[@]}" &>/dev/null || true
+    sleep 1
+  fi
+  umount -R /mnt 2>>"$LOG_FILE" || umount -R -l /mnt 2>>"$LOG_FILE"
 }
 
 # Left plugged in, the USB can win the boot order and start the installer
@@ -345,7 +368,9 @@ install_base() {
   cp /etc/pacman.d/mirrorlist /mnt/etc/pacman.d/mirrorlist
 }
 
-# Copies this installer into the new root and re-invokes it there.
+# Copies this installer into the new root and re-invokes it there. The
+# copies through run, for its spinner: the icon theme is thousands of files,
+# read off the USB's compressed system, seconds with nothing moving.
 configure_new_system() {
   carry_wifi_networks
   local stage=/mnt/root/arch-setup
