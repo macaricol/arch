@@ -8,7 +8,7 @@
 #   - archauto.service, added to the live system, runs only when "archauto"
 #     is on the kernel command line. It takes tty1 before the root autologin
 #     does, shows the ARCHMAN logo across two thirds of the screen, with
-#     "Checking if this computer is ready..." under it 2 seconds in, while
+#     "Checking if this device is ready..." under it 2 seconds in, while
 #     the network comes up, then runs bootstrap.sh. The installer keeps the
 #     logo up through its own checks (at least 4 seconds in all).
 #

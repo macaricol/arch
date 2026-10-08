@@ -6,7 +6,7 @@ phase_install() {
   exec < /dev/tty
 
   # The USB's splash is on screen (tools/archauto.sh): the big logo, and
-  # under it "Checking if this computer is ready..."; or, after its Wi-Fi
+  # under it "Checking if this device is ready..."; or, after its Wi-Fi
   # screen, that screen's "Connected" line. The USB has checked the
   # network; it booted in UEFI mode, as root, and brought gum.
 
@@ -56,7 +56,7 @@ phase_install() {
     [[ $ack == YES ]] && break
     buttons "Nothing has been changed" 0 \
       "Start over" "Answer the questions again." \
-      "Turn off" "Switch the computer off. Nothing on it has been touched."
+      "Turn off" "Switch the device off. Nothing on it has been touched."
     (( PICKED == 0 )) || { clear; systemctl poweroff; sleep infinity; }   # until it's off
   done
   # Bash's own clock; it keeps running through arch-chroot and the desktop
@@ -111,7 +111,7 @@ wait_for_usb_removal() {
   # Not a typing prompt: a plain message, and no cursor while it waits
   # (the key pressed isn't echoed).
   if [[ -n $usb ]]; then
-    info "Unplug the USB stick and your computer will restart into your new system."
+    info "Unplug the USB stick and your device will restart into your new system."
   else
     info "Remove the installation media, then press Enter to restart."
   fi

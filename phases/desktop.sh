@@ -24,7 +24,7 @@ phase_desktop() {
   configure_keyboard
 
   step "Setting up file sharing" 1
-  info "Letting you share folders with other computers on your network"
+  info "Letting you share folders with other devices on your network"
   configure_samba
 
   # Weight: by whether the USB brought them prebuilt (aur_weight); not a

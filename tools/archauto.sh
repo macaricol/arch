@@ -72,7 +72,7 @@ give_up() {
 }
 NO_INTERNET=("No internet connection"
   "Plug in a network cable, or make sure you're near a Wi-Fi network,"
-  "then restart your computer.")
+  "then restart your device.")
 
 # under_logo "Text" — a line just under the big logo: two text rows below
 # its bottom edge, which fb-logo.py reports in pixels. With the text splash
@@ -109,7 +109,7 @@ show_splash() {
   SPLASH_SINCE=$EPOCHSECONDS
 }
 show_splash
-( sleep 2; under_logo "Checking if this computer is ready..." ) &
+( sleep 2; under_logo "Checking if this device is ready..." ) &
 checking=$!
 
 # The network. A cable is usually up within a few seconds; without one, on
