@@ -7,7 +7,7 @@
 phase_desktop() {
   # Weight: measured on a VM (81 s, once merged).
   step "Installing the desktop and apps" 80
-  info "Installing KDE Plasma, the desktop you'll log into, and your apps. This is the big download."
+  note "Installing KDE Plasma, the desktop you'll log into, and your apps. This is the big download."
   install_desktop_packages
 
   # Weight: by whether the USB brought them prebuilt (aur_weight); not a
@@ -18,7 +18,7 @@ phase_desktop() {
   # The settings, a second or so each: one step, not a screen flashing past
   # for each. Weight: the parts' measured times; the look's files the most.
   step "Setting up your desktop" 11
-  info "The login screen, wallpapers, keyboard, sound, video player, file sharing and Bluetooth..."
+  note "The login screen, wallpapers, keyboard, sound, video player, file sharing and Bluetooth..."
   share 0 500
   install_look_files
   configure_login_screen
@@ -178,15 +178,14 @@ install_desktop_packages() {
     # picking lib32-nvidia-utils. Neither is worth it on a VM.
     warn "Skipping Steam: no gaming graphics card found"
   fi
-  # Its output on failure only to the log (2>/dev/null): this is handled.
-  run sudo pacman -S --needed --noconfirm "${packages[@]}" 2>/dev/null && return 0
+  run sudo pacman -S --needed --noconfirm "${packages[@]}" && return 0
   warn "Some downloads weren't available, getting the latest package lists..."
   retry 10 run sudo pacman -Syu --needed --noconfirm "${packages[@]}" \
     || die "Couldn't download the desktop. Check your internet connection."
 }
 
 install_aur_packages() {
-  info "Adding a few extras from the Arch community..."
+  note "Adding a few extras from the Arch community..."
   # The step's bar shares (lib/ui.sh's share), one per package, by its
   # weight (aur_weight).
   local pkg parts used=0 part

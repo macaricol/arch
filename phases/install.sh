@@ -105,6 +105,15 @@ phase_install() {
   systemctl reboot --force --force &>/dev/null || echo b > /proc/sysrq-trigger
 }
 
+# choose_look — asks which look the desktop gets, into LOOK: plain (KDE as
+# it comes) or archman (the installer's theming, the default).
+choose_look() {
+  buttons "Choose your desktop's look" 1 \
+    VANILLA "KDE Plasma as it comes: KDE's own Breeze theme, login screen and wallpaper." \
+    ARCHMAN "Dark theme, the ARCHMAN login screen, a cyberpunk wallpaper, Breeze Chameleon icons, a top panel and a clock widget."
+  if (( PICKED == 0 )); then LOOK=plain; else LOOK=archman; fi
+}
+
 # Unmounts the new system. Whatever the install left running with files
 # open in it would keep it busy ("target is busy"): gpg's agents for
 # pacman's keyring (started by pacstrap from here, and by pacman inside),
@@ -197,7 +206,7 @@ partition_and_mount() {
 
   local ram_mib
   ram_mib=$(( $(awk '/MemTotal/{print $2}' /proc/meminfo) / 1024 ))
-  info "Creating space for the system, hibernation and your files"
+  note "Creating space for the system, hibernation and your files"
   printf 'Layout: %s EFI, %sM swap (= RAM, for hibernation), rest Btrfs\n' "$EFI_SIZE" "$ram_mib" >> "$LOG_FILE"
 
   run wipefs -af "$DRIVE"
@@ -211,7 +220,7 @@ partition_and_mount() {
   udevadm settle
   [[ -b $efi && -b $swap && -b $root ]] || die "Couldn't prepare $DRIVE_LABEL for the installation."
 
-  info "Setting up the file system..."
+  note "Setting up the file system..."
   run mkfs.fat -F32 -n BOOT "$efi"
   run mkswap -L SWAP "$swap"
   run mkfs.btrfs -f -L ROOT "$root"
@@ -304,12 +313,12 @@ rank_mirrors() {
   local countries mirrorlist=/etc/pacman.d/mirrorlist
   countries=$(mirror_countries)
   if [[ -n $countries ]]; then
-    info "Finding the fastest download servers near you ($countries)..."
+    note "Finding the fastest download servers near you ($countries)..."
     run reflector --country "$countries" --delay 4 --latest 8 --protocol https \
       --sort rate --number 6 --save "$mirrorlist" || true
   fi
   if [[ -z $countries ]] || ! grep -q '^Server' "$mirrorlist"; then
-    info "Finding the fastest download servers worldwide..."
+    note "Finding the fastest download servers worldwide..."
     run reflector --delay 4 --latest 20 --protocol https --sort rate --number 6 --save "$mirrorlist" \
       || note "Couldn't rank download servers, using the default ones"
   fi
@@ -341,7 +350,7 @@ install_base() {
       case $vendor in intel) vendor=Intel ;; amd) vendor=AMD ;; nvidia) vendor=NVIDIA ;; esac
       names+=${names:+ and }$vendor
     done
-    info "Found $names graphics, adding the drivers"
+    note "Found $names graphics, adding the drivers"
   else
     warn "No Intel, AMD or NVIDIA graphics found, using basic graphics drivers"
   fi
@@ -357,7 +366,7 @@ install_base() {
   sed -i -E "s/^#?ParallelDownloads.*/ParallelDownloads = $PARALLEL_DOWNLOADS/" /etc/pacman.conf
 
   share 50 1000
-  info "Downloading and installing the core system. This takes a few minutes."
+  note "Downloading and installing the core system. This takes a few minutes."
   # pacstrap downloads into the new system's cache (see lib/ui.sh's
   # measured_progress).
   local PACMAN_CACHE=/mnt/var/cache/pacman/pkg

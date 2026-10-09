@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Environment checks, hardware detection, and package/service helpers.
+# Hardware detection, and package, service and download helpers.
 
 # Runs a command as root: directly when already root, through sudo otherwise.
 as_root() { if (( EUID == 0 )); then "$@"; else sudo "$@"; fi; }

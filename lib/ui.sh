@@ -4,10 +4,22 @@
 LOG_FILE=${LOG_FILE:-$SETUP_DIR/setup.log}
 LOGO_FILE=$SETUP_DIR/assets/logo/logo.txt
 
-C_RESET=$'\e[0m' C_BOLD=$'\e[1m' C_REVERSE=$'\e[7m'
-C_CYAN=$'\e[96m' C_GREEN=$'\e[92m' C_YELLOW=$'\e[93m' C_RED=$'\e[91m'
-C_WHITE=$'\e[97m' C_GREY=$'\e[90m'
-C_BLUE=$'\e[34m' C_PINK=$'\e[95m'
+# Colours by what they're for. On the console they're CONSOLE_PALETTE's
+# slots (config.sh, where the roles are listed too); elsewhere a terminal
+# emulator's own colours of the same number.
+C_RESET=$'\e[0m' C_BOLD=$'\e[1m'
+C_TEXT=$'\e[97m'        # 15 text
+C_SOFT=$'\e[37m'        # 7  the facts, the review's labels
+C_HINT=$'\e[90m'        # 8  hints under lists and buttons
+C_ACCENT=$'\e[96m'      # 14 the progress bar
+C_EMPTY=$'\e[34m'       # 4  the bar's empty part, the text box's edges
+C_TAGLINE=$'\e[95m'     # 13 the tagline under the logo
+C_DONE=$'\e[92m'        # 10 the last screen's title
+C_WARN=$'\e[93m'        # 11 warnings
+C_ERROR=$'\e[91m'       # 9  errors
+# Highlighted things: black on the accent (the selected button, the list's
+# current item), white on the empty bar's navy (the other buttons, the box).
+C_SELECTED=$'\e[30;46m' C_UNSELECTED=$'\e[97;44m'
 # ᗧ and ⬤ are Pac-Man, open and closed, chomping in run's spinner. On the
 # console they come from the fonts in assets/consolefonts
 # (tools/make-console-fonts.py); in a terminal emulator, from its own font.
@@ -63,61 +75,22 @@ set_console_palette() {
   clear
 }
 
-# On a high-resolution screen the default 8x16 font is tiny. Try each font,
-# read back the size the console actually ends up with, and keep the one
-# nearest ~48 rows that still leaves 80 columns. All three ship with kbd; on
-# an already low-resolution console this settles on the default. Each is
-# loaded from assets/consolefonts, the same fonts with Pac-Man added, and
-# from kbd if that copy is missing.
-#
-# Root only: the desktop phase, run as the user from the installer, keeps the
-# font the install phase loaded. And not again when the USB's start-up has
-# already picked and loaded one (CONSOLE_FONT, one of its patched copies):
-# each font tried redraws the whole screen, the splash's logo wiped and its
-# text re-laid in that font's grid, a flash with the text out of place.
+# The console font: the one the USB's start-up picked and loaded
+# (tools/archauto.sh: the patched copy nearest ~48 rows, at least 80
+# columns), passed down as CONSOLE_FONT. Not chosen again here: each font
+# tried redraws the whole screen, the splash's logo wiped and its text
+# re-laid in that font's grid, a flash with the text out of place. Only
+# what it means for what's drawn: a patched font (PATCHED_FONT), with the
+# glyphs the sharper logo, the bar's edge and the text box need; the later
+# phases are passed it in turn.
 scale_console_font() {
-  on_console && (( EUID == 0 )) && command -v setfont &>/dev/null || return 0
-  if [[ -n ${CONSOLE_FONT:-} && -f $CONSOLE_FONT ]]; then
-    PATCHED_FONT=1
-    update_margin
-    return 0
-  fi
-  local target=48 best='' best_diff=99999 font diff dev errors i
-  dev=$(console_dev) errors=$(mktemp)
-  # With a quiet boot, the console may have no font support yet: the kernel
-  # defers the framebuffer console's takeover until something is printed
-  # (fbcon deferred takeover, for flicker-free boots), and until then every
-  # font is refused, which kbd reports as "Unable to load such font with
-  # such kernel version". So print something, then wait (up to 10 s) for
-  # the takeover, which happens asynchronously. It has to be a visible
-  # character: the placeholder console ignores escape sequences and spaces
-  # ("Ignore erases" in the kernel's dummycon_putc). A dot, erased at once.
-  printf '\e[H.\r\e[K' > "$dev" 2>/dev/null || true
-  for i in {1..20}; do
-    setfont -C "$dev" default8x16 2>/dev/null && break
-    sleep 0.5
-  done
-  for font in default8x16 sun12x22 latarcyrheb-sun32; do
-    [[ -f $SETUP_DIR/assets/consolefonts/$font.psfu.gz ]] && font=$SETUP_DIR/assets/consolefonts/$font.psfu.gz
-    setfont -C "$dev" "$font" 2>>"$errors" || continue
-    term_size
-    (( COLS >= 80 )) || continue
-    diff=$(( ROWS > target ? ROWS - target : target - ROWS ))
-    (( diff < best_diff )) && { best=$font; best_diff=$diff; }
-  done
-  if setfont -C "$dev" "${best:-default8x16}" 2>>"$errors" && [[ $best == "$SETUP_DIR"/* ]]; then
-    PATCHED_FONT=1
-  fi
-  # setfont's complaints, if any, for the journal: journalctl -t arch-setup
-  [[ -s $errors ]] && logger -t arch-setup "setfont on $dev: $(sort -u "$errors" | tr '\n' ' ')" 2>/dev/null
-  rm -f "$errors"
+  [[ -n ${CONSOLE_FONT:-} && -f $CONSOLE_FONT ]] && PATCHED_FONT=1
   update_margin
 }
 
 # The double-resolution logo is drawn with glyphs only the patched fonts
-# have, so it's used only once one of them is loaded: by scale_console_font,
-# in this process or in the install phase that started it (which passes
-# PATCHED_FONT down through the chroot phase to the desktop phase).
+# have, so it's used only once one of them is loaded (PATCHED_FONT: see
+# scale_console_font).
 logo_file() {
   if on_console && [[ ${PATCHED_FONT:-0} == 1 && -f $SETUP_DIR/assets/logo/logo-hd.txt ]]; then
     echo "$SETUP_DIR/assets/logo/logo-hd.txt"
@@ -205,17 +178,18 @@ centred_details() {
     line=${!i}; (( label + ${#line} > width )) && width=$(( label + ${#line} ))
   done
   while (( $# )); do
-    printf '%s%*s\e[37m%-*s%s%s%s\n' "$MARGIN" $(( (LAYOUT_WIDTH - width) / 2 )) '' "$label" "$1" "$C_WHITE" "$2" "$C_RESET"
+    printf '%s%*s%s%-*s%s%s%s\n' "$MARGIN" $(( (LAYOUT_WIDTH - width) / 2 )) '' "$C_SOFT" "$label" "$1" "$C_TEXT" "$2" "$C_RESET"
     shift 2
   done
 }
 
-# Warnings and errors also go to the log: the next step header, or the USB's
-# failure screen, clears the screen. During the steps, info goes only to the
-# log: the screen shows Linux facts instead (see facts_tick).
+# info, for the screens outside the steps (on a step's, the screen shows a
+# fact instead, and info only goes to the log, as note does). Warnings and
+# errors also go to the log: the next step header, or the USB's failure
+# screen, clears the screen.
 info() {
   if (( FACTS_ON )); then printf '[info] %s\n' "$*" >> "$LOG_FILE" 2>/dev/null || true; return 0; fi
-  centred_message "$C_WHITE" "$*"
+  centred_message "$C_TEXT" "$*"
   echo
 }
 # note "Text" — only in the log: something the installer worked around by
@@ -226,12 +200,12 @@ note() { printf '[note] %s\n' "$*" >> "$LOG_FILE" 2>/dev/null || true; }
 # The words to say: what happened, plainly, and what to check when there's
 # something; a die's is followed by the USB's "The installation stopped".
 warn() {
-  centred_message "$C_YELLOW$C_BOLD" "$*" >&2
+  centred_message "$C_WARN$C_BOLD" "$*" >&2
   echo >&2
   printf '[warn] %s\n' "$*" >> "$LOG_FILE" 2>/dev/null || true
 }
 die() {
-  centred_message "$C_RED$C_BOLD" "$*" >&2
+  centred_message "$C_ERROR$C_BOLD" "$*" >&2
   printf '[error] %s\n' "$*" >> "$LOG_FILE" 2>/dev/null || true
   exit 1
 }
@@ -296,10 +270,14 @@ step_weights() {
 # 3 Pac-Man: on the console the palette's slots 0, 6, 2 and 3 (slots 0-7,
 # as 512-glyph fonts have no others), elsewhere the same colours as 24-bit
 # RGB, since a terminal emulator doesn't use CONSOLE_PALETTE.
+# Built once, and kept while the logo file is the same (LOGO_BUILT): every
+# screen draws it.
+LOGO_BUILT=''
 logo_lines() {
   local file colours LC_ALL=C.UTF-8   # ${#} and ${:i:1} count characters, not bytes
   file=$(logo_file) colours=${file%.txt}.colors
-  LOGO_LINES=() LOGO_WIDTH=0
+  [[ $file != "$LOGO_BUILT" ]] || return 0
+  LOGO_BUILT=$file LOGO_LINES=() LOGO_WIDTH=0
   [[ -r $file && -r $colours ]] || return 0
   local -a lines attrs fg bg
   mapfile -t lines < "$file"
@@ -341,7 +319,7 @@ draw_logo() {
     center "$line" "$LOGO_WIDTH"
   done
   echo
-  center "${C_PINK}${TAGLINE}${C_RESET}" "${#TAGLINE}"
+  center "${C_TAGLINE}${TAGLINE}${C_RESET}" "${#TAGLINE}"
   echo
 }
 
@@ -373,9 +351,9 @@ progress_line() {
   if on_console && [[ ${PATCHED_FONT:-0} != 1 ]]; then part=0; fi
   printf -v filled '%*s' "$full" ''
   printf -v empty '%*s' $(( PROGRESS_WIDTH - full - (part > 0) )) ''
-  (( part )) && edge=$'\e[44m'"${C_CYAN}${EIGHTHS[part]}${C_RESET}"
+  (( part )) && edge=$'\e[44m'"${C_ACCENT}${EIGHTHS[part]}${C_RESET}"   # (on the empty part's navy)
   printf -v PROGRESS_LINE '%s%*s%s%s%s%s%s%s%s' "$MARGIN" $(( (LAYOUT_WIDTH - PROGRESS_WIDTH) / 2 )) '' \
-    "$C_CYAN" "${filled// /█}" "$C_RESET" "$edge" "$C_BLUE" "${empty// /█}" "$C_RESET"
+    "$C_ACCENT" "${filled// /█}" "$C_RESET" "$edge" "$C_EMPTY" "${empty// /█}" "$C_RESET"
 }
 
 # Where the bar should be, in PROGRESS_TARGET, in eighths of a cell: the
@@ -500,9 +478,9 @@ measured_progress() {
 }
 
 # header "Title" [colour] — clears the screen and draws logo, progress bar
-# and title for the current step. menu() redraws it on every keypress. The
-# facts are a step's (step turns them back on): any other screen shows its
-# info lines.
+# and title: a new screen. The facts are a step's (step turns them back
+# on), the centred spinner a wait's (SPIN_CENTRED): any other screen shows
+# its info lines, and run's spinner where the cursor is.
 header() {
   FACTS_ON=0 SPIN_CENTRED=0
   clear
@@ -512,7 +490,7 @@ header() {
   BAR_ROW=$(( ${#LOGO_LINES[@]} ? ${#LOGO_LINES[@]} + 6 : 0 ))
   draw_progress
   echo
-  center "${C_BOLD}${2:-$C_WHITE}$1${C_RESET}" "${#1}"
+  center "${C_BOLD}${2:-$C_TEXT}$1${C_RESET}" "${#1}"
   echo; echo
 }
 
@@ -543,10 +521,10 @@ step() {
 # under the fact cleared (the last step's warnings), the cursor there for
 # this one's.
 retitle() {
-  local LC_ALL=C.UTF-8 warnings=$(( BAR_ROW + FACT_ROW_OFFSET + FACT_LINES + 1 ))
-  printf '\e[%d;1H\e[2K' $(( BAR_ROW + 2 ))
-  center "${C_BOLD}${C_WHITE}$1${C_RESET}" "${#1}"
-  printf '\e[%d;1H\e[J' "$warnings"
+  local LC_ALL=C.UTF-8
+  printf '\e[%d;1H\e[2K' $(( BAR_ROW + TITLE_ROW_OFFSET ))
+  center "${C_BOLD}${C_TEXT}$1${C_RESET}" "${#1}"
+  printf '\e[%d;1H\e[J' $(( BAR_ROW + WARN_ROW_OFFSET ))
 }
 
 # share FROM TO — the commands that follow make up this share of the
@@ -584,7 +562,7 @@ finish() {
   log_step_time
   # Full at once: nothing runs after it to animate the bar there.
   PROGRESS_DONE=$PROGRESS_TOTAL PROGRESS_STEP=0 PROGRESS_SHOWN=-1 PROGRESS_TITLE=
-  header "$1" "$C_GREEN"
+  header "$1" "$C_DONE"
 }
 
 # ── Linux facts ────────────────────────────────────────────────────────
@@ -607,19 +585,20 @@ FACT_LINES=4                    # the most a fact takes, wrapped
 FACTS=()
 # The rows under the bar (BAR_ROW): a blank, the title, the spinner, a
 # blank, the fact, a blank, then the warnings.
-SPIN_ROW_OFFSET=3 FACT_ROW_OFFSET=5
+TITLE_ROW_OFFSET=2 SPIN_ROW_OFFSET=3 FACT_ROW_OFFSET=5
+WARN_ROW_OFFSET=$(( FACT_ROW_OFFSET + FACT_LINES + 1 ))
 
 # facts_start — a step's screen has been drawn: the fact on it (the same one
 # as before, unless its time is up), and the cursor under it, for the
 # step's warnings. Not on a screen too short for it all, nor without the
 # logo's layout (BAR_ROW), nor without the facts file.
 facts_start() {
-  (( BAR_ROW > 0 && BAR_ROW + FACT_ROW_OFFSET + FACT_LINES + 4 <= ROWS )) || return 0
+  (( BAR_ROW > 0 && BAR_ROW + WARN_ROW_OFFSET + 3 <= ROWS )) || return 0
   load_facts
   (( ${#FACTS[@]} )) || return 0
   FACTS_ON=1
   facts_tick draw
-  printf '\e[%d;1H' $(( BAR_ROW + FACT_ROW_OFFSET + FACT_LINES + 1 ))   # (retitle's warnings row)
+  printf '\e[%d;1H' $(( BAR_ROW + WARN_ROW_OFFSET ))
 }
 
 load_facts() {
@@ -658,11 +637,20 @@ facts_tick() {
     out+=$'\e['"$(( row + i ))"$';1H\e[2K'
     (( i < ${#WRAPPED[@]} )) || continue
     line=${WRAPPED[i]}
-    printf -v line '%s%*s\e[37m%s%s' "$MARGIN" $(( (LAYOUT_WIDTH - ${#line}) / 2 )) '' "$line" "$C_RESET"
+    printf -v line '%s%*s%s%s%s' "$MARGIN" $(( (LAYOUT_WIDTH - ${#line}) / 2 )) '' "$C_SOFT" "$line" "$C_RESET"
     out+=$line
   done
   printf '%s\e8' "$out"
 }
+
+# The spinner: Pac-Man chomping a row of pellets, closed with the pellets
+# a step away, then open with each moved one step closer, the first at his
+# mouth; 7 columns wide.
+SPIN_FRAMES=("${C_PAC}⬤${C_RESET}${C_TEXT} · · ·${C_RESET}"
+             "${C_PAC}ᗧ${C_RESET}${C_TEXT}· · · ${C_RESET}")
+# spin_spot — the cursor to where the spinner goes on a step's screen, or
+# a title and a wait's: the line under the title, centred.
+spin_spot() { printf '\e[%d;%dH' $(( BAR_ROW + SPIN_ROW_OFFSET )) $(( ${#MARGIN} + (LAYOUT_WIDTH - 7) / 2 + 1 )); }
 
 # SPIN_CENTRED=1 — a screen that's only a title and a wait (set after its
 # header, which clears it): run's spinner where a step's goes, centred
@@ -675,12 +663,12 @@ clear_spinner() { printf '\e7\e[%d;1H\e[2K\e8' $(( BAR_ROW + SPIN_ROW_OFFSET ));
 # title meanwhile, from a process of their own. For a command that draws
 # nothing; its status is returned.
 with_spinner() {
-  local row=$(( BAR_ROW + SPIN_ROW_OFFSET )) col=$(( ${#MARGIN} + (LAYOUT_WIDTH - 7) / 2 + 1 )) pid status=0
+  local spot pid status=0
+  spot=$(spin_spot)
   (
     local tick=0
-    local -a frames=("${C_PAC}⬤${C_RESET}${C_WHITE} · · ·${C_RESET}" "${C_PAC}ᗧ${C_RESET}${C_WHITE}· · · ${C_RESET}")
     while :; do
-      printf '\e7\e[%d;%dH%s\e8' "$row" "$col" "${frames[tick % 2]}"
+      printf '\e7%s%s\e8' "$spot" "${SPIN_FRAMES[tick % 2]}"
       tick=$(( tick + 1 ))
       sleep 0.2
     done
@@ -705,43 +693,47 @@ run() {
     *)                           RUN_KIND='' ;;
   esac
   "$@" &>"$out" &
-  # Pac-Man chomping a row of pellets: closed with the pellets a step away,
-  # then open with each moved one step closer, the first at its mouth.
-  # Frames at 20 a second, for the bar's animation; Pac-Man chomps, and the
-  # progress (which starts processes) is measured, every 4th.
+  # Frames at 20 a second, for the bar's animation; Pac-Man chomps (the
+  # spinner, SPIN_FRAMES), and the progress (which starts processes) is
+  # measured, every 4th.
   local pid=$! tick=0
-  local -a frames=("${C_PAC}⬤${C_RESET}${C_WHITE} · · ·${C_RESET}"
-                   "${C_PAC}ᗧ${C_RESET}${C_WHITE}· · · ${C_RESET}")
   # On a step's screen (FACTS_ON), or one that asks for it (SPIN_CENTRED),
   # centred on the line under the title, and left there between commands;
   # elsewhere, where the cursor is.
   local spin=$'\r'"$MARGIN" centred=$(( FACTS_ON || SPIN_CENTRED ))
-  (( centred )) && spin=$'\e7\e['"$(( BAR_ROW + SPIN_ROW_OFFSET ))"';'"$(( ${#MARGIN} + (LAYOUT_WIDTH - 7) / 2 + 1 ))H"
-  printf '\e[?25l'   # no cursor blinking after the pellets
+  (( centred )) && spin=$'\e7'"$(spin_spot)"
+  # Without a terminal (the first-login tweaks, in the background), none:
+  # its frames would only fill a log.
+  local animate=0
+  [[ -t 1 ]] && animate=1
+  (( animate )) && printf '\e[?25l'   # no cursor blinking after the pellets
   while kill -0 "$pid" 2>/dev/null; do
-    if (( tick % 4 == 0 )); then
-      printf '%s%s' "$spin" "${frames[tick / 4 % 2]}"
+    if (( animate && tick % 4 == 0 )); then
+      printf '%s%s' "$spin" "${SPIN_FRAMES[tick / 4 % 2]}"
       (( centred )) && printf '\e8'
       update_progress "$out"
       facts_tick
     fi
-    animate_progress
+    (( animate )) && animate_progress
     tick=$(( tick + 1 ))
     sleep 0.05
   done
-  (( centred )) || printf '\r\e[K'
-  on_console || printf '\e[?25h'   # see cursor()
+  if (( animate )); then
+    (( centred )) || printf '\r\e[K'
+    on_console || printf '\e[?25h'   # see cursor()
+  fi
   local status=0
   wait "$pid" || status=$?
   cat "$out" >> "$LOG_FILE"
-  # On a step's screen, nothing of it: a command's own words mean nothing to
-  # whoever is installing. The caller says what happened plainly (retry's
-  # "trying again", or the error it stops with), and the log has it all.
-  # Elsewhere, where the installer's screens don't cover it, it's shown.
+  # On the installer's own screens (a step's, or a title and a wait),
+  # nothing of it: a command's own words mean nothing to whoever is
+  # installing. The caller says what happened plainly (retry's "trying
+  # again", a screen of its own, or the error it stops with), and the log
+  # has it all. Elsewhere it's shown.
   if (( status != 0 )); then
     printf '[failed %s] %s\n' "$status" "$*" >> "$LOG_FILE"
-    if (( ! FACTS_ON )); then
-      printf '%sFailed (%s): %s%s\n' "$C_RED" "$status" "$*" "$C_RESET" >&2
+    if (( ! centred )); then
+      printf '%sFailed (%s): %s%s\n' "$C_ERROR" "$status" "$*" "$C_RESET" >&2
       cat "$out" >&2
     fi
   fi

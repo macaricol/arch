@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Phase — Wi-Fi, on the live ISO, as root: the networks in range as a list,
 # strongest first; pick one, type its password, connected. Run by the USB's
-# start-up (tools/build-autoinstall-iso.sh) when there's no wired
+# start-up (tools/archauto.sh) when there's no wired
 # connection, before the installer can be downloaded: so from the copy of
 # this installer the USB carries. Returns once the internet is reachable.
 #
@@ -69,9 +69,9 @@ phase_wifi() {
       header "Connecting to $name"
       SPIN_CENTRED=1
       WIFI_PASSWORD=$password
-      # run()'s report of a failure (iwctl's own words) goes nowhere: the
-      # screens below say it plainly. It's in the log either way.
-      if ! run wifi_connect "$device" "$name" 2>/dev/null; then
+      # On failure the screens below say what went wrong plainly; iwctl's
+      # own words are in the log (run).
+      if ! run wifi_connect "$device" "$name"; then
         if [[ -n $password ]]; then
           buttons "Couldn't connect to $name" 0 \
             "Try again" "The password may be wrong. Type it again." \
@@ -81,7 +81,7 @@ phase_wifi() {
             "Try again" "The network didn't answer. Try connecting again." \
             "Other network" "Go back to the list of Wi-Fi networks."
         fi
-      elif ! run wait_online 2>/dev/null; then
+      elif ! run wait_online; then
         buttons "$name doesn't reach the internet" 1 \
           "Try again" "It connected, but the internet didn't answer. Try connecting again." \
           "Other network" "Go back to the list of Wi-Fi networks."
@@ -96,8 +96,11 @@ phase_wifi() {
   done
 }
 
-# Each try capped at 3 s: ping's -W doesn't cover the name lookup, which can
-# hang far longer on a network with no way out.
+# online — whether the internet answers. Each try capped at 3 s: ping's -W
+# only covers waiting for the reply, not looking up the name first, which
+# on a network with no way out (a cable, an address, no internet) can hang
+# for many seconds. Also the USB's start-up's (tools/archauto.sh), as is
+# wait_online.
 online() { timeout 3 ping -c1 -W2 archlinux.org &>/dev/null; }
 
 # wifi_password VAR — the network's password, into VAR: lib/prompt.sh's
@@ -186,9 +189,10 @@ wifi_connect() {
   timeout 45 iwctl "${args[@]}" station "$1" connect "$2" < /dev/null
 }
 
-# wait_online — up to 20 s, by the clock, for an address and the internet.
+# wait_online [SECONDS] — up to SECONDS (20), by the clock, for an address
+# and the internet.
 wait_online() {
-  local until=$(( SECONDS + 20 ))
+  local until=$(( SECONDS + ${1:-20} ))
   until online; do
     (( SECONDS < until )) || return 1
     sleep 1

@@ -8,13 +8,15 @@ phase_chroot() {
   IFS= read -r password < "$SETUP_DIR/creds"
   rm -f "$SETUP_DIR/creds"
 
-  # One line for the step ("Setting up your system"), not one per part:
-  # they take seconds. The parts only speak up with a warning.
-  info "Setting up your language, account and startup..."
+  # The parts only speak up with a warning; the step's screen shows a fact.
+  note "Setting up your language, account and startup..."
   configure_locale
   configure_accounts "$password"
   configure_boot_splash
   configure_hibernation
+  # The initramfs again, with what the two above added: the splash's hook,
+  # NVIDIA's modules, the resume hook.
+  run mkinitcpio -P
   install_bootloader
   hand_over_to_user
   run_desktop_phase
@@ -56,9 +58,9 @@ configure_accounts() {
 }
 
 # Plymouth splash instead of scrolling boot messages (Esc still shows them),
-# using the pacman theme below. Must run before
-# configure_hibernation, whose mkinitcpio -P builds the hook in, and before
-# install_bootloader, which writes the kernel options into grub.cfg.
+# using the archman theme below. Before mkinitcpio -P (phase_chroot), which
+# builds the hook in, and install_bootloader, which writes the kernel
+# options into grub.cfg.
 configure_boot_splash() {
   # Right after the systemd (or udev) hook, so it starts as early as it can.
   grep -q '^HOOKS=.*plymouth' /etc/mkinitcpio.conf \
@@ -121,7 +123,6 @@ configure_hibernation() {
       || sed -i 's/^\(HOOKS=(.*\)filesystems/\1resume filesystems/' /etc/mkinitcpio.conf
   fi
   add_kernel_option "resume=UUID=$swap_uuid"
-  run mkinitcpio -P
 }
 
 # add_kernel_option OPTION — appends OPTION to the kernel command line in

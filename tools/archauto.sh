@@ -123,18 +123,9 @@ checking=$!
 # to pick from, then goes on to the installer. Without Wi-Fi either, it
 # waits for a cable, up to 30 s.
 #
-# The waits go by the clock, and each try is capped at 3 s: ping's -W only
-# covers waiting for the reply, not looking up the name first, which on a
-# network with no way out (a cable, an address, no internet) can hang for
-# many seconds a try.
-online() { timeout 3 ping -c1 -W2 archlinux.org &>/dev/null; }
-wait_online() {   # wait_online SECONDS
-  local until=$(( SECONDS + $1 ))
-  until online; do
-    (( SECONDS < until )) || return 1
-    sleep 1
-  done
-}
+# online and wait_online, by the clock, are the Wi-Fi screen's, from the
+# copy of the installer: its file defines functions only.
+source "$share/installer/phases/wifi.sh"
 # --wifi-test (a build for testing in a VM): three simulated Wi-Fi radios
 # (mac80211_hwsim), two of them access points, "TestNet" (secret123) and
 # "Neighbours WiFi" (whatever99), the third the one the Wi-Fi screen uses;
