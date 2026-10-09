@@ -8,6 +8,11 @@ from, each with two glyphs redrawn as Pac-Man.
                  screen's (tools/make-sddm-theme.py renders it from these)
   U+E010         a round bullet, for that screen's password box (the
                  fonts' own • ranges from a square to a diamond)
+  ▂ (U+2582)     the lower quarter of a cell, and U+E011 the upper one (the
+                 console maps no characters beyond U+FFFF, which the
+                 standard upper quarter is): the installer's text box, a
+                 quarter row taller above and below its text (lib/prompt.sh's
+                 field)
   U+E100 + n     the cells of assets/logo/logo-hd.txt (tools/make-logo.py): each a 2 x 4
                  grid of blocks, bit n set for each one filled
   ▏▎▍▌▋▊▉        left eighths of a cell, for the progress bar's leading edge
@@ -40,6 +45,7 @@ PACMAN, CLOSED = "ᗧ", "⬤"
 LOCK_COLS, LOCK_ROWS = 5, 3
 LOCK = [chr(0xE000 + i) for i in range(LOCK_COLS * LOCK_ROWS)]   # row by row
 DOT = "\ue010"
+LOWER_QUARTER, UPPER_QUARTER = "\u2582", "\ue011"
 EIGHTHS = "▏▎▍▌▋▊▉"   # 1/8 to 7/8 of a cell, filled from the left
 MOUTH_DEGREES = 38   # half the opening, measured from the horizontal
 # Slots to give up, in order of preference.
@@ -160,6 +166,16 @@ def draw_eighth(font, k):
     return glyph
 
 
+def draw_rows(font, top, bottom):
+    """Rows top to bottom (exclusive) filled, full width."""
+    w, row = font["width"], (font["width"] + 7) // 8
+    glyph = bytearray(font["size"])
+    for y in range(top, bottom):
+        for x in range(w):
+            glyph[y * row + x // 8] |= 0x80 >> (x % 8)
+    return glyph
+
+
 def draw_cell(font, bits):
     """A logo cell: the glyph split into 2 columns and 4 rows of blocks, on
     the same boundaries as the font's own ▌▐ and ▀▄, filled where bits says."""
@@ -208,6 +224,10 @@ def main():
         spare = [i for c in SPARE for i, t in enumerate(font["table"]) if chars_of(t) == c]
         glyphs = [(PACMAN, draw(font, MOUTH_DEGREES)), (CLOSED, draw(font, 0))]
         glyphs += list(zip(LOCK, draw_lock(font))) + [(DOT, draw_dot(font))]
+        # The quarters on the same boundaries as the logo's cells (draw_cell).
+        h = font["height"]
+        glyphs += [(UPPER_QUARTER, draw_rows(font, 0, round(h / 4))),
+                   (LOWER_QUARTER, draw_rows(font, round(h * 3 / 4), h))]
         cells = sorted({c for c in LOGO.read_text() if ord(c) >= 0xE100})
         glyphs += [(c, draw_cell(font, ord(c) - 0xE100)) for c in cells]
         have = set("".join(chars_of(t) for t in font["table"]))

@@ -100,63 +100,18 @@ phase_wifi() {
 # hang far longer on a network with no way out.
 online() { timeout 3 ping -c1 -W2 archlinux.org &>/dev/null; }
 
-# wifi_password VAR — the network's password, into VAR. Its own field, not
-# lib/prompt.sh's: gum's password field can't be shown, and here what's
-# typed shows while Tab is held. Wi-Fi passwords are 8 to 63 characters: anything
-# else is refused at once, rather than after a failed connection. Esc
-# returns 1 (back to the list).
+# wifi_password VAR — the network's password, into VAR: lib/prompt.sh's
+# field, what's typed shown while Tab is held. Wi-Fi passwords are 8 to 63
+# characters: anything else is refused at once, rather than after a failed
+# connection, and the field comes back with it to fix. Esc returns 1 (back
+# to the list).
 wifi_password() {
-  local LC_ALL=C.UTF-8 __var=$1 __pw='' __shown=0 __wait __status __key __rest __mask __note=''   # ${#} in characters
-  __mask=$(mask_char)
-  ask "Password >"
-  # The field starts here: the one cursor position saved (\e7), and never
-  # saved over, as each frame is redrawn from it (\e8, then \e[J to clear
-  # below). After the hints under the field, back to its start and the
-  # field once more, which leaves the cursor at its end, where typing goes.
-  printf '\e7'
-  local __field
-  cursor on
+  local LC_ALL=C.UTF-8 __var=$1 __pw=''   # ${#} in characters
   while :; do
-    if (( __shown )); then __field=$__pw; else __field=$(repeat "$__mask" "${#__pw}"); fi
-    printf '\e8\e[J%s\n\n' "$__field"
-    if [[ -n $__note ]]; then
-      printf '%s%s%s%s\n' "$MARGIN" "$C_YELLOW" "$__note" "$C_RESET"
-    fi
-    printf '%s%sHold Tab to see the password · Esc goes back to the list%s' "$MARGIN" "$C_GREY" "$C_RESET"
-    printf '\e8%s' "$__field"
-    # Shown while Tab is held. A terminal never hears a key let go, but a
-    # held key repeats: shown on the press, kept while its repeats come in,
-    # hidden once they stop (none within __wait: longer for the first, as a
-    # key starts repeating only after a moment). So a quick tap shows it for
-    # that moment. Any other key hides it, and counts as usual.
-    if (( __shown )); then
-      __status=0; IFS= read -rsn1 -t "$__wait" __key || __status=$?
-      if (( __status > 128 )); then __shown=0; continue; fi     # no repeat: let go
-      (( __status == 0 )) || die "Input closed"
-      if [[ $__key == $'\t' ]]; then __wait=0.25; continue; fi
-      __shown=0
-    else
-      IFS= read -rsn1 __key || die "Input closed"
-    fi
-    __note=''
-    case $__key in
-      '')
-        if (( ${#__pw} >= 8 && ${#__pw} <= 63 )); then break; fi
-        __note="Wi-Fi passwords are 8 to 63 characters; this one has ${#__pw}." ;;
-      $'\t')         __shown=1 __wait=0.6 ;;
-      $'\x7f'|$'\b') __pw=${__pw%?} ;;
-      $'\x15')       __pw='' ;;                                       # Ctrl+U
-      $'\e')
-        # Esc alone, or the start of a key's code (arrows: Esc [ A...),
-        # which is read to its end (a letter or ~) and ignored.
-        __rest=''; read -rsn1 -t 0.05 __rest || true
-        [[ -n $__rest ]] || { cursor off; printf '\e[J\n'; return 1; }
-        while [[ $__rest != [A-Za-z~] ]] && read -rsn1 -t 0.05 __rest; do :; done ;;
-      *)             __pw+=$__key ;;
-    esac
+    field __pw "Password" reveal "Hold Tab to see the password · Esc goes back to the list" "$__pw" || return 1
+    (( ${#__pw} >= 8 && ${#__pw} <= 63 )) && break
+    FIELD_NOTE="Wi-Fi passwords are 8 to 63 characters; this one has ${#__pw}."
   done
-  cursor off
-  printf '\e8\e[J\n'
   printf -v "$__var" '%s' "$__pw"
 }
 

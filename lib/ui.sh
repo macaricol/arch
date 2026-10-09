@@ -8,15 +8,14 @@ C_RESET=$'\e[0m' C_BOLD=$'\e[1m' C_REVERSE=$'\e[7m'
 C_CYAN=$'\e[96m' C_GREEN=$'\e[92m' C_YELLOW=$'\e[93m' C_RED=$'\e[91m'
 C_WHITE=$'\e[97m' C_GREY=$'\e[90m'
 C_BLUE=$'\e[34m' C_PINK=$'\e[95m'
-# ᗧ and ⬤ are Pac-Man, open and closed. On the console they come from the
-# fonts in assets/consolefonts (tools/make-console-fonts.py); in a terminal
-# emulator, from its own font. In his yellow: palette slot 3 on the console
-# (not bold, which there turns it into slot 11), elsewhere as RGB, since a
-# terminal emulator doesn't use CONSOLE_PALETTE.
+# ᗧ and ⬤ are Pac-Man, open and closed, chomping in run's spinner. On the
+# console they come from the fonts in assets/consolefonts
+# (tools/make-console-fonts.py); in a terminal emulator, from its own font.
+# In his yellow: palette slot 3 on the console (not bold, which there turns
+# it into slot 11), elsewhere as RGB, since a terminal emulator doesn't use
+# CONSOLE_PALETTE.
 if [[ $TERM == linux ]]; then C_PAC=$'\e[33m'
 else C_PAC=$'\e[38;2;255;196;0m'; fi
-TAG="${C_PAC}ᗧ${C_RESET}"
-TAG_COLS=2   # the tag and the space after it
 
 # ── Console look ───────────────────────────────────────────────────────
 # Everything is laid out in one centred column, LAYOUT_WIDTH wide (the width
@@ -185,26 +184,6 @@ balanced_wrap() {
 # plural N WORD — "1 minute", "3 minutes".
 plural() { (( $1 == 1 )) && echo "$1 $2" || echo "$1 ${2}s"; }
 
-# message TAG COLOUR TEXT END — "ᗧ TEXT" kept inside the layout column:
-# wrapped lines are indented to start under the text, not the tag.
-message() {
-  local tag=$1 colour=$2 end=$4 i
-  wrap "$3" $((LAYOUT_WIDTH - TAG_COLS))
-  for i in "${!WRAPPED[@]}"; do
-    if (( i )); then printf '\n%s%*s' "$MARGIN" "$TAG_COLS" ''; else printf '%s%s ' "$MARGIN" "$tag"; fi
-# centred_block LINE... — the lines as a block, left-aligned among
-# themselves (labels and values in columns), the block centred.
-centred_block() {
-  local LC_ALL=C.UTF-8 line width=0
-  for line; do (( ${#line} > width )) && width=${#line}; done
-  for line; do printf '%s%*s%s%s%s\n' "$MARGIN" $(( (LAYOUT_WIDTH - width) / 2 )) '' "$C_WHITE" "$line" "$C_RESET"; done
-}
-
-    printf '%s%s%s' "$colour" "${WRAPPED[i]}" "$C_RESET"
-  done
-  printf '%s' "$end"
-}
-
 # centred_message COLOUR TEXT — TEXT centred in the layout column, in
 # COLOUR, wrapped into even lines.
 centred_message() {
@@ -213,14 +192,23 @@ centred_message() {
   for line in "${WRAPPED[@]}"; do center "$1$line$C_RESET" "${#line}"; done
 }
 
+# centred_block LINE... — the lines as a block, left-aligned among
+# themselves (labels and values in columns), the block centred.
+centred_block() {
+  local LC_ALL=C.UTF-8 line width=0
+  for line; do (( ${#line} > width )) && width=${#line}; done
+  for line; do printf '%s%*s%s%s%s\n' "$MARGIN" $(( (LAYOUT_WIDTH - width) / 2 )) '' "$C_WHITE" "$line" "$C_RESET"; done
+}
+
 # Warnings and errors also go to the log: the next step header, or the USB's
 # failure screen, clears the screen. During the steps, info goes only to the
 # log: the screen shows Linux facts instead (see facts_tick).
 info() {
   if (( FACTS_ON )); then printf '[info] %s\n' "$*" >> "$LOG_FILE" 2>/dev/null || true; return 0; fi
-  message "$TAG" "$C_WHITE" "$*" $'\n\n'
+  centred_message "$C_WHITE" "$*"
+  echo
 }
-# Both centred, without the tag, their lines as even as they can be.
+# Centred, as info is, without a tag, their lines as even as they can be.
 warn() {
   centred_message "$C_YELLOW$C_BOLD" "$*" >&2
   echo >&2
@@ -231,7 +219,6 @@ die() {
   printf '[error] %s\n' "$*" >> "$LOG_FILE" 2>/dev/null || true
   exit 1
 }
-ask()  { message "$TAG" "$C_WHITE" "$1" ' '; }
 
 # repeat CHAR COUNT — multibyte-safe (tr is not)
 repeat() { local s; printf -v s '%*s' "$2" ''; printf '%s' "${s// /$1}"; }

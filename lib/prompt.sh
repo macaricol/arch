@@ -2,9 +2,9 @@
 # Interactive prompts: validated text input, passwords, arrow-key menu,
 # buttons.
 #
-# gum (https://github.com/charmbracelet/gum) draws them: the USB carries it
-# (tools/build-autoinstall-iso.sh). Should it not run there, the plain
-# prompts below take over.
+# The text fields and buttons are drawn here; the menu by gum
+# (https://github.com/charmbracelet/gum), which the USB carries
+# (tools/build-autoinstall-iso.sh), or a plain one should it not run there.
 
 shopt -s extglob  # for the +([[:space:]]) trim patterns below
 
@@ -31,37 +31,98 @@ invalid_hint() {
   esac
 }
 
-# input VAR "Prompt" [validator] [--secret]
-# Asks on one line, "ᗧ Prompt > answer", followed by a blank line. Loops
-# until a non-empty value passes the validator, then stores it in VAR.
-input() {
-  local __var=$1 __prompt="$2 >" __validator=${3:-} __secret=${4:-} __val __status
+# The box a field is typed into: its width, and what to say under the next
+# one drawn (a problem with the last answer: FIELD_NOTE, then cleared).
+FIELD_WIDTH=40
+FIELD_NOTE=''
+
+# field VAR "Label" [plain|secret|reveal] ["Hint"] [VALUE] — a line typed
+# into a box: the label centred, the box centred under it (white on the
+# empty bar's navy, as the unselected buttons; with a patched console font,
+# a quarter row taller above and below the text, so half as tall again),
+# FIELD_NOTE under that in amber, then the hint in grey. Starts with VALUE. secret shows a dot
+# (mask_char) a character; reveal too, but shows the text while Tab is
+# held. Typing past the box scrolls it. Backspace takes a character back,
+# Ctrl+U all of them; other keys' codes (arrows...) are ignored. Enter
+# stores the text in VAR and returns 0, Esc returns 1; either way the
+# field is cleared away, the cursor back where it started, for the next.
+# Its own, not gum's: gum's field has no box, and can't be shown while
+# typing a password.
+field() {
+  local LC_ALL=C.UTF-8 __var=$1 __label=$2 __mode=${3:-plain} __hint=${4:-} __text=${5:-}   # ${#} in characters
+  local __note=$FIELD_NOTE __shown=0 __wait=0 __status __key __rest __mask __view __inner __left
+  FIELD_NOTE=''
+  __mask=$(mask_char)
+  __inner=$(( FIELD_WIDTH - 2 ))   # a space each side
+  __left=$(( ${#MARGIN} + (LAYOUT_WIDTH - FIELD_WIDTH) / 2 ))
+  # The box's edges, a row each: the quarters in its navy, or (without the
+  # glyphs) blank, the same rows taken either way.
+  local __above='' __below=''
+  if on_console && [[ ${PATCHED_FONT:-0} == 1 ]]; then
+    __above=$(repeat "$LOWER_QUARTER" "$FIELD_WIDTH") __below=$(repeat "$UPPER_QUARTER" "$FIELD_WIDTH")
+  fi
+  # The field's spot: the one cursor position saved (\e7), and never saved
+  # over, as each frame is redrawn from it (\e8, then \e[J to clear below).
+  printf '\e7'
+  cursor on
   while :; do
-    if have_gum; then
-      # gum strips colour codes from its prompt, so the tag can't be part of
-      # it: gum is indented by the tag's columns instead, and the answer
-      # line printed afterwards adds the tag without moving the text.
-      local -a __args=(--prompt "$__prompt " --prompt.foreground 15
-        --cursor.foreground 14 --placeholder '' --no-show-help
-        --width $((LAYOUT_WIDTH - TAG_COLS - 2)) --padding "0 0 0 $(( ${#MARGIN} + TAG_COLS ))")
-      [[ $__secret == --secret ]] && __args+=(--password)
-      # gum hides the cursor while it runs and shows it again on exit.
-      __val=$(gum input "${__args[@]}") || { __status=$?; cursor off; gum_cancelled "$__status"; continue; }
-      cursor off
-      # gum clears itself away; leave the answer on screen like read does.
-      ask "$__prompt"
-      if [[ $__secret == --secret ]]; then repeat "$(mask_char)" 6; echo; else echo "$__val"; fi
-    else
-      ask "$__prompt"
-      # A failed read means stdin is gone (EOF); looping would spin forever.
-      cursor on
-      if [[ $__secret == --secret ]]; then read_secret __val; else read -r __val || die "Input closed"; fi
-      cursor off
-    fi
+    if [[ $__mode == plain ]] || (( __shown )); then __view=$__text; else __view=$(repeat "$__mask" "${#__text}"); fi
+    (( ${#__view} < __inner )) || __view=${__view: -$(( __inner - 1 ))}   # the end, and room for the cursor
+    printf '%s\e8\e[J' "$C_RESET"
+    center "${C_WHITE}${__label}${C_RESET}" "${#__label}"
     echo
+    printf '%*s%s%s%s\n' "$__left" '' "$C_BLUE" "$__above" "$C_RESET"   # lower quarters: the top edge
+    printf '%*s\e[97;44m %s%*s%s\n' "$__left" '' "$__view" $(( __inner - ${#__view} + 1 )) '' "$C_RESET"
+    printf '%*s%s%s%s\n\n' "$__left" '' "$C_BLUE" "$__below" "$C_RESET"   # upper quarters: the bottom
+    [[ -z $__note ]] || centred_message "$C_YELLOW$C_BOLD" "$__note"
+    [[ -z $__hint ]] || center "${C_GREY}${__hint}${C_RESET}" "${#__hint}"
+    # The cursor in the box, after the text: three rows down from the label.
+    printf '\e8\e[3B\e[%dG' $(( __left + 2 + ${#__view} ))
+    # reveal: shown while Tab is held. A terminal never hears a key let go,
+    # but a held key repeats: shown on the press, kept while its repeats
+    # come in, hidden once they stop (none within __wait: longer for the
+    # first, as a key starts repeating only after a moment). So a quick tap
+    # shows it for that moment. Any other key hides it, and counts as usual.
+    if (( __shown )); then
+      __status=0; IFS= read -rsn1 -t "$__wait" __key || __status=$?
+      if (( __status > 128 )); then __shown=0; continue; fi     # no repeat: let go
+      (( __status == 0 )) || die "Input closed"
+      if [[ $__key == $'\t' ]]; then __wait=0.25; continue; fi
+      __shown=0
+    else
+      # A failed read means stdin is gone (EOF); looping would spin forever.
+      IFS= read -rsn1 __key || die "Input closed"
+    fi
+    case $__key in
+      ''|$'\r')      break ;;   # Enter (a newline; \r from some terminals)
+      $'\t')         [[ $__mode != reveal ]] || __shown=1 __wait=0.6 ;;
+      $'\x7f'|$'\b') __text=${__text%?} ;;
+      $'\x15')       __text='' ;;                                     # Ctrl+U
+      $'\e')
+        # Esc alone, or the start of a key's code (arrows: Esc [ A...),
+        # which is read to its end (a letter or ~) and ignored.
+        __rest=''; read -rsn1 -t 0.05 __rest || true
+        if [[ -z $__rest ]]; then printf '%s\e8\e[J' "$C_RESET"; cursor off; return 1; fi
+        while [[ $__rest != [A-Za-z~] ]] && read -rsn1 -t 0.05 __rest; do :; done ;;
+      [[:cntrl:]])   ;;
+      *)             __text+=$__key ;;
+    esac
+  done
+  printf '%s\e8\e[J' "$C_RESET"
+  cursor off
+  printf -v "$__var" '%s' "$__text"
+}
+
+# input VAR "Label" [validator] [--secret] — a field (see field) until a
+# non-empty answer passes the validator, then it's in VAR. Esc asks again.
+input() {
+  local __var=$1 __label=$2 __validator=${3:-} __mode=plain __val
+  [[ ${4:-} == --secret ]] && __mode=secret
+  while :; do
+    field __val "$__label" "$__mode" || continue
     __val=${__val##+([[:space:]])}; __val=${__val%%+([[:space:]])}
-    [[ -n $__val ]] || { warn "Cannot be empty"; continue; }
-    if [[ -n $__validator ]] && ! "$__validator" "$__val"; then warn "$(invalid_hint "$__validator")"; continue; fi
+    [[ -n $__val ]] || { FIELD_NOTE="Cannot be empty"; continue; }
+    if [[ -n $__validator ]] && ! "$__validator" "$__val"; then FIELD_NOTE=$(invalid_hint "$__validator"); continue; fi
     printf -v "$__var" '%s' "$__val"
     return 0
   done
@@ -73,37 +134,14 @@ mask_char() {
   if on_console && [[ ${PATCHED_FONT:-0} == 1 ]]; then printf '%s' "$DOT"; else printf '•'; fi
 }
 
-# read_secret VAR — reads a line without echoing it, but with a mask_char per
-# key typed (Backspace takes one back), like gum's password field. For when
-# gum isn't available.
-read_secret() {
-  local __var=$1 __s='' __k __rest __mask
-  __mask=$(mask_char)
-  while :; do
-    IFS= read -rsn1 __k || die "Input closed"
-    case $__k in
-      '')            break ;;
-      $'\x7f'|$'\b') [[ -n $__s ]] && { __s=${__s%?}; printf '\b \b'; } ;;
-      $'\e')
-        # A key's code (arrows: Esc [ A...), read to its end (a letter or ~)
-        # and ignored, without swallowing the keys typed after it.
-        __rest=''; read -rsn1 -t 0.05 __rest || true
-        while [[ -n $__rest && $__rest != [A-Za-z~] ]] && read -rsn1 -t 0.05 __rest; do :; done ;;
-      *)             __s+=$__k; printf '%s' "$__mask" ;;
-    esac
-  done
-  echo
-  printf -v "$__var" '%s' "$__s"
-}
-
-# password VAR "Prompt" — asked twice; both entries must match.
+# password VAR "Label" — asked twice; both entries must match.
 password() {
-  local __var=$1 __prompt=$2 __p1 __p2
+  local __var=$1 __label=$2 __p1 __p2
   while :; do
-    input __p1 "$__prompt" '' --secret
+    input __p1 "$__label" '' --secret
     input __p2 "Confirm password" '' --secret
     [[ $__p1 == "$__p2" ]] && break
-    warn "Passwords do not match"
+    FIELD_NOTE="Passwords do not match, type them again"
   done
   printf -v "$__var" '%s' "$__p1"
 }
@@ -221,5 +259,7 @@ choose_look() {
 }
 
 # A round bullet, from the patched console fonts (assets/consolefonts): the
-# mask for typed passwords (mask_char).
+# mask for typed passwords (mask_char). And a cell's upper and lower quarter
+# (the upper one in a private-use slot), field's box edges.
 DOT=$'\ue010'
+UPPER_QUARTER=$'\ue011' LOWER_QUARTER=$'\u2582'
