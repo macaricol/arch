@@ -192,12 +192,22 @@ centred_message() {
   for line in "${WRAPPED[@]}"; do center "$1$line$C_RESET" "${#line}"; done
 }
 
-# centred_block LINE... — the lines as a block, left-aligned among
-# themselves (labels and values in columns), the block centred.
-centred_block() {
-  local LC_ALL=C.UTF-8 line width=0
-  for line; do (( ${#line} > width )) && width=${#line}; done
-  for line; do printf '%s%*s%s%s%s\n' "$MARGIN" $(( (LAYOUT_WIDTH - width) / 2 )) '' "$C_WHITE" "$line" "$C_RESET"; done
+# centred_details LABEL VALUE [LABEL VALUE...] — a summary: each label, in
+# the facts' grey, and its value, in white, the values in a column; the
+# block centred.
+centred_details() {
+  local LC_ALL=C.UTF-8 i label=0 width=0 line
+  for (( i = 1; i <= $#; i += 2 )); do
+    line=${!i}; (( ${#line} > label )) && label=${#line}
+  done
+  label=$(( label + 2 ))   # two spaces before the values
+  for (( i = 2; i <= $#; i += 2 )); do
+    line=${!i}; (( label + ${#line} > width )) && width=$(( label + ${#line} ))
+  done
+  while (( $# )); do
+    printf '%s%*s\e[37m%-*s%s%s%s\n' "$MARGIN" $(( (LAYOUT_WIDTH - width) / 2 )) '' "$label" "$1" "$C_WHITE" "$2" "$C_RESET"
+    shift 2
+  done
 }
 
 # Warnings and errors also go to the log: the next step header, or the USB's

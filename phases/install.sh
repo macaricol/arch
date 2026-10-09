@@ -48,8 +48,8 @@ phase_install() {
     select_drive
 
     header "Review & confirm"
-    centred_block "Hostname:  $HOST_NAME" "Username:  $USER_NAME" "Drive:     $DRIVE_LABEL" \
-      "Timezone:  $TIMEZONE" "Keyboard:  $KEYBOARD_LABEL"
+    centred_details Hostname: "$HOST_NAME" Username: "$USER_NAME" Drive: "$DRIVE_LABEL" \
+      Timezone: "$TIMEZONE" Keyboard: "$KEYBOARD_LABEL"
     echo
     warn "Everything on $DRIVE_LABEL will be erased. This can't be undone."
     # Going back is the one picked to start with: the other erases the drive.
