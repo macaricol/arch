@@ -649,8 +649,9 @@ facts_tick() {
 }
 
 # Runs a command. Its output always goes to LOG_FILE; the terminal shows a
-# spinner. On failure the output is also echoed to stderr, so the failure
-# can be diagnosed, and the real exit code is returned, so set -e trips.
+# spinner. On failure the log marks it ([failed N]), the output is also
+# echoed to stderr except on a step's screen (see below), and the real exit
+# code is returned, so set -e trips.
 run() {
   printf '\n$ %s\n' "$*" >> "$LOG_FILE"
   local out; out=$(mktemp)
@@ -689,17 +690,14 @@ run() {
   local status=0
   wait "$pid" || status=$?
   cat "$out" >> "$LOG_FILE"
-  # On a step's screen, only the output's last lines: a long one would
-  # scroll the screen, and the bar, spinner and fact are drawn by row.
+  # On a step's screen, nothing of it: a command's own words mean nothing to
+  # whoever is installing. The caller says what happened plainly (retry's
+  # "trying again", or the error it stops with), and the log has it all.
+  # Elsewhere, where the installer's screens don't cover it, it's shown.
   if (( status != 0 )); then
-    local command=$*
-    (( ! FACTS_ON || ${#command} <= 60 )) || command="${command:0:57}..."
-    if (( FACTS_ON )); then
-      printf '%s%sFailed (%s): %s%s\n' "$MARGIN" "$C_RED" "$status" "$command" "$C_RESET" >&2
-      tail -n 5 "$out" | cut -c1-"$LAYOUT_WIDTH" | sed "s/^/$MARGIN/" >&2
-      echo >&2
-    else
-      printf '%sFailed (%s): %s%s\n' "$C_RED" "$status" "$command" "$C_RESET" >&2
+    printf '[failed %s] %s\n' "$status" "$*" >> "$LOG_FILE"
+    if (( ! FACTS_ON )); then
+      printf '%sFailed (%s): %s%s\n' "$C_RED" "$status" "$*" "$C_RESET" >&2
       cat "$out" >&2
     fi
   fi
