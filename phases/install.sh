@@ -54,7 +54,7 @@ phase_install() {
     warn "Everything on $DRIVE_LABEL will be erased. This can't be undone."
     # Going back is the one picked to start with: the other erases the drive.
     buttons '' 0 \
-      "Go back" "Change your answers, starting with the keyboard. Nothing has been touched." \
+      "Go back" "Edit your answers. Your drive hasn't been touched yet." \
       "Yes, install" "Erase $DRIVE_LABEL and install ARCHMAN on it."
     (( PICKED == 1 )) && break
   done
