@@ -498,7 +498,7 @@ measured_progress() {
 # facts are a step's (step turns them back on): any other screen shows its
 # info lines.
 header() {
-  FACTS_ON=0
+  FACTS_ON=0 SPIN_CENTRED=0
   clear
   update_margin
   draw_logo
@@ -658,6 +658,12 @@ facts_tick() {
   printf '%s\e8' "$out"
 }
 
+# SPIN_CENTRED=1 — a screen that's only a title and a wait (set after its
+# header, which clears it): run's spinner where a step's goes, centred
+# under the title. clear_spinner takes it away, the wait over.
+SPIN_CENTRED=0
+clear_spinner() { printf '\e7\e[%d;1H\e[2K\e8' $(( BAR_ROW + SPIN_ROW_OFFSET )); }
+
 # Runs a command. Its output always goes to LOG_FILE; the terminal shows a
 # spinner. On failure the log marks it ([failed N]), the output is also
 # echoed to stderr except on a step's screen (see below), and the real exit
@@ -679,15 +685,16 @@ run() {
   local pid=$! tick=0
   local -a frames=("${C_PAC}⬤${C_RESET}${C_WHITE} · · ·${C_RESET}"
                    "${C_PAC}ᗧ${C_RESET}${C_WHITE}· · · ${C_RESET}")
-  # On a step's screen (FACTS_ON), centred on the line under the title, and
-  # left there between commands; elsewhere, where the cursor is.
-  local spin=$'\r'"$MARGIN"
-  (( FACTS_ON )) && spin=$'\e7\e['"$(( BAR_ROW + SPIN_ROW_OFFSET ))"';'"$(( ${#MARGIN} + (LAYOUT_WIDTH - 7) / 2 + 1 ))H"
+  # On a step's screen (FACTS_ON), or one that asks for it (SPIN_CENTRED),
+  # centred on the line under the title, and left there between commands;
+  # elsewhere, where the cursor is.
+  local spin=$'\r'"$MARGIN" centred=$(( FACTS_ON || SPIN_CENTRED ))
+  (( centred )) && spin=$'\e7\e['"$(( BAR_ROW + SPIN_ROW_OFFSET ))"';'"$(( ${#MARGIN} + (LAYOUT_WIDTH - 7) / 2 + 1 ))H"
   printf '\e[?25l'   # no cursor blinking after the pellets
   while kill -0 "$pid" 2>/dev/null; do
     if (( tick % 4 == 0 )); then
       printf '%s%s' "$spin" "${frames[tick / 4 % 2]}"
-      (( FACTS_ON )) && printf '\e8'
+      (( centred )) && printf '\e8'
       update_progress "$out"
       facts_tick
     fi
@@ -695,7 +702,7 @@ run() {
     tick=$(( tick + 1 ))
     sleep 0.05
   done
-  (( FACTS_ON )) || printf '\r\e[K'
+  (( centred )) || printf '\r\e[K'
   on_console || printf '\e[?25h'   # see cursor()
   local status=0
   wait "$pid" || status=$?

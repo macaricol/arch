@@ -68,7 +68,7 @@ phase_wifi() {
         wifi_password password || break   # Esc: back to the list
       fi
       header "Connecting to $name"
-      info "This can take up to half a minute."
+      SPIN_CENTRED=1
       WIFI_PASSWORD=$password
       # run()'s report of a failure (iwctl's own words) goes nowhere: the
       # screens below say it plainly. It's in the log either way.
@@ -88,6 +88,7 @@ phase_wifi() {
           "Other network" "Go back to the list of Wi-Fi networks."
       else
         # Left on screen until the installer's first one replaces it.
+        clear_spinner
         info "Connected. Getting the installer ready..."
         return 0
       fi
