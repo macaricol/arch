@@ -33,7 +33,7 @@ invalid_hint() {
 
 # The box a field is typed into: its width, and what to say under the next
 # one drawn (a problem with the last answer: FIELD_NOTE, then cleared).
-FIELD_WIDTH=40
+FIELD_WIDTH=24
 FIELD_NOTE=''
 
 # field VAR "Label" [plain|secret|reveal] ["Hint"] [VALUE] — a line typed
