@@ -514,8 +514,28 @@ step() {
   PROGRESS_STEP=${2:-1} PROGRESS_PERMILLE=0
   PROGRESS_TITLE=$1 PROGRESS_STARTED=${EPOCHREALTIME//[!0-9]/}
   share 0 1000
-  header "$1"
-  facts_start
+  # From one step's screen to the next, only what changes: the title, and
+  # the last step's warnings gone. Redrawing it all (header) blanks the
+  # screen for a frame or two. Unless the terminal has changed size since
+  # (another margin), when it's all drawn again.
+  local margin=${#MARGIN}
+  update_margin
+  if (( FACTS_ON && ${#MARGIN} == margin )); then
+    retitle "$1"
+  else
+    header "$1"
+    facts_start
+  fi
+}
+
+# retitle "Title" — on a step's screen, the title replaced and everything
+# under the fact cleared (the last step's warnings), the cursor there for
+# this one's.
+retitle() {
+  local LC_ALL=C.UTF-8 warnings=$(( BAR_ROW + FACT_ROW_OFFSET + FACT_LINES + 1 ))
+  printf '\e[%d;1H\e[2K' $(( BAR_ROW + 2 ))
+  center "${C_BOLD}${C_WHITE}$1${C_RESET}" "${#1}"
+  printf '\e[%d;1H\e[J' "$warnings"
 }
 
 # share FROM TO — the commands that follow make up this share of the
@@ -588,7 +608,7 @@ facts_start() {
   (( ${#FACTS[@]} )) || return 0
   FACTS_ON=1
   facts_tick draw
-  printf '\e[%d;1H' $(( BAR_ROW + FACT_ROW_OFFSET + FACT_LINES + 1 ))
+  printf '\e[%d;1H' $(( BAR_ROW + FACT_ROW_OFFSET + FACT_LINES + 1 ))   # (retitle's warnings row)
 }
 
 load_facts() {
