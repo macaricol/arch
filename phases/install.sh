@@ -33,19 +33,21 @@ phase_install() {
   # There's no way out of them but answering, or turning the device off:
   # leaving would end the USB's start-up and leave the screen black. The
   # keyboard first, unless the USB's Wi-Fi screen asked already; going back
-  # from the review starts again at the keyboard, on the layout picked.
-  local back=0
+  # from the review starts again at the keyboard, on the layout picked; Esc
+  # on the drive list, at the account questions. Every answer given comes
+  # back to keep or change.
+  local ask_keyboard=0
   read_keyboard_choice || choose_keyboard
   while :; do
-    (( ! back )) || choose_keyboard
-    back=1
+    (( ! ask_keyboard )) || choose_keyboard
+    ask_keyboard=1
     header "Set up your account"
     input HOST_NAME "Hostname" valid_hostname
     input USER_NAME "Username" valid_username
     # One password for both the user and root.
     password PASSWORD "Password"
 
-    select_drive
+    select_drive || { ask_keyboard=0; continue; }   # Esc: back to the account
 
     header "Review & confirm"
     centred_details Hostname: "$HOST_NAME" Username: "$USER_NAME" Drive: "$DRIVE_LABEL" \
@@ -74,8 +76,9 @@ phase_install() {
   local took=$(( SECONDS - started ))
 
   choose_look
-  info "Applying the look..."
-  arch-chroot /mnt env LOOK="$LOOK" bash "/home/$USER_NAME/.arch-setup/setup.sh" look
+  header "Applying the look"
+  SPIN_CENTRED=1
+  run arch-chroot /mnt env LOOK="$LOOK" bash "/home/$USER_NAME/.arch-setup/setup.sh" look
 
   # Unmount first so nothing on the new system is lost if the stick is
   # pulled; and the live ISO may be running from that stick, so `reboot`
@@ -85,8 +88,8 @@ phase_install() {
   unmount_new_system || warn "Couldn't finish closing the new system. Leave the USB stick in until your device restarts."
   systemctl --version > /dev/null
 
-  finish "All done! Remove the USB stick"
-  info "Archman installed in $(plural $(( took / 60 )) minute) and $(plural $(( took % 60 )) second)"
+  finish "All done!"
+  info "ARCHMAN installed in $(plural $(( took / 60 )) minute) and $(plural $(( took % 60 )) second)"
   wait_for_usb_removal
   info "Restarting..."
   sync
@@ -137,7 +140,7 @@ wait_for_usb_removal() {
   if [[ -n $usb ]]; then
     info "Unplug the USB stick and your device will restart into your new system."
   else
-    info "Remove the installation media, then press Enter to restart."
+    info "Remove the USB stick, then press Enter to restart."
   fi
   cursor off
   while :; do
@@ -161,7 +164,7 @@ select_drive() {
     model=${model%%+([[:space:]])}
     paths+=("$path") labels+=("${model:-${path#/dev/}} ($size)")
   done < <(lsblk -dpno PATH,SIZE,TYPE,MODEL)
-  (( ${#paths[@]} )) || die "No disks found"
+  (( ${#paths[@]} )) || die "No drive found to install ARCHMAN on. Check it's connected."
   local -a plain=("${labels[@]}")
   for i in "${!plain[@]}"; do
     for j in "${!plain[@]}"; do
@@ -172,20 +175,14 @@ select_drive() {
     done
   done
 
-  # A drive, then a second look at it: the list is easy to slip on. Esc
-  # shows the list again; there's no cancelling (see phase_install).
-  while :; do
-    # Asked again (going back from the review), on the drive picked before.
-    until MENU_START=${DRIVE_LABEL:-} menu "Select the installation drive" "${labels[@]}"; do :; done
-    for i in "${!labels[@]}"; do
-      if [[ ${labels[i]} == "$MENU_CHOICE" ]]; then DRIVE=${paths[i]} DRIVE_LABEL=${labels[i]}; fi
-    done
-    buttons "Install on $DRIVE_LABEL?" 0 \
-      "Use this drive" "Everything on it will be erased." \
-      "Choose another" "Back to the list of drives."
-    (( PICKED == 0 )) && break
+  # The review screen that follows is the drive's second look. Esc returns
+  # 1: back to the account questions. Asked again, on the drive picked
+  # before.
+  MENU_BACK=1 MENU_START=${DRIVE_LABEL:-} menu "Choose the installation drive" "${labels[@]}" || return 1
+  for i in "${!labels[@]}"; do
+    if [[ ${labels[i]} == "$MENU_CHOICE" ]]; then DRIVE=${paths[i]} DRIVE_LABEL=${labels[i]}; fi
   done
-  [[ -b $DRIVE ]] || die "Not a block device: $DRIVE"
+  [[ -b $DRIVE ]] || die "$DRIVE_LABEL isn't there any more. Check it's connected."
 }
 
 partition_and_mount() {
@@ -212,7 +209,7 @@ partition_and_mount() {
   # partprobe only makes the kernel re-read the table; udev still has to
   # create the device nodes before the check below can pass.
   udevadm settle
-  [[ -b $efi && -b $swap && -b $root ]] || die "Partitioning failed"
+  [[ -b $efi && -b $swap && -b $root ]] || die "Couldn't prepare $DRIVE_LABEL for the installation."
 
   info "Setting up the file system..."
   run mkfs.fat -F32 -n BOOT "$efi"
@@ -314,7 +311,7 @@ rank_mirrors() {
   if [[ -z $countries ]] || ! grep -q '^Server' "$mirrorlist"; then
     info "Finding the fastest download servers worldwide..."
     run reflector --delay 4 --latest 20 --protocol https --sort rate --number 6 --save "$mirrorlist" \
-      || warn "Couldn't rank download servers, using the default ones"
+      || note "Couldn't rank download servers, using the default ones"
   fi
   # Last resort, for a file the mirrors above haven't synced yet: pacman
   # tries the servers in order for each package. Arch's own servers, among
@@ -335,7 +332,7 @@ install_base() {
   case $(cpu_vendor) in
     intel) packages+=(intel-ucode) ;;
     amd)   packages+=(amd-ucode) ;;
-    *)     warn "Unknown CPU vendor, skipping microcode" ;;
+    *)     note "Unknown CPU vendor, skipping microcode" ;;
   esac
   mapfile -t vendors < <(gpu_vendors)
   if (( ${#vendors[@]} )); then
@@ -365,7 +362,7 @@ install_base() {
   # measured_progress).
   local PACMAN_CACHE=/mnt/var/cache/pacman/pkg
   printf 'Packages: %s\n' "${packages[*]}" >> "$LOG_FILE"
-  retry 10 run pacstrap -K -P /mnt "${packages[@]}" || die "Couldn't download the core system"
+  retry 10 run pacstrap -K -P /mnt "${packages[@]}" || die "Couldn't download Arch Linux. Check your internet connection."
   genfstab -U /mnt >> /mnt/etc/fstab
   cp /etc/pacman.d/mirrorlist /mnt/etc/pacman.d/mirrorlist
 }

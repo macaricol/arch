@@ -78,7 +78,7 @@ aur_install() {
   local prebuilt
   if prebuilt=$(prebuilt_package "$SETUP_DIR/packages" "$1"); then
     run as_root pacman -U --needed --noconfirm "$prebuilt" && return 0
-    warn "Couldn't install the prebuilt $1, building it instead"
+    note "Couldn't install the prebuilt $1, building it instead"
   fi
   local build from=$PROGRESS_FROM to=$PROGRESS_TO
   build=$(mktemp -d -p /var/tmp)
@@ -86,7 +86,7 @@ aur_install() {
   git_clone "https://aur.archlinux.org/$1.git" "$build/$1"
   share $(( from + (to - from) / 20 )) "$to"
   retry 10 run env -C "$build/$1" MAKEFLAGS="-j$(nproc)" makepkg -sri --noconfirm --needed \
-    || die "Could not install $1 from the AUR"
+    || die "Couldn't install $1, one of the extras from the Arch community."
   rm -rf "$build"
 }
 
@@ -95,8 +95,8 @@ aur_install() {
 # sudo altogether.
 write_sudoers() {
   local file=$1; shift
-  printf '%s\n' "$@" | as_root install -m 440 /dev/stdin "$file" || die "Couldn't write $file"
-  as_root visudo -c -f "$file" > /dev/null || { as_root rm -f "$file"; die "Generated sudoers drop-in is invalid"; }
+  printf '%s\n' "$@" | as_root install -m 440 /dev/stdin "$file" || die "Couldn't set up administrator access."
+  as_root visudo -c -f "$file" > /dev/null || { as_root rm -f "$file"; die "Couldn't set up administrator access."; }
 }
 
 # enable_service UNIT... — enabled, not started: in the installer's chroot
@@ -150,7 +150,7 @@ partition_path() { if [[ $1 =~ [0-9]$ ]]; then echo "${1}p$2"; else echo "${1}$2
 
 # git_clone URL DEST [as_root] — shallow clone into a fresh directory,
 # retried. as_root clones into a directory only root can write.
-git_clone() { retry 5 fresh_clone "$@" || die "Could not clone $1"; }
+git_clone() { local name=${1##*/}; retry 5 fresh_clone "$@" || die "Couldn't download ${name%.git}. Check your internet connection."; }
 fresh_clone() {
   ${3:-} rm -rf "$2"
   run ${3:-} git clone --progress --depth 1 "$1" "$2"   # --progress: for the bar

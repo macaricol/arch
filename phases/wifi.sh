@@ -33,9 +33,8 @@ phase_wifi() {
     # (In a USB built --wifi-test, the cable is online all along: the
     # screen stays until a network is connected.)
     (( ${WIFI_TEST:-0} )) || { online && return 0; }
-    header "Choose your Wi-Fi network"
-    info "Looking for Wi-Fi networks..."
-    wifi_scan "$station"
+    header "Looking for Wi-Fi networks"
+    with_spinner wifi_scan "$station"
     if (( ${#names[@]} == 0 )); then
       buttons "No Wi-Fi networks found" 0 \
         "Look again" "Move closer to your router, or check it's switched on, then look again."
@@ -43,7 +42,7 @@ phase_wifi() {
     fi
     items=()
     for i in "${!names[@]}"; do items+=("$(wifi_item "${names[i]}" "${bars[i]}" "${kinds[i]}")"); done
-    menu "Choose your Wi-Fi network" "${items[@]}" "$scan_again" || continue   # Esc: scan again
+    menu "Choose your Wi-Fi network" "${items[@]}" "$scan_again"
     [[ $MENU_CHOICE != "$scan_again" ]] || continue
     pick=-1
     for i in "${!items[@]}"; do
@@ -109,7 +108,7 @@ online() { timeout 3 ping -c1 -W2 archlinux.org &>/dev/null; }
 wifi_password() {
   local LC_ALL=C.UTF-8 __var=$1 __pw=''   # ${#} in characters
   while :; do
-    field __pw "Password" reveal "Hold Tab to see the password · Esc goes back to the list" "$__pw" || return 1
+    FIELD_BACK=1 field __pw "Password" reveal "Hold Tab to see the password · Esc goes back to the list" "$__pw" || return 1
     (( ${#__pw} >= 8 && ${#__pw} <= 63 )) && break
     FIELD_NOTE="Wi-Fi passwords are 8 to 63 characters; this one has ${#__pw}."
   done

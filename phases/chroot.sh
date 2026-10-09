@@ -76,7 +76,7 @@ configure_boot_splash() {
   if install_splash_theme; then
     run plymouth-set-default-theme archman
   else
-    warn "Using the standard boot screen"
+    note "The custom boot screen is missing from the installer, using the standard one"
     run plymouth-set-default-theme bgrt
   fi
   # vt.global_cursor_default=0: no blinking cursor on the text console, which

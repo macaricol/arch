@@ -31,11 +31,13 @@ FIELD_NOTE=''
 # (mask_char) a character; reveal too, but shows the text while Tab is
 # held. Typing past the box scrolls it. Backspace takes a character back,
 # Ctrl+U all of them; other keys' codes (arrows...) are ignored. Enter
-# stores the text in VAR and returns 0, Esc returns 1; either way the
-# field is cleared away, the cursor back where it started, for the next.
+# stores the text in VAR and returns 0; Esc returns 1 when FIELD_BACK=1 (the
+# caller goes back; its hint should say so), and is ignored otherwise.
+# Either way the field is cleared away, the cursor back where it started,
+# for the next.
 field() {
   local LC_ALL=C.UTF-8 __var=$1 __label=$2 __mode=${3:-plain} __hint=${4:-} __text=${5:-}   # ${#} in characters
-  local __note=$FIELD_NOTE __shown=0 __wait=0 __status __key __rest __mask __view __inner __left
+  local __back=${FIELD_BACK:-0} __note=$FIELD_NOTE __shown=0 __wait=0 __status __key __rest __mask __view __inner __left
   FIELD_NOTE=''
   __mask=$(mask_char)
   __inner=$(( FIELD_WIDTH - 2 ))   # a space each side
@@ -87,7 +89,10 @@ field() {
         # Esc alone, or the start of a key's code (arrows: Esc [ A...),
         # which is read to its end (a letter or ~) and ignored.
         __rest=''; read -rsn1 -t 0.05 __rest || true
-        if [[ -z $__rest ]]; then printf '%s\e8\e[J' "$C_RESET"; cursor off; return 1; fi
+        if [[ -z $__rest ]]; then
+          (( __back )) || continue
+          printf '%s\e8\e[J' "$C_RESET"; cursor off; return 1
+        fi
         while [[ $__rest != [A-Za-z~] ]] && read -rsn1 -t 0.05 __rest; do :; done ;;
       [[:cntrl:]])   ;;
       *)             __text+=$__key ;;
@@ -101,15 +106,14 @@ field() {
 # input VAR "Label" [validator] [--secret] — a field (see field) until a
 # non-empty answer passes the validator, then it's in VAR. It starts with
 # VAR's value, the answer given before (asked again after going back from
-# the review), so Enter keeps it; a rejected answer comes back to fix. Esc
-# asks again.
+# the review), so Enter keeps it; a rejected answer comes back to fix.
 input() {
   local __var=$1 __label=$2 __validator=${3:-} __mode=plain __val=${!1:-}
   [[ ${4:-} == --secret ]] && __mode=secret
   while :; do
-    field __val "$__label" "$__mode" '' "$__val" || continue
+    field __val "$__label" "$__mode" '' "$__val"
     __val=${__val##+([[:space:]])}; __val=${__val%%+([[:space:]])}
-    [[ -n $__val ]] || { FIELD_NOTE="Cannot be empty"; continue; }
+    [[ -n $__val ]] || { FIELD_NOTE="Can't be empty"; continue; }
     if [[ -n $__validator ]] && ! "$__validator" "$__val"; then FIELD_NOTE=$(invalid_hint "$__validator"); continue; fi
     printf -v "$__var" '%s' "$__val"
     return 0
@@ -142,15 +146,18 @@ password() {
 # the selected button), at most MENU_ROWS items at a time, a page of them,
 # with a dot a page under them. ↑↓ move, PgUp PgDn a page, Home End to the
 # ends, a letter to the next item starting with it; Enter stores the chosen
-# item in MENU_CHOICE and returns 0, Esc returns 1. It starts on the first
-# item, or on MENU_START's when that's set (cleared once used). Only the
-# list is redrawn as the selection moves.
+# item in MENU_CHOICE and returns 0. Esc returns 1 when MENU_BACK=1 (the
+# caller goes back; the hint says so), and is ignored otherwise. It starts
+# on the first item, or on MENU_START's when that's set (cleared once used).
+# Only the list is redrawn as the selection moves.
 MENU_ROWS=10
 menu() {
   local title=$1; shift
   local -a items=("$@")
-  local LC_ALL=C.UTF-8 selected=0 total=$# start=${MENU_START:-} i key rest letter   # ${#} in characters
-  MENU_START=''
+  local LC_ALL=C.UTF-8 selected=0 total=$# start=${MENU_START:-} back=${MENU_BACK:-0} i key rest letter   # ${#} in characters
+  local hint="↑↓ choose · Enter select"
+  (( back )) && hint+=" · Esc goes back"
+  MENU_START='' MENU_BACK=0
   for i in "${!items[@]}"; do [[ ${items[i]} != "$start" ]] || selected=$i; done
   # The block: the longest item with a space each side.
   local width=0 item rows pages page first indent line dots
@@ -179,16 +186,16 @@ menu() {
       center "$dots$C_RESET" "$pages"
       echo
     fi
-    center "${C_GREY}↑↓ choose · Enter select${C_RESET}" 24
+    center "${C_GREY}${hint}${C_RESET}" "${#hint}"
     # A failed read means stdin is gone (EOF); looping would spin forever.
     IFS= read -rsn1 key || die "Input closed"
     case $key in
       ''|$'\r') MENU_CHOICE=${items[selected]}; return 0 ;;
       $'\e')
-        # Esc alone goes back; otherwise a key's code (arrows: Esc [ A),
-        # read to its end (a letter or ~).
+        # Esc alone goes back, if there's a back; otherwise a key's code
+        # (arrows: Esc [ A), read to its end (a letter or ~).
         rest=''; read -rsn1 -t 0.05 rest || true
-        [[ -n $rest ]] || return 1
+        if [[ -z $rest ]]; then (( back )) && return 1; continue; fi
         while [[ $rest != *[A-Za-z~] ]] && read -rsn1 -t 0.05 key; do rest+=$key; done
         case $rest in
           '[A'|OA) (( selected > 0 )) && selected=$(( selected - 1 )) ;;
@@ -260,8 +267,8 @@ buttons() {
 # it comes) or archman (the installer's theming, the default).
 choose_look() {
   buttons "Choose your desktop's look" 1 \
-    Vanilla "KDE Plasma as it comes: KDE's own Breeze theme, login screen and wallpaper." \
-    Archman "Dark theme, the ARCHMAN login screen, a cyberpunk wallpaper, Breeze Chameleon icons, a top panel and a clock widget."
+    VANILLA "KDE Plasma as it comes: KDE's own Breeze theme, login screen and wallpaper." \
+    ARCHMAN "Dark theme, the ARCHMAN login screen, a cyberpunk wallpaper, Breeze Chameleon icons, a top panel and a clock widget."
   if (( PICKED == 0 )); then LOOK=plain; else LOOK=archman; fi
 }
 

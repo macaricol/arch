@@ -218,7 +218,13 @@ info() {
   centred_message "$C_WHITE" "$*"
   echo
 }
+# note "Text" — only in the log: something the installer worked around by
+# itself, which tells whoever is installing nothing they can act on.
+note() { printf '[note] %s\n' "$*" >> "$LOG_FILE" 2>/dev/null || true; }
+
 # Centred, as info is, without a tag, their lines as even as they can be.
+# The words to say: what happened, plainly, and what to check when there's
+# something; a die's is followed by the USB's "The installation stopped".
 warn() {
   centred_message "$C_YELLOW$C_BOLD" "$*" >&2
   echo >&2
@@ -663,6 +669,27 @@ facts_tick() {
 # under the title. clear_spinner takes it away, the wait over.
 SPIN_CENTRED=0
 clear_spinner() { printf '\e7\e[%d;1H\e[2K\e8' $(( BAR_ROW + SPIN_ROW_OFFSET )); }
+
+# with_spinner COMMAND... — COMMAND run in this shell, unlike run's (so the
+# variables it sets stay set), with the pellets chomping centred under the
+# title meanwhile, from a process of their own. For a command that draws
+# nothing; its status is returned.
+with_spinner() {
+  local row=$(( BAR_ROW + SPIN_ROW_OFFSET )) col=$(( ${#MARGIN} + (LAYOUT_WIDTH - 7) / 2 + 1 )) pid status=0
+  (
+    local tick=0
+    local -a frames=("${C_PAC}⬤${C_RESET}${C_WHITE} · · ·${C_RESET}" "${C_PAC}ᗧ${C_RESET}${C_WHITE}· · · ${C_RESET}")
+    while :; do
+      printf '\e7\e[%d;%dH%s\e8' "$row" "$col" "${frames[tick % 2]}"
+      tick=$(( tick + 1 ))
+      sleep 0.2
+    done
+  ) &
+  pid=$!
+  "$@" || status=$?
+  kill "$pid" 2>/dev/null; wait "$pid" 2>/dev/null
+  return "$status"
+}
 
 # Runs a command. Its output always goes to LOG_FILE; the terminal shows a
 # spinner. On failure the log marks it ([failed N]), the output is also

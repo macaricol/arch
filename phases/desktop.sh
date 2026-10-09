@@ -182,7 +182,7 @@ install_desktop_packages() {
   run sudo pacman -S --needed --noconfirm "${packages[@]}" 2>/dev/null && return 0
   warn "Some downloads weren't available, getting the latest package lists..."
   retry 10 run sudo pacman -Syu --needed --noconfirm "${packages[@]}" \
-    || die "Couldn't download the desktop"
+    || die "Couldn't download the desktop. Check your internet connection."
 }
 
 install_aur_packages() {
