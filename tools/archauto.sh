@@ -78,7 +78,7 @@ NO_INTERNET=("No internet connection"
   "Plug in a network cable, or make sure you're near a Wi-Fi network,"
   "then restart your device.")
 
-# under_logo "Text" — a line just under the big logo: two text rows below
+# under_logo "Text" — a line just under the big logo: three text rows below
 # its bottom edge, which fb-logo.py reports in pixels. With the text splash
 # instead, its own status line. Placed without a newline: scrolling the
 # console would smear the logo.
@@ -86,7 +86,7 @@ under_logo() {
   local LC_ALL=C.UTF-8 rows cols row
   (( LOGO_BOTTOM )) || { splash "$1"; return; }
   read -r rows cols < <(stty size < /dev/tty)
-  row=$(( LOGO_BOTTOM * rows / SCREEN_HEIGHT + 3 ))
+  row=$(( LOGO_BOTTOM * rows / SCREEN_HEIGHT + 4 ))
   printf '\e[%d;1H\e[2K\e[%d;%dH\e[1;97m%s\e[0m' "$row" "$row" $(( (cols - ${#1}) / 2 + 1 )) "$1"
 }
 
