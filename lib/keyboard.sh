@@ -53,7 +53,8 @@ unset _country
 # network), English (US) first.
 # Loads it on the console at once, so the password that follows is typed
 # with it, and sets KEYBOARD_LABEL, KEYMAP and the X11_* that the later
-# phases use. Esc shows the list again.
+# phases use. Esc shows the list again. Asked again (going back from the
+# review), it starts on the layout picked before, so Enter keeps it.
 choose_keyboard() {
   local detected=${COUNTRY_KEYBOARD[${GEO_COUNTRY:-none}]:-English (US)} entry label   # (an empty key is an error)
   local -a labels=("$detected") rest=()
@@ -64,7 +65,7 @@ choose_keyboard() {
   done
   mapfile -t rest < <(printf '%s\n' "${rest[@]}" | LC_ALL=C sort)
   labels+=("${rest[@]}")
-  until menu "Select your keyboard layout" "${labels[@]}"; do :; done
+  until MENU_START=${KEYBOARD_LABEL:-} menu "Select your keyboard layout" "${labels[@]}"; do :; done
   use_keyboard "$MENU_CHOICE"
 }
 

@@ -109,11 +109,14 @@ password() {
 }
 
 # menu "Title" item... — arrow-key picker. Enter stores the chosen item in
-# MENU_CHOICE and returns 0; Esc or q returns 1.
+# MENU_CHOICE and returns 0; Esc or q returns 1. It starts on the first
+# item, or on MENU_START's when that's set (cleared once used).
 menu() {
   local title=$1; shift
   local -a items=("$@")
-  local selected=0 total=${#items[@]} key seq i status
+  local selected=0 total=${#items[@]} key seq i status start=${MENU_START:-}
+  MENU_START=''
+  for i in "${!items[@]}"; do [[ ${items[i]} != "$start" ]] || selected=$i; done
   # Centred under the title, as a block: the longest item with a space each
   # side, or gum's help line under them ("←↓↑→ navigate • enter submit")
   # when that's wider. The current item is a box across the block, in the
@@ -129,7 +132,7 @@ menu() {
     header "$title"
     # Colours are palette indexes, not hex: on the console they follow
     # CONSOLE_PALETTE (backgrounds only 0-7 there, with the 512-glyph font).
-    MENU_CHOICE=$(gum choose --header '' --height $(( total < 10 ? total : 10 )) \
+    MENU_CHOICE=$(gum choose --header '' --height $(( total < 10 ? total : 10 )) --selected "${padded[selected]}" \
       --cursor ' ' --cursor.foreground 0 --cursor.background 6 \
       --padding "0 0 0 $indent" -- "${padded[@]}") \
       && { MENU_CHOICE=${MENU_CHOICE%%+( )}; cursor off; return 0; }
@@ -167,13 +170,14 @@ menu() {
 # others in the empty bar's), with the selected one's DESCRIPTION under
 # them, redrawn as the selection moves; gum can't change text under its
 # buttons. ←→ (or Tab, h, l) move, Enter picks. Starts on the DEFAULT'th
-# (from 0); the picked one's index goes in PICKED.
+# (from 0); the picked one's index goes in PICKED. An empty "Title": under
+# what's on screen, rather than on a screen of their own.
 buttons() {
   local title=$1 selected=$2; shift 2
   local -a labels=() descriptions=()
   while (( $# )); do labels+=("$1"); descriptions+=("$2"); shift 2; done
   local total=${#labels[@]} key seq i row width line
-  header "$title"
+  [[ -z $title ]] || header "$title"
   printf '\e7'   # everything below is redrawn from here
   while :; do
     printf '\e8\e[J'
@@ -186,7 +190,7 @@ buttons() {
     done
     center "$row" "$width"
     echo
-    wrap "${descriptions[selected]}" $(( LAYOUT_WIDTH - 8 ))
+    balanced_wrap "${descriptions[selected]}" $(( LAYOUT_WIDTH - 8 ))
     for line in "${WRAPPED[@]}"; do center "${C_WHITE}${line}${C_RESET}" "${#line}"; done
     echo
     center "${C_GREY}←→ choose · Enter select${C_RESET}" 24

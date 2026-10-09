@@ -192,6 +192,14 @@ message() {
   wrap "$3" $((LAYOUT_WIDTH - TAG_COLS))
   for i in "${!WRAPPED[@]}"; do
     if (( i )); then printf '\n%s%*s' "$MARGIN" "$TAG_COLS" ''; else printf '%s%s ' "$MARGIN" "$tag"; fi
+# centred_block LINE... — the lines as a block, left-aligned among
+# themselves (labels and values in columns), the block centred.
+centred_block() {
+  local LC_ALL=C.UTF-8 line width=0
+  for line; do (( ${#line} > width )) && width=${#line}; done
+  for line; do printf '%s%*s%s%s%s\n' "$MARGIN" $(( (LAYOUT_WIDTH - width) / 2 )) '' "$C_WHITE" "$line" "$C_RESET"; done
+}
+
     printf '%s%s%s' "$colour" "${WRAPPED[i]}" "$C_RESET"
   done
   printf '%s' "$end"

@@ -29,16 +29,16 @@ phase_install() {
   PROGRESS_TOTAL=$(( $(step_weights "$SETUP_DIR/phases/install.sh") + $(step_weights "$SETUP_DIR/phases/desktop.sh")
                      + $(aur_weight "$ISO_PACKAGES") ))
 
-  # The questions, until they end in YES: nothing is touched before. There's
-  # no way out of them but answering, or turning the computer off: leaving
-  # would end the USB's start-up and leave the screen black.
-  # Picked on the USB's Wi-Fi screen already, the layout isn't asked again,
-  # except on starting over (by then, with the local layout first).
-  local keyboard_picked=0
-  read_keyboard_choice && keyboard_picked=1
+  # The questions, until they end in a yes: nothing is touched before.
+  # There's no way out of them but answering, or turning the device off:
+  # leaving would end the USB's start-up and leave the screen black. The
+  # keyboard first, unless the USB's Wi-Fi screen asked already; going back
+  # from the review starts again at the keyboard, on the layout picked.
+  local back=0
+  read_keyboard_choice || choose_keyboard
   while :; do
-    (( keyboard_picked )) || choose_keyboard
-    keyboard_picked=0
+    (( ! back )) || choose_keyboard
+    back=1
     header "Set up your account"
     input HOST_NAME "Hostname" valid_hostname
     input USER_NAME "Username" valid_username
@@ -48,16 +48,15 @@ phase_install() {
     select_drive
 
     header "Review & confirm"
-    printf "$MARGIN %s\n" "Hostname:  $HOST_NAME" "Username:  $USER_NAME" "Drive:     $DRIVE_LABEL" \
+    centred_block "Hostname:  $HOST_NAME" "Username:  $USER_NAME" "Drive:     $DRIVE_LABEL" \
       "Timezone:  $TIMEZONE" "Keyboard:  $KEYBOARD_LABEL"
     echo
     warn "Everything on $DRIVE_LABEL will be erased. This can't be undone."
-    ask "Type YES to continue >"; cursor on; read -r ack; cursor off
-    [[ $ack == YES ]] && break
-    buttons "Nothing has been changed" 0 \
-      "Start over" "Answer the questions again." \
-      "Turn off" "Switch the device off. Nothing on it has been touched."
-    (( PICKED == 0 )) || { clear; systemctl poweroff; sleep infinity; }   # until it's off
+    # Going back is the one picked to start with: the other erases the drive.
+    buttons '' 0 \
+      "Go back" "Change your answers, starting with the keyboard. Nothing has been touched." \
+      "Yes, install" "Erase $DRIVE_LABEL and install ARCHMAN on it."
+    (( PICKED == 1 )) && break
   done
   # Bash's own clock; it keeps running through arch-chroot and the desktop
   # phase.
