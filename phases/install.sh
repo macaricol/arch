@@ -94,9 +94,11 @@ phase_install() {
   # are in RAM, so nothing needs a shutdown: --force twice reboots at once,
   # without stopping services ("Stopped ..." screens) or waiting on
   # processes (iwd ignores SIGTERM, which held a single --force for 90 s).
-  # dmesg -n 1 keeps any last kernel message off the screen, and systemctl's
-  # own "Rebooting." goes nowhere.
-  dmesg -n 1 2>/dev/null || true
+  # No kernel message on the screen after it, not even the reboot's own
+  # "reboot: Restarting system", an emergency one that dmesg -n 1 (its
+  # lowest) still lets through: the console's level at 0, so none at all.
+  # systemctl's own "Rebooting." goes nowhere.
+  echo 0 > /proc/sys/kernel/printk 2>/dev/null || dmesg -n 1 2>/dev/null || true
   systemctl reboot --force --force &>/dev/null || echo b > /proc/sysrq-trigger
 }
 
