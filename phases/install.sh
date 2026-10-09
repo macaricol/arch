@@ -8,7 +8,7 @@ phase_install() {
   # The USB's splash is on screen (tools/archauto.sh): the big logo, and
   # under it "Checking if this device is ready..."; or, after its Wi-Fi
   # screen, that screen's "Connected" line. The USB has checked the
-  # network; it booted in UEFI mode, as root, and brought gum.
+  # network; it booted in UEFI mode, as root.
 
   # Where this machine is, while the splash is still up: its country, for
   # the mirrors, the keyboard and the date formats, and its timezone.

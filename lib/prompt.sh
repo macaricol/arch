@@ -2,22 +2,9 @@
 # Interactive prompts: validated text input, passwords, arrow-key menu,
 # buttons.
 #
-# The text fields and buttons are drawn here; the menu by gum
-# (https://github.com/charmbracelet/gum), which the USB carries
-# (tools/build-autoinstall-iso.sh), or a plain one should it not run there.
+# All drawn here, in the installer's look, with nothing but the terminal.
 
 shopt -s extglob  # for the +([[:space:]]) trim patterns below
-
-# gum copied from the build machine could, in principle, need a newer glibc
-# than the ISO's, and a gum that fails to start would make every prompt
-# loop; so it's only used once a test run succeeds.
-have_gum() {
-  [[ -t 0 ]] || return 1
-  [[ -n ${GUM_OK:-} ]] || { gum --version &>/dev/null && GUM_OK=1 || return 1; }
-}
-
-# gum exits 1 on Esc and 130 on Ctrl+C: Esc asks again, Ctrl+C quits.
-gum_cancelled() { (( $1 == 130 )) && die "Cancelled."; return 0; }
 
 valid_hostname() { [[ $1 =~ ^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$ ]]; }
 valid_username() { [[ $1 =~ ^[a-z_][a-z0-9_-]{0,31}$ ]]; }
@@ -46,8 +33,6 @@ FIELD_NOTE=''
 # Ctrl+U all of them; other keys' codes (arrows...) are ignored. Enter
 # stores the text in VAR and returns 0, Esc returns 1; either way the
 # field is cleared away, the cursor back where it started, for the next.
-# Its own, not gum's: gum's field has no box, and can't be shown while
-# typing a password.
 field() {
   local LC_ALL=C.UTF-8 __var=$1 __label=$2 __mode=${3:-plain} __hint=${4:-} __text=${5:-}   # ${#} in characters
   local __note=$FIELD_NOTE __shown=0 __wait=0 __status __key __rest __mask __view __inner __left
@@ -152,68 +137,84 @@ password() {
   printf -v "$__var" '%s' "$__p1"
 }
 
-# menu "Title" item... — arrow-key picker. Enter stores the chosen item in
-# MENU_CHOICE and returns 0; Esc or q returns 1. It starts on the first
-# item, or on MENU_START's when that's set (cleared once used).
+# menu "Title" item... — a list to pick from, under the title: centred as
+# a block, the current item a box across it (black on the tag colour, as
+# the selected button), at most MENU_ROWS items at a time, a page of them,
+# with a dot a page under them. ↑↓ move, PgUp PgDn a page, Home End to the
+# ends, a letter to the next item starting with it; Enter stores the chosen
+# item in MENU_CHOICE and returns 0, Esc returns 1. It starts on the first
+# item, or on MENU_START's when that's set (cleared once used). Only the
+# list is redrawn as the selection moves.
+MENU_ROWS=10
 menu() {
   local title=$1; shift
   local -a items=("$@")
-  local selected=0 total=${#items[@]} key seq i status start=${MENU_START:-}
+  local LC_ALL=C.UTF-8 selected=0 total=$# start=${MENU_START:-} i key rest letter   # ${#} in characters
   MENU_START=''
   for i in "${!items[@]}"; do [[ ${items[i]} != "$start" ]] || selected=$i; done
-  # Centred under the title, as a block: the longest item with a space each
-  # side, or gum's help line under them ("←↓↑→ navigate • enter submit")
-  # when that's wider. The current item is a box across the block, in the
-  # buttons' colours (black on the tag colour): every item padded to the
-  # block's width, less the space gum's cursor puts before it, and the
-  # padding taken off the answer.
-  local LC_ALL=C.UTF-8 width=28 indent item
+  # The block: the longest item with a space each side.
+  local width=0 item rows pages page first indent line dots
   for item in "${items[@]}"; do (( ${#item} + 2 > width )) && width=$(( ${#item} + 2 )); done
   indent=$(( ${#MARGIN} + (width < LAYOUT_WIDTH ? (LAYOUT_WIDTH - width) / 2 : 0) ))
-  local -a padded=()
-  for item in "${items[@]}"; do padded+=("$(printf '%-*s' $(( width - 1 )) "$item")"); done
-  if have_gum; then
-    header "$title"
-    # Colours are palette indexes, not hex: on the console they follow
-    # CONSOLE_PALETTE (backgrounds only 0-7 there, with the 512-glyph font).
-    MENU_CHOICE=$(gum choose --header '' --height $(( total < 10 ? total : 10 )) --selected "${padded[selected]}" \
-      --cursor ' ' --cursor.foreground 0 --cursor.background 6 \
-      --padding "0 0 0 $indent" -- "${padded[@]}") \
-      && { MENU_CHOICE=${MENU_CHOICE%%+( )}; cursor off; return 0; }
-    status=$?; cursor off; gum_cancelled "$status"; return 1
-  fi
+  rows=$(( total < MENU_ROWS ? total : MENU_ROWS ))
+  pages=$(( (total + rows - 1) / rows ))
+  header "$title"
+  printf '\e7'   # the list is redrawn from here
+  cursor off
   while :; do
-    header "$title"
-    for ((i = 0; i < total; i++)); do
-      if (( i == selected )); then
-        printf '%*s\e[30;46m %s%s\n' "$indent" '' "${padded[i]}" "$C_RESET"
-      else
-        printf '%*s %s\n' "$indent" '' "${items[i]}"
+    page=$(( selected / rows )) first=$(( selected / rows * rows ))
+    printf '%s\e8\e[J' "$C_RESET"
+    for (( i = first; i < first + rows; i++ )); do
+      if (( i >= total )); then echo                                   # a short last page: the same height
+      elif (( i == selected )); then printf '%*s\e[30;46m %-*s%s\n' "$indent" '' $(( width - 1 )) "${items[i]}" "$C_RESET"
+      else printf '%*s %s\n' "$indent" '' "${items[i]}"
       fi
     done
     echo
-    center "${C_GREY}↑↓ navigate · Enter select${C_RESET}" 26
+    if (( pages > 1 )); then
+      dots=''
+      for (( i = 0; i < pages; i++ )); do
+        if (( i == page )); then dots+="$C_WHITE•"; else dots+="$C_GREY•"; fi
+      done
+      center "$dots$C_RESET" "$pages"
+      echo
+    fi
+    center "${C_GREY}↑↓ choose · Enter select${C_RESET}" 24
     # A failed read means stdin is gone (EOF); looping would spin forever.
     IFS= read -rsn1 key || die "Input closed"
     case $key in
-      '')   MENU_CHOICE=${items[selected]}; return 0 ;;
-      q|Q)  return 1 ;;
+      ''|$'\r') MENU_CHOICE=${items[selected]}; return 0 ;;
       $'\e')
-        # Arrow keys arrive as ESC [ A/B; a lone ESC (nothing within 0.1s) is cancel.
-        read -rsn2 -t 0.1 seq || return 1
-        case $seq in
-          '[A') selected=$(( (selected - 1 + total) % total )) ;;
-          '[B') selected=$(( (selected + 1) % total )) ;;
+        # Esc alone goes back; otherwise a key's code (arrows: Esc [ A),
+        # read to its end (a letter or ~).
+        rest=''; read -rsn1 -t 0.05 rest || true
+        [[ -n $rest ]] || return 1
+        while [[ $rest != *[A-Za-z~] ]] && read -rsn1 -t 0.05 key; do rest+=$key; done
+        case $rest in
+          '[A'|OA) (( selected > 0 )) && selected=$(( selected - 1 )) ;;
+          '[B'|OB) (( selected < total - 1 )) && selected=$(( selected + 1 )) ;;
+          '[5~')   selected=$(( selected > rows ? selected - rows : 0 )) ;;
+          '[6~')   selected=$(( selected + rows < total ? selected + rows : total - 1 )) ;;
+          '[H'|OH|'[1~') selected=0 ;;
+          '[F'|OF|'[4~') selected=$(( total - 1 )) ;;
         esac ;;
+      [[:alnum:]])
+        # The next item starting with that letter (any case), after this one.
+        letter=${key,,}
+        for (( i = 1; i <= total; i++ )); do
+          item=${items[(selected + i) % total]}
+          if [[ ${item,,} == "$letter"* ]]; then
+            selected=$(( (selected + i) % total )); break
+          fi
+        done ;;
     esac
   done
 }
 
 # buttons "Title" DEFAULT LABEL DESCRIPTION [LABEL DESCRIPTION...] — a row
-# of buttons, like gum confirm's (the selected one in the tag colour, the
-# others in the empty bar's), with the selected one's DESCRIPTION under
-# them, redrawn as the selection moves; gum can't change text under its
-# buttons. ←→ (or Tab, h, l) move, Enter picks. Starts on the DEFAULT'th
+# of buttons (the selected one in the tag colour, the others in the empty
+# bar's), with the selected one's DESCRIPTION under them, redrawn as the
+# selection moves. ←→ (or Tab, h, l) move, Enter picks. Starts on the DEFAULT'th
 # (from 0); the picked one's index goes in PICKED. An empty "Title": under
 # what's on screen, rather than on a screen of their own.
 buttons() {

@@ -16,7 +16,7 @@ The ARCHMAN USB is the only way to install. On an Arch machine, build it
 from the official Arch ISO (fetched for you), write it to a stick and boot
 the computer from it:
 
-    sudo pacman -S --needed libisoburn squashfs-tools devtools git curl gum
+    sudo pacman -S --needed libisoburn squashfs-tools devtools git curl
     sudo tools/build-autoinstall-iso.sh
     sudo dd if=archlinux-autoinstall.iso of=/dev/sdX bs=4M status=progress oflag=sync
 
@@ -59,9 +59,9 @@ ARCHMAN USB. It has no boot menu (on UEFI): it boots
 straight in, quietly — no kernel or systemd messages and no login text —
 and shows the ARCHMAN logo across two thirds of the screen
 (`tools/fb-logo.py`, drawn on the framebuffer), with "Checking if this
-computer is ready..." under it 2 seconds in. The logo stays up while the
-network comes up and through the installer's own checks (UEFI, internet,
-fetching gum), which draw nothing over it, for at least 4 seconds in all;
+device is ready..." under it 2 seconds in. The logo stays up while the
+network comes up and through the installer's own checks (UEFI, internet),
+which draw nothing over it, for at least 4 seconds in all;
 the first thing after it is the account screen.
 
 With no cable plugged in, on a machine with Wi-Fi, it asks for the keyboard
@@ -74,7 +74,7 @@ so in plain words, what to do about it, and restarts on Enter: no shell or
 commands on screen. (To dig in: Alt+F2 for another console, root, no
 password.)
 
-    sudo pacman -S --needed libisoburn squashfs-tools devtools git curl gum
+    sudo pacman -S --needed libisoburn squashfs-tools devtools git curl
     sudo tools/build-autoinstall-iso.sh
 
 The AUR packages that compile from source (`AUR_PACKAGES` without the
@@ -259,7 +259,7 @@ Things that look odd but are deliberate:
 - **The Wi-Fi screen runs from the USB, not from GitHub**: without a
   network the installer can't be downloaded, so the USB carries a copy of
   what the screen needs (`setup.sh`, `config.sh`, `lib/`,
-  `phases/wifi.sh`, the logo and fonts) and gum. The networks come from
+  `phases/wifi.sh`, the logo and fonts). The networks come from
   iwd over D-Bus (`busctl`, read with python3), which gives each one's
   name, kind and signal as data rather than `iwctl`'s coloured table;
   connecting goes through `iwctl`, with the password passed in a variable,
@@ -360,11 +360,10 @@ Things that look odd but are deliberate:
   add themselves up (`step_weights`). Each step's real duration goes into
   the log next to its weight, and a split step's shares too, for tuning:
   `grep '\[time\]' setup.log`.
-- **Prompts use [gum](https://github.com/charmbracelet/gum), which the USB
-  carries** (copied from the machine that builds it; it needs only glibc).
-  It's used once `gum --version` succeeds; should it not start, the plain
-  prompts in `lib/prompt.sh` take over. Esc asks again, Ctrl+C aborts.
-  Typing `YES` to erase the drive stays plain typed text on purpose.
+- **The prompts are the installer's own** (`lib/prompt.sh`): lists, text
+  fields and buttons, drawn with nothing but the terminal, in its look.
+  Erasing the drive takes a "Yes, install" on the review screen, with "Go
+  back" picked to start with.
 - **Boot is quiet, behind a Plymouth splash.** The chroot phase adds the
   `plymouth` hook right after `systemd`/`udev`, `quiet splash` to the kernel
   options, and its own `archman` theme (`assets/plymouth`): Arch's logo

@@ -91,7 +91,6 @@ declare -A DEPENDENCIES=(
   [mkarchroot]=devtools               # (not with --build-user: makepkg instead)
   [git]=git                           # fetches their build recipes
   [curl]=curl                         # downloads the official ISO
-  [gum]=gum                           # the USB's Wi-Fi screen (and the installer's prompts)
 )
 if [[ -n $BUILD_USER ]]; then unset 'DEPENDENCIES[makechrootpkg]' 'DEPENDENCIES[mkarchroot]'; fi
 missing_commands=() missing_packages=()
@@ -312,15 +311,13 @@ install -Dm644 -t "$work/airootfs/usr/local/share/archauto" "$repo_dir"/assets/c
   "$repo_dir"/assets/logo/logo-hd.{txt,colors} "$repo_dir"/tools/fb-logo.py
 # The Wi-Fi screen (phases/wifi.sh) has to work before the installer can be
 # downloaded: so the USB carries what it needs of this installer, its
-# screens and prompts, and gum, which draws them (the installer then finds
-# gum there too). gum is linked against glibc only, any recent one.
+# screens and prompts.
 installer="$work/airootfs/usr/local/share/archauto/installer"
 install -Dm644 -t "$installer" "$repo_dir"/{setup.sh,config.sh}
 install -Dm644 -t "$installer/lib" "$repo_dir"/lib/*.sh
 install -Dm644 -t "$installer/phases" "$repo_dir"/phases/wifi.sh
 install -Dm644 -t "$installer/assets/logo" "$repo_dir"/assets/logo/*.{txt,colors}
 install -Dm644 -t "$installer/assets/consolefonts" "$repo_dir"/assets/consolefonts/*.psfu.gz
-install -Dm755 "$(command -v gum)" "$work/airootfs/usr/local/bin/gum"
 # Its settings, baked in at build time: config.sh's values and the logo as
 # lib/ui.sh draws it on the console (coloured lines).
 {

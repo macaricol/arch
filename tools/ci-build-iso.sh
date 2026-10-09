@@ -16,7 +16,7 @@ output=${1:?usage: tools/ci-build-iso.sh OUTPUT.iso}
 
 pacman-key --init
 pacman-key --populate archlinux
-pacman -Syu --noconfirm --needed base-devel sudo git curl libisoburn squashfs-tools gum python
+pacman -Syu --noconfirm --needed base-devel sudo git curl libisoburn squashfs-tools python
 
 useradd --create-home builder
 printf 'builder ALL=(ALL) NOPASSWD: /usr/bin/pacman\n' > /etc/sudoers.d/builder
