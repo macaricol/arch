@@ -114,12 +114,15 @@ field() {
 }
 
 # input VAR "Label" [validator] [--secret] — a field (see field) until a
-# non-empty answer passes the validator, then it's in VAR. Esc asks again.
+# non-empty answer passes the validator, then it's in VAR. It starts with
+# VAR's value, the answer given before (asked again after going back from
+# the review), so Enter keeps it; a rejected answer comes back to fix. Esc
+# asks again.
 input() {
-  local __var=$1 __label=$2 __validator=${3:-} __mode=plain __val
+  local __var=$1 __label=$2 __validator=${3:-} __mode=plain __val=${!1:-}
   [[ ${4:-} == --secret ]] && __mode=secret
   while :; do
-    field __val "$__label" "$__mode" || continue
+    field __val "$__label" "$__mode" '' "$__val" || continue
     __val=${__val##+([[:space:]])}; __val=${__val%%+([[:space:]])}
     [[ -n $__val ]] || { FIELD_NOTE="Cannot be empty"; continue; }
     if [[ -n $__validator ]] && ! "$__validator" "$__val"; then FIELD_NOTE=$(invalid_hint "$__validator"); continue; fi
@@ -134,14 +137,17 @@ mask_char() {
   if on_console && [[ ${PATCHED_FONT:-0} == 1 ]]; then printf '%s' "$DOT"; else printf '•'; fi
 }
 
-# password VAR "Label" — asked twice; both entries must match.
+# password VAR "Label" — asked twice; both entries must match. Both start
+# with VAR's password, the one given before, so Enter twice keeps it; after
+# a mismatch, both empty.
 password() {
-  local __var=$1 __label=$2 __p1 __p2
+  local __var=$1 __label=$2 __p1=${!1:-} __p2=${!1:-}
   while :; do
     input __p1 "$__label" '' --secret
     input __p2 "Confirm password" '' --secret
     [[ $__p1 == "$__p2" ]] && break
     FIELD_NOTE="Passwords do not match, type them again"
+    __p1='' __p2=''
   done
   printf -v "$__var" '%s' "$__p1"
 }

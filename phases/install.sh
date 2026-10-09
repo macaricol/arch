@@ -173,7 +173,8 @@ select_drive() {
   # A drive, then a second look at it: the list is easy to slip on. Esc
   # shows the list again; there's no cancelling (see phase_install).
   while :; do
-    until menu "Select the installation drive" "${labels[@]}"; do :; done
+    # Asked again (going back from the review), on the drive picked before.
+    until MENU_START=${DRIVE_LABEL:-} menu "Select the installation drive" "${labels[@]}"; do :; done
     for i in "${!labels[@]}"; do
       if [[ ${labels[i]} == "$MENU_CHOICE" ]]; then DRIVE=${paths[i]} DRIVE_LABEL=${labels[i]}; fi
     done
