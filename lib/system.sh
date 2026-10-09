@@ -6,11 +6,19 @@ as_root() { if (( EUID == 0 )); then "$@"; else sudo "$@"; fi; }
 
 # retry DELAY COMMAND... — runs COMMAND up to 3 times, DELAY seconds apart.
 # For downloads: a dropped connection shouldn't lose a run that's minutes in.
+# On a step's screen each try's warning takes the last one's place (nothing
+# else is printed between them there: run keeps a command's output off it),
+# so only the latest shows; elsewhere they follow each other.
 retry() {
-  local delay=$1 attempt; shift
+  local delay=$1 attempt lines=0; shift
   for attempt in 1 2 3; do
     "$@" && return 0
-    (( attempt < 3 )) && { warn "Download hiccup, trying again ($((attempt + 1)) of 3)..."; sleep "$delay"; }
+    if (( attempt < 3 )); then
+      (( FACTS_ON && lines )) && printf '\e[%dA\e[J' "$lines" >&2
+      warn "Download hiccup, trying again ($((attempt + 1)) of 3)..."
+      lines=$(( ${#WRAPPED[@]} + 1 ))   # its lines (centred_message's), and the blank after
+      sleep "$delay"
+    fi
   done
   return 1
 }
