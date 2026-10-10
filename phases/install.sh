@@ -90,8 +90,11 @@ phase_install() {
 
   finish "All done!"
   info "ARCHMAN installed in $(plural $(( took / 60 )) minute) and $(plural $(( took % 60 )) second)"
+  local usb=''
+  usb=$(live_usb_disk) || true
+  restart_hint "$usb"
   show_tux
-  wait_for_usb_removal
+  wait_for_usb_removal "$usb"
   info "Restarting..."
   sync
   # The new system is unmounted and synced, and the live ISO's own files
@@ -116,16 +119,17 @@ choose_look() {
 }
 
 # Tux on his splat (lib/ui.sh's tux_lines) and his line, on the last
-# screen: a Linux system now, with its penguin. Left out on a screen too
-# short for him and what's left to show under him (his line, the restart
-# one, the goodbye), which would scroll the logo away.
+# screen, under the time it took and the restart line: a Linux system now,
+# with its penguin. Left out on a screen too short for him and what's left
+# to show under him (his line, the goodbye), which would scroll the logo
+# away.
 show_tux() {
   tux_lines
   (( TUX_WIDTH )) || return 0
   # From the row after the time line (the header's title and blanks under
-  # the bar, then that line and its blank): Tux, a blank, his line, a
-  # blank, the restart line and its blank, the goodbye (whose own blank,
-  # with the restart a moment away, may scroll). 1920x1080's 49 rows fit.
+  # the bar, then that line and its blank): the restart line and its blank,
+  # Tux, a blank, his line, a blank, the goodbye (whose own blank, with the
+  # restart a moment away, may scroll). 1920x1080's 49 rows fit.
   (( BAR_ROW > 0 && BAR_ROW + TITLE_ROW_OFFSET + 5 + ${#TUX_LINES[@]} + 6 <= ROWS )) || return 0
   local line
   for line in "${TUX_LINES[@]}"; do center "$line" "$TUX_WIDTH"; done
@@ -158,19 +162,17 @@ unmount_new_system() {
 }
 
 # Left plugged in, the USB can win the boot order and start the installer
-# all over again. Reboots once the stick is pulled out, or on Enter (for
-# ISOs booted from a VM's virtual CD, or with copytoram, where there is no
-# USB to watch).
+# all over again. So the restart waits for the stick (USB, live_usb_disk's)
+# to be pulled out, or for Enter: for ISOs booted from a VM's virtual CD, or
+# with copytoram, where there's no USB to watch (USB empty), only Enter.
+# restart_hint USB says which; wait_for_usb_removal USB waits. Not a typing
+# prompt: a plain message, and no cursor while it waits (the key pressed
+# isn't echoed).
+restart_hint() {
+  if [[ -n $1 ]]; then info "Unplug the USB stick to restart."; else info "Press Enter to restart."; fi
+}
 wait_for_usb_removal() {
-  local usb='' key
-  usb=$(live_usb_disk) || true
-  # Not a typing prompt: a plain message, and no cursor while it waits
-  # (the key pressed isn't echoed).
-  if [[ -n $usb ]]; then
-    info "Unplug the USB stick to restart."
-  else
-    info "Press Enter to restart."
-  fi
+  local usb=$1 key
   cursor off
   while :; do
     [[ -n $usb && ! -b $usb ]] && { info "See you on the other side!"; return; }
