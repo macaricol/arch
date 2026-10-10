@@ -147,9 +147,9 @@ wait_for_usb_removal() {
   # Not a typing prompt: a plain message, and no cursor while it waits
   # (the key pressed isn't echoed).
   if [[ -n $usb ]]; then
-    info "Unplug the USB stick and your device will restart into your new system."
+    info "Unplug the USB stick to restart."
   else
-    info "Remove the USB stick, then press Enter to restart."
+    info "Press Enter to restart."
   fi
   cursor off
   while :; do
