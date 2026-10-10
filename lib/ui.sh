@@ -310,44 +310,46 @@ logo_lines() {
 }
 
 # tux_lines — Tux on his splat (assets/tux, tools/make-tux.py) as printable
-# lines in TUX_LINES, its width in TUX_WIDTH. Its .colors file gives each
+# lines in TUX_LINES, its width in TUX_WIDTH: tux-hd, at the logo's
+# resolution, when the patched font with its cells is loaded (as
+# logo_file), else tux, in half blocks. Its .colors file gives each
 # cell two characters, its character's palette slot and its background's
 # (hex), "." for none: on the console those slots, elsewhere their colours
-# as 24-bit RGB, as logo_lines does.
+# as 24-bit RGB, as logo_lines does. Each slot's code worked out once, not
+# a cell at a time: there are a few thousand cells.
 tux_lines() {
   local LC_ALL=C.UTF-8 file=$SETUP_DIR/assets/tux/tux.txt   # ${#} and ${:i:1} count characters
+  if on_console && [[ ${PATCHED_FONT:-0} == 1 && -f $SETUP_DIR/assets/tux/tux-hd.txt ]]; then
+    file=$SETUP_DIR/assets/tux/tux-hd.txt
+  fi
   TUX_LINES=() TUX_WIDTH=0
   [[ -r $file && -r ${file%.txt}.colors ]] || return 0
+  local -A fg=([.]=39) bg=([.]=49)
+  local slot digit hex
+  for slot in {0..15}; do
+    printf -v digit '%x' "$slot"
+    if on_console; then
+      fg[$digit]=$(( slot < 8 ? 30 + slot : 82 + slot )) bg[$digit]=$(( 40 + slot ))
+    else
+      hex=${CONSOLE_PALETTE[slot]}
+      hex="$((16#${hex:0:2}));$((16#${hex:2:2}));$((16#${hex:4:2}))"
+      fg[$digit]="38;2;$hex" bg[$digit]="48;2;$hex"
+    fi
+  done
   local -a lines attrs
   mapfile -t lines < "$file"
   mapfile -t attrs < "${file%.txt}.colors"
-  local row col f b sgr prev out
+  local row col sgr prev out
   for row in "${!lines[@]}"; do
     out='' prev=''
     (( ${#lines[row]} > TUX_WIDTH )) && TUX_WIDTH=${#lines[row]}
     for (( col = 0; col < ${#lines[row]}; col++ )); do
-      f=${attrs[row]:col*2:1} b=${attrs[row]:col*2+1:1}
-      sgr="0;$(palette_sgr "$f" 38);$(palette_sgr "$b" 48)"
+      sgr="0;${fg[${attrs[row]:col*2:1}]};${bg[${attrs[row]:col*2+1:1}]}"
       [[ $sgr != "$prev" ]] && out+=$'\e['"${sgr}m" prev=$sgr
       out+=${lines[row]:col:1}
     done
     TUX_LINES+=("$out$C_RESET")
   done
-}
-
-# palette_sgr SLOT 38|48 — the SGR code for palette SLOT (a hex digit, or
-# "." for none) as a foreground (38) or background (48): the slot itself on
-# the console, its CONSOLE_PALETTE colour as RGB elsewhere.
-palette_sgr() {
-  local slot=$1 kind=$2 hex
-  if [[ $slot == . ]]; then (( kind == 38 )) && echo 39 || echo 49; return; fi
-  slot=$(( 16#$slot ))
-  if on_console; then
-    if (( kind == 38 )); then echo $(( slot < 8 ? 30 + slot : 82 + slot )); else echo $(( 40 + slot )); fi
-  else
-    hex=${CONSOLE_PALETTE[slot]}
-    echo "$kind;2;$((16#${hex:0:2}));$((16#${hex:2:2}));$((16#${hex:4:2}))"
-  fi
 }
 
 # The logo, then TAGLINE (config.sh) underneath.

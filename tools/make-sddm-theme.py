@@ -96,6 +96,10 @@ def main():
     banner = [blank] * margin + [[palette[0]] * margin + [p or palette[0] for p in row] + [palette[0]] * margin
                                 for row in logo_pixels] + [blank] * margin
     png(ROOT / "assets" / "logo" / "banner.png", banner)
+    # The padlock's tiles, drawn for this font (the console fonts don't carry
+    # them: their spare glyphs go to what the installer shows).
+    font["glyphs"] += fonts.draw_lock(font)
+    font["table"] += [c.encode() for c in fonts.LOCK]
     lock = ["".join(fonts.LOCK[r * fonts.LOCK_COLS:(r + 1) * fonts.LOCK_COLS]) for r in range(fonts.LOCK_ROWS)]
     png(OUT / "lock.png", render(font, lock, rgb=accent))
     # The password dots from the 12x22 font: its dot is 7 px across to the

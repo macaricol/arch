@@ -2,18 +2,17 @@
 """Builds assets/consolefonts/: the three console fonts lib/ui.sh picks
 from, each with two glyphs redrawn as Pac-Man.
 
-  ᗧ (U+15E7)  Pac-Man, mouth open to the right: the message tag
-  ⬤ (U+2B24)  Pac-Man, mouth closed: the same circle, for the spinner's chomp
-  U+E000–U+E00E  a padlock in 15 tiles, 5 columns by 3 rows, for the login
-                 screen's (tools/make-sddm-theme.py renders it from these)
-  U+E010         a round bullet, for that screen's password box (the
-                 fonts' own • ranges from a square to a diamond)
+  ᗧ (U+15E7)  Pac-Man, mouth open to the right: the spinner's
+  ⬤ (U+2B24)  Pac-Man, mouth closed: the same circle, for its chomp
+  U+E010         a round bullet, for typed passwords (the fonts' own •
+                 ranges from a square to a diamond), and the login screen's
   ▂ (U+2582)     the lower quarter of a cell, and U+E011 the upper one (the
                  console maps no characters beyond U+FFFF, which the
                  standard upper quarter is): the installer's text box, a
                  quarter row taller above and below its text (lib/prompt.sh's
                  field)
-  U+E100 + n     the cells of assets/logo/logo-hd.txt (tools/make-logo.py): each a 2 x 4
+  U+E100 + n     the cells of assets/logo/logo-hd.txt (tools/make-logo.py)
+                 and assets/tux/tux-hd.txt (tools/make-tux.py): each a 2 x 4
                  grid of blocks, bit n set for each one filled
   ▏▎▍▌▋▊▉        left eighths of a cell, for the progress bar's leading edge
                  (lib/ui.sh's draw_progress); the fonts that already have
@@ -24,10 +23,11 @@ any of them, so they take over the slots of glyphs the installer never
 prints (old DOS and box-drawing symbols like ☺ ♀ ╬, or Hebrew and Arabic
 letters in the 512-glyph font).
 The two Pac-Men are as tall as the font's capital O and centred on it, so
-they sit in a line of text like a letter. The padlock is the shape of
-Omarchy's (default/plymouth/lock.png in basecamp/omarchy), redrawn from its
-measurements; like there, it's 80% as tall as the 3-row password box beside
-it and centred on it.
+they sit in a line of text like a letter. The login screen's padlock is
+drawn here too (draw_lock), but for tools/make-sddm-theme.py, not kept in
+the fonts: it's the shape of Omarchy's (default/plymouth/lock.png in
+basecamp/omarchy), redrawn from its measurements; like there, it's 80% as
+tall as the 3-row password box beside it and centred on it.
 
 Run it again only to change the drawing; the output is committed:
   tools/make-console-fonts.py
@@ -48,8 +48,9 @@ DOT = "\ue010"
 LOWER_QUARTER, UPPER_QUARTER = "\u2582", "\ue011"
 EIGHTHS = "▏▎▍▌▋▊▉"   # 1/8 to 7/8 of a cell, filled from the left
 MOUTH_DEGREES = 38   # half the opening, measured from the horizontal
+# The drawings whose cells are glyphs here.
+ART = [pathlib.Path(__file__).resolve().parent.parent / "assets" / p for p in ("logo/logo-hd.txt", "tux/tux-hd.txt")]
 # Slots to give up, in order of preference.
-LOGO = pathlib.Path(__file__).resolve().parent.parent / "assets" / "logo" / "logo-hd.txt"
 # (Not •, ·, ↑, ↓ or the single-line box drawing: the installer prints those.)
 SPARE = (list("☺☻♀♂♪♫☼♥♦♣♠◘○◙►◄↕‼▬↨∟↔▲▼⌂")
          + list("╔╗╚╝═║╠╣╦╩╬╒╓╕╖╘╙╛╜╞╟╡╢╤╥╧╨╪╫")
@@ -223,12 +224,12 @@ def main():
         font = load(SOURCE / f"{name}.psfu.gz")
         spare = [i for c in SPARE for i, t in enumerate(font["table"]) if chars_of(t) == c]
         glyphs = [(PACMAN, draw(font, MOUTH_DEGREES)), (CLOSED, draw(font, 0))]
-        glyphs += list(zip(LOCK, draw_lock(font))) + [(DOT, draw_dot(font))]
+        glyphs += [(DOT, draw_dot(font))]
         # The quarters on the same boundaries as the logo's cells (draw_cell).
         h = font["height"]
         glyphs += [(UPPER_QUARTER, draw_rows(font, 0, round(h / 4))),
                    (LOWER_QUARTER, draw_rows(font, round(h * 3 / 4), h))]
-        cells = sorted({c for c in LOGO.read_text() if ord(c) >= 0xE100})
+        cells = sorted({c for art in ART for c in art.read_text() if ord(c) >= 0xE100})
         glyphs += [(c, draw_cell(font, ord(c) - 0xE100)) for c in cells]
         have = set("".join(chars_of(t) for t in font["table"]))
         glyphs += [(c, draw_eighth(font, k)) for k, c in enumerate(EIGHTHS, 1) if c not in have]
