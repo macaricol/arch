@@ -44,15 +44,15 @@ prebuilt_package() {
 
 # aur_weight DIR [PACKAGE] — roughly the seconds installing PACKAGE (or all
 # of AUR_PACKAGES) takes, for the progress bar, given the prebuilt packages
-# in DIR: a -bin package downloads (15), a prebuilt one installs (3), one
-# built from source compiles (165; qview on a VM's single core).
+# in DIR: a prebuilt one installs (3), else a -bin one downloads (15) and
+# one built from source compiles (165; qview on a VM's single core).
 aur_weight() {
   local pkg weight=0
   local -a packages=("${AUR_PACKAGES[@]}")
   [[ -z ${2:-} ]] || packages=("$2")
   for pkg in "${packages[@]}"; do
-    if [[ $pkg == *-bin ]]; then weight=$(( weight + 15 ))
-    elif prebuilt_package "$1" "$pkg" > /dev/null; then weight=$(( weight + 3 ))
+    if prebuilt_package "$1" "$pkg" > /dev/null; then weight=$(( weight + 3 ))
+    elif [[ $pkg == *-bin ]]; then weight=$(( weight + 15 ))
     else weight=$(( weight + 165 ))
     fi
   done

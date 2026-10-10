@@ -86,6 +86,10 @@ GAMING_PACKAGES=(steam)  # only installed when a supported GPU was detected, see
 # skwd-wall, the wallpaper picker, comes as four, each needing the ones
 # before it (makepkg only fetches dependencies from the official repos).
 AUR_PACKAGES=(paru zen-browser-bin qview skwd-paper-bin skwd-deck-bin skwd-wall-v2-bin skwd-paper-plasma)
+# The -bin ones the USB carries prebuilt too (tools/build-autoinstall-iso.sh;
+# a -bin package is only a download, otherwise left to installs): skwd-wall's,
+# a beta, kept from GitHub and the AUR at install time.
+AUR_PREBUILT_BIN=(skwd-paper-bin skwd-deck-bin skwd-wall-v2-bin)
 
 # The lib32-* packages are what Steam needs. Installing the right ones up
 # front matters: steam depends on virtual lib32-vulkan-driver / lib32-libgl,

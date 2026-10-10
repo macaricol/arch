@@ -329,21 +329,34 @@ install -Dm644 -t "$installer/assets/consolefonts" "$repo_dir"/assets/consolefon
 } > "$work/airootfs/usr/local/share/archauto/archauto.conf"
 install -Dm755 "$repo_dir/tools/archauto.sh" "$work/airootfs/usr/local/bin/archauto"
 
-# The AUR packages that compile from source (all but -bin), built here and
-# put in the live system for the installer (lib/system.sh's aur_install).
-# Built as a regular user (makepkg won't build as root): SUDO_USER, in a
-# clean chroot (devtools' makechrootpkg), kept between runs and updated each
-# time; or, with --build-user, that user with plain makepkg, on this system,
+# The AUR packages carried prebuilt, built here and put in the live system
+# for the installer (lib/system.sh's aur_install): those that compile from
+# source (all but -bin), and the -bin ones in AUR_PREBUILT_BIN (a -bin one
+# is only a download, otherwise left to installs). Built as a regular user
+# (makepkg won't build as root): SUDO_USER, in a clean chroot (devtools'
+# makechrootpkg), kept between runs and updated each time; or, with
+# --build-user, that user with plain makepkg, on this system,
 # which is then the clean one (a fresh container: makechrootpkg runs its own
 # container, which doesn't work inside Docker). A build that fails is
 # skipped; installs then build it themselves.
+#
+# By recipe, as the AUR has them: one can make several packages (skwd-wall's
+# all come from skwd-suite-bin), so each recipe is built once, and of what it
+# makes, the packages asked for are kept. A recipe that needs a package
+# built before it (skwd-paper-plasma needs skwd-paper, from that suite) gets
+# it in its build first, as the official repos can't provide it. A -bin
+# recipe is packaged without checking dependencies: it compiles nothing, and
+# the suite's packages not asked for (skwd-lens-bin) need AUR ones.
 AUR_CHROOT=/var/lib/archman-build
 prebuild_aur_packages() {
-  local dest=$1 user pkg dir
-  local -a from_source=()
-  for pkg in "${AUR_PACKAGES[@]}"; do [[ $pkg == *-bin ]] || from_source+=("$pkg"); done
-  (( ${#from_source[@]} )) || return 0
-  echo "==> Prebuilding AUR packages: ${from_source[*]}..."
+  local dest=$1 user pkg recipe needs stage dir file
+  local -a wanted=() deps=()
+  local -A built=()
+  for pkg in "${AUR_PACKAGES[@]}"; do
+    if [[ $pkg != *-bin ]] || [[ " ${AUR_PREBUILT_BIN[*]} " == *" $pkg "* ]]; then wanted+=("$pkg"); fi
+  done
+  (( ${#wanted[@]} )) || return 0
+  echo "==> Prebuilding AUR packages: ${wanted[*]}..."
   if [[ -n $BUILD_USER ]]; then
     user=$BUILD_USER
   else
@@ -359,25 +372,71 @@ prebuild_aur_packages() {
     fi
   fi
   mkdir -p "$dest"
-  for pkg in "${from_source[@]}"; do
-    dir=$(sudo -u "$user" mktemp -d)
-    sudo -u "$user" mkdir "$dir/out"
-    if sudo -u "$user" git clone -q --depth 1 "https://aur.archlinux.org/$pkg.git" "$dir/$pkg" \
-       && build_aur_package "$user" "$dir/$pkg" "$dir/out"; then
-      find "$dir/out" -name '*.pkg.tar.zst' ! -name '*-debug-*' -exec install -m644 -t "$dest" {} +
-      echo "    $pkg: $(cd "$dest" && ls "$pkg"-[0-9]*.pkg.tar.zst 2>/dev/null)"
+  # Every package built lands in stage/out, the next recipes' dependencies.
+  stage=$(sudo -u "$user" mktemp -d)
+  sudo -u "$user" mkdir "$stage/out"
+  while read -r pkg recipe needs; do
+    if [[ -z ${built[$recipe]:-} ]]; then
+      built[$recipe]=failed
+      dir=$stage/$recipe
+      # What it needs that a recipe before it made (by name, or provided).
+      deps=()
+      for file in "$stage/out"/*.pkg.tar.zst; do
+        [[ -f $file ]] || continue
+        if bsdtar -xOf "$file" .PKGINFO | sed -nE 's/^(pkgname|provides) = ([^<>=]*).*/\2/p' \
+             | grep -qxF -f <(tr ',' '\n' <<< "$needs"); then
+          deps+=("$file")
+        fi
+      done
+      if sudo -u "$user" git clone -q --depth 1 "https://aur.archlinux.org/$recipe.git" "$dir" \
+         && build_aur_package "$user" "$dir" "$stage/out" "$recipe" "${deps[@]}"; then
+        built[$recipe]=ok
+      fi
+    fi
+    file=''
+    if [[ ${built[$recipe]} == ok ]]; then
+      for file in "$stage/out/$pkg"-[0-9]*.pkg.tar.zst; do [[ -f $file && $file != *-debug-* ]] && break; file=''; done
+    fi
+    if [[ -n $file ]]; then
+      install -m644 -t "$dest" "$file"
+      echo "    $pkg: ${file##*/}"
     else
       echo "    $pkg: build failed, skipped; installs will compile it"
     fi
-    rm -rf "$dir"
-  done
+  done < <(aur_recipes "${wanted[@]}")
+  rm -rf "$stage"
 }
-# build_aur_package USER RECIPE_DIR OUT_DIR — one package, on every core.
+# aur_recipes PACKAGE... — for each, a line: the package, the AUR recipe it
+# comes from (the git repo to clone), and what that recipe depends on (its
+# depends and makedepends, without versions, comma-separated; - for none).
+aur_recipes() {
+  python3 - "$@" <<'PY'
+import json, re, sys, urllib.parse, urllib.request
+query = "&".join("arg[]=" + urllib.parse.quote(n) for n in sys.argv[1:])
+try:
+    with urllib.request.urlopen("https://aur.archlinux.org/rpc/v5/info?" + query, timeout=30) as reply:
+        info = {r["Name"]: r for r in json.load(reply)["results"]}
+except Exception:
+    info = {}
+for name in sys.argv[1:]:
+    r = info.get(name, {})
+    deps = [re.split(r"[<>=]", d)[0] for d in r.get("Depends", []) + r.get("MakeDepends", [])]
+    print(name, r.get("PackageBase", name), ",".join(deps) or "-")
+PY
+}
+# build_aur_package USER RECIPE_DIR OUT_DIR RECIPE [PACKAGE_FILE...] — one
+# recipe, on every core, with the package files given installed first (its
+# dependencies from the AUR); a -bin one without checking dependencies.
 build_aur_package() {
+  local user=$1 dir=$2 out=$3 recipe=$4 file; shift 4
+  local -a check=(--syncdeps) install=()
+  [[ $recipe == *-bin ]] && check=(--nodeps)
   if [[ -n $BUILD_USER ]]; then
-    run sudo -u "$1" env -C "$2" PKGDEST="$3" MAKEFLAGS="-j$(nproc)" makepkg --syncdeps --noconfirm
+    (( $# == 0 )) || run pacman -U --noconfirm --needed "$@"
+    run sudo -u "$user" env -C "$dir" PKGDEST="$out" MAKEFLAGS="-j$(nproc)" makepkg "${check[@]}" --noconfirm
   else
-    (cd "$2" && PKGDEST="$3" MAKEFLAGS="-j$(nproc)" run makechrootpkg -c -u -r "$AUR_CHROOT")
+    for file; do install+=(-I "$file"); done
+    (cd "$dir" && PKGDEST="$out" MAKEFLAGS="-j$(nproc)" run makechrootpkg -c -u -r "$AUR_CHROOT" "${install[@]}" -- "${check[@]}")
   fi
 }
 prebuild_aur_packages "$work/airootfs/usr/local/share/archauto/packages"
