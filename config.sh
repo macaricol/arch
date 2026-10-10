@@ -20,13 +20,14 @@ TAGLINE='ARCHMAN · KDE Plasma'
 # roles it has no colour for. How lib/ui.sh uses them:
 #   0 background · 2 the logo's extrusion · 3 Pac-Man (in the logo, the
 #   tags and the spinner) · 6 the logo's letters
-#   4 empty progress bar, unselected buttons · 8 hints
+#   4 empty progress bar, unselected buttons · 5 Tux's splat (the hints'
+#   blue-grey, in a slot the 512-glyph font keeps) · 7 the facts · 8 hints
 #   9 errors · 10 closing title · 11 warnings · 13 tagline
 #   14 progress · 15 text
 # Only applies on a real console (TERM=linux), not in a terminal emulator.
 CONSOLE_PALETTE=(
   # black  red    green  yellow blue   magenta cyan   white
-  01050E A80440 033574 FFC400 021742 A80440 F3065E 8E95A8
+  01050E A80440 033574 FFC400 021742 4A5A80 F3065E 8E95A8
   4A5A80 FF5A3C F3065E E0A040 033574 A80440 F3065E C9CEDB
 )
 

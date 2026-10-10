@@ -90,6 +90,7 @@ phase_install() {
 
   finish "All done!"
   info "ARCHMAN installed in $(plural $(( took / 60 )) minute) and $(plural $(( took % 60 )) second)"
+  show_tux
   wait_for_usb_removal
   info "Restarting..."
   sync
@@ -112,6 +113,25 @@ choose_look() {
     VANILLA "KDE Plasma as it comes: KDE's own Breeze theme, login screen and wallpaper." \
     ARCHMAN "Dark theme, the ARCHMAN login screen, a cyberpunk wallpaper, Breeze Chameleon icons, a top panel and a clock widget."
   if (( PICKED == 0 )); then LOOK=plain; else LOOK=archman; fi
+}
+
+# Tux on his splat (lib/ui.sh's tux_lines) and his line, on the last
+# screen: a Linux system now, with its penguin. Left out on a screen too
+# short for him and what's left to show under him (his line, the restart
+# one, the goodbye), which would scroll the logo away.
+show_tux() {
+  tux_lines
+  (( TUX_WIDTH )) || return 0
+  # From the row after the time line (the header's title and blanks under
+  # the bar, then that line and its blank): Tux, a blank, his line, a
+  # blank, the restart line and its blank, the goodbye (whose own blank,
+  # with the restart a moment away, may scroll). 1920x1080's 49 rows fit.
+  (( BAR_ROW > 0 && BAR_ROW + TITLE_ROW_OFFSET + 5 + ${#TUX_LINES[@]} + 6 <= ROWS )) || return 0
+  local line
+  for line in "${TUX_LINES[@]}"; do center "$line" "$TUX_WIDTH"; done
+  echo
+  centred_message "$C_SOFT" "Tux says hi. He lives here now."
+  echo
 }
 
 # Unmounts the new system. Whatever the install left running with files
