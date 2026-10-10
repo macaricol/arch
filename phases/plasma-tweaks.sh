@@ -55,9 +55,6 @@ tweak() {
   (( status == 0 )) || warn "Skipped $1, it failed (status $status)"
 }
 
-# kwriteconfig6 shorthand for the desktop layout file
-applets() { kwriteconfig6 --file plasma-org.kde.plasma.desktop-appletsrc "$@"; }
-
 configure_kwin() {
   kwriteconfig6 --file kwinrc --group ElectricBorders --key BottomLeft  ShowDesktop
   kwriteconfig6 --file kwinrc --group ElectricBorders --key BottomRight ShowDesktop
@@ -105,77 +102,108 @@ install_plasmoids() {
   done
 }
 
-# Containment/applet IDs and the geometry key below come from Plasma's
-# default first-session layout at 1707x960; they are what the stock layout
-# produces, not something this script controls.
-configure_desktop_layout() {
-  # Modern clock widget on the desktop (containment 1)
-  applets --group Containments --group 1 --key ItemGeometries-1707x960  "Applet-100:320,304,400,160,0"
-  applets --group Containments --group 1 --key ItemGeometriesHorizontal "Applet-100:320,304,400,160,0"
-  local clock=(--group Containments --group 1 --group Applets --group 100)
-  applets "${clock[@]}" --key immutability 1
-  applets "${clock[@]}" --key plugin com.github.prayag2.modernclock
-  local look=("${clock[@]}" --group Configuration --group Appearance)
-  applets "${look[@]}" --key date_font_color "205,227,251"
-  applets "${look[@]}" --key day_font_color  "242,116,223"
-  applets "${look[@]}" --key day_font_size   40
-  applets "${look[@]}" --key time_font_color "205,227,251"
-  applets "${look[@]}" --key use_24_hour_format true
-  applets "${clock[@]}" --group Configuration --group ConfigDialog --key DialogHeight 540
-  applets "${clock[@]}" --group Configuration --group ConfigDialog --key DialogWidth  720
-
-  # Panel (containment 2): horizontal, top, right-aligned, floating, auto-hide
-  applets --group Containments --group 2 --key formfactor 2
-  applets --group Containments --group 2 --key location 3
-  local panel=(--file plasmashellrc --group PlasmaViews --group "Panel 2")
-  kwriteconfig6 "${panel[@]}" --key alignment 2
-  kwriteconfig6 "${panel[@]}" --key floating 1
-  kwriteconfig6 "${panel[@]}" --key floatingApplets 0
-  kwriteconfig6 "${panel[@]}" --key panelLengthMode 1
-  kwriteconfig6 "${panel[@]}" --key panelOpacity 2
-  kwriteconfig6 "${panel[@]}" --key panelVisibility 2
-  kwriteconfig6 --file plasmashellrc --group PlasmaViews --group "Panel 94" --key panelVisibility 2
-
-  # Pinned apps in the task manager (applet 5)
-  applets --group Containments --group 2 --group Applets --group 5 \
-    --group Configuration --group General \
-    --key launchers "applications:systemsettings.desktop,preferred://filemanager,preferred://browser"
-
-  # Apdatifier (installed by install_plasmoids) in the panel, right after the
-  # task manager: updates counted in a badge, the AUR's too, through paru
-  # (installed by the desktop phase), upgrades run in Konsole.
-  local apdatifier=(--group Containments --group 2 --group Applets --group 101)
-  local settings=("${apdatifier[@]}" --group Configuration)
-  applets "${apdatifier[@]}" --key immutability 1
-  applets "${apdatifier[@]}" --key plugin com.github.exequtic.apdatifier
-  applets "${settings[@]}" --key popupWidth 560
-  applets "${settings[@]}" --key popupHeight 400
-  applets "${settings[@]}" --group General --key aur true
-  applets "${settings[@]}" --group Upgrade --key wrapper paru
-  applets "${settings[@]}" --group Upgrade --key terminal /usr/bin/konsole
-  applets "${settings[@]}" --group Appearance --key counterMode badge
-  applets "${settings[@]}" --group Appearance --key counterBadgePosition bottomRight
-  applets "${settings[@]}" --group Appearance --key selectedIcon apdatifier-package
-  applets "${settings[@]}" --group Appearance --key hideIconPolicy 10
-  panel_insert 101 5
+# plasma_script JAVASCRIPT — runs it in the Plasma session's shell, through
+# its scripting interface (org.kde.PlasmaShell.evaluateScript, KDE's way to
+# script desktop layouts): it finds the panels and widgets itself, changes
+# them as they're shown, and saves them as its own. Prints what the script
+# print()s; fails if the script throws.
+plasma_script() {
+  local reply
+  reply=$(busctl --user call org.kde.plasmashell /PlasmaShell org.kde.PlasmaShell evaluateScript s "$1") || return 1
+  reply=${reply#s \"} reply=${reply%\"}
+  printf '%b' "$reply"
 }
 
-# panel_insert ID AFTER — puts applet ID in the panel's (containment 2)
-# order right after applet AFTER, or last without it. The order is Plasma's
-# AppletOrder; when it hasn't written one, the panel's applets by ID, which
-# is the order it shows them in then.
-panel_insert() {
-  local file=$HOME/.config/plasma-org.kde.plasma.desktop-appletsrc order
-  order=$(kreadconfig6 --file plasma-org.kde.plasma.desktop-appletsrc \
-            --group Containments --group 2 --group General --key AppletOrder)
-  if [[ -z $order ]]; then
-    order=$(sed -nE 's/^\[Containments\]\[2\]\[Applets\]\[([0-9]+)\]$/\1/p' "$file" | sort -nu | paste -sd';')
-  fi
-  order=";$order;"
-  order=${order//;$1;/;}                               # once only, wherever it was
-  if [[ $order == *";$2;"* ]]; then order=${order/;$2;/;$2;$1;}; else order+="$1;"; fi
-  order=${order#;} order=${order%;}
-  applets --group Containments --group 2 --group General --key AppletOrder "$order"
+# The desktop's layout: the clock on the desktop, the panel at the top with
+# the pinned apps and Apdatifier. Through Plasma's scripting interface, not
+# its layout file's numbers (which containment is the panel, which applet
+# the task manager): those are Plasma's to choose. The panel's own settings
+# too, by the interface's documented properties; and, in case a Plasma
+# lacks or renames one, written into plasmashellrc as well, its internal
+# keys under the panel's number (which the script reports), read when
+# plasmashell restarts at the end of this phase.
+configure_desktop_layout() {
+  local panel
+  panel=$(plasma_script '
+    // The panel: Plasma'"'"'s first, at the top, set as Panel Settings shows
+    // it: alignment right, width fit content, visibility dodge windows,
+    // opacity translucent, floating disabled, height 42. Each on its own,
+    // so one this Plasma doesn'"'"'t have can'"'"'t stop the rest.
+    var panel = panels()[0];
+    var settings = { location: "top", alignment: "right", lengthMode: "fit", hiding: "dodgewindows",
+                     opacity: "translucent", floating: false, height: 42 };
+    Object.keys(settings).forEach(function (name) {
+      try { panel[name] = settings[name]; } catch (e) {}
+    });
+
+    // Pinned apps in the task manager (icontasks, or the classic one).
+    var tasks = panel.widgets("org.kde.plasma.icontasks").concat(panel.widgets("org.kde.plasma.taskmanager"));
+    tasks.forEach(function (w) {
+      w.currentConfigGroup = ["General"];
+      w.writeConfig("launchers", ["applications:systemsettings.desktop", "preferred://filemanager", "preferred://browser"]);
+    });
+
+    // Apdatifier (installed by install_plasmoids), right after the task
+    // manager: updates counted in a badge, the AUR'"'"'s too, through paru
+    // (installed by the desktop phase), upgrades run in Konsole.
+    // (A widget that isn'"'"'t there, its download failed, is left out, not
+    // the rest of the layout with it.)
+    var apd = panel.addWidget("com.github.exequtic.apdatifier");
+    if (apd) {
+    apd.currentConfigGroup = [];
+    apd.writeConfig("popupWidth", 560);
+    apd.writeConfig("popupHeight", 400);
+    apd.currentConfigGroup = ["General"];
+    apd.writeConfig("aur", true);
+    apd.currentConfigGroup = ["Upgrade"];
+    apd.writeConfig("wrapper", "paru");
+    apd.writeConfig("terminal", "/usr/bin/konsole");
+    apd.currentConfigGroup = ["Appearance"];
+    apd.writeConfig("counterMode", "badge");
+    apd.writeConfig("counterBadgePosition", "bottomRight");
+    apd.writeConfig("selectedIcon", "apdatifier-package");
+    apd.writeConfig("hideIconPolicy", 10);
+    var order = panel.widgets().map(function (w) { return w.id; }).filter(function (id) { return id != apd.id; });
+    var after = tasks.length ? order.indexOf(tasks[0].id) : -1;
+    order.splice(after >= 0 ? after + 1 : order.length, 0, apd.id);
+    panel.currentConfigGroup = ["General"];
+    panel.writeConfig("AppletOrder", order.join(";"));
+    }
+
+    // The Modern Clock on the desktop, left of centre, a third of the way
+    // down, whatever the screen size.
+    var desk = desktops()[0];
+    var screen = screenGeometry(desk.screen);
+    var clock = desk.addWidget("com.github.prayag2.modernclock",
+                               Math.round(screen.width * 0.19), Math.round(screen.height * 0.32), 400, 160);
+    if (clock) {
+    clock.currentConfigGroup = ["Appearance"];
+    clock.writeConfig("date_font_color", "205,227,251");
+    clock.writeConfig("day_font_color", "242,116,223");
+    clock.writeConfig("day_font_size", 40);
+    clock.writeConfig("time_font_color", "205,227,251");
+    clock.writeConfig("use_24_hour_format", true);
+    }
+
+    // The panel'"'"'s number, then what it now says of each setting, for the log.
+    print(panel.id + "\n" + Object.keys(settings).map(function (name) { return name + "=" + panel[name]; }).join(" "));
+  ') || return 1
+  local said=${panel#*$'\n'}
+  panel=${panel%%$'\n'*}
+  [[ $panel =~ ^[0-9]+$ ]] || { note "Plasma's script gave no panel: $panel"; return 1; }
+  note "Panel: containment $panel; $said"
+
+  # The same settings by plasmashellrc's keys, for a Plasma whose script
+  # interface lacks one: alignment right, width fit content, visibility
+  # dodge windows, opacity translucent, floating disabled, height 42.
+  local view=(--file plasmashellrc --group PlasmaViews --group "Panel $panel")
+  kwriteconfig6 "${view[@]}" --key alignment 2
+  kwriteconfig6 "${view[@]}" --key panelLengthMode 1
+  kwriteconfig6 "${view[@]}" --key panelVisibility 2
+  kwriteconfig6 "${view[@]}" --key panelOpacity 2
+  kwriteconfig6 "${view[@]}" --key floating 0
+  kwriteconfig6 "${view[@]}" --key floatingApplets 0
+  kwriteconfig6 "${view[@]}" --group Defaults --key thickness 42
 }
 
 # The icon theme: the copy the USB brought (extras/icons) when there is
