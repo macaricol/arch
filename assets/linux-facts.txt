@@ -63,3 +63,43 @@ The Linux Foundation, founded in 2007, employs Linus Torvalds so he can work on 
 KDE's KHTML web engine was the starting point of Apple's WebKit, which in turn led to Google's Blink.
 KDE Plasma 6, the version you're installing, was released in February 2024.
 The Linux kernel has well over ten thousand configuration options, so it can be tuned for anything from a watch to a supercomputer.
+Tux was drawn by Larry Ewing in 1996, using the GIMP, a free image editor that runs on Linux.
+The GIMP began in 1995 as a student project by Spencer Kimball and Peter Mattis at the University of California, Berkeley.
+Unix, the system Linux is modelled on, was created at Bell Labs in 1969 by Ken Thompson and Dennis Ritchie.
+Dennis Ritchie also created the C programming language, which most of the Linux kernel is written in.
+Short commands like ls, cp and mv date back to 1970s Unix, when every letter typed on a slow terminal counted.
+Red Hat, one of the best-known Linux companies, was founded in 1993.
+Ubuntu came out in October 2004. Its name is an African word for "humanity towards others".
+Gentoo Linux, which builds everything from source code, is named after the gentoo penguin, the fastest swimming penguin.
+openSUSE's mascot is a green chameleon named Geeko.
+KDE's mascot is a friendly green dragon called Konqi.
+The first version of KDE came out in 1998. GNOME, the other big Linux desktop, was started in 1997.
+The X Window System, which drew Linux's graphics for decades, dates back to 1984 at MIT.
+Wayland, the modern replacement for X that Plasma uses, began in 2008.
+systemd, the program that starts and runs a modern Linux system, was created in 2010 by Lennart Poettering and Kay Sievers.
+GRUB, the boot loader that starts your new system, stands for GRand Unified Bootloader.
+Btrfs, the file system on your new device, was started in 2007 by Chris Mason, then at Oracle.
+Btrfs can take a snapshot of your whole system in an instant, a copy you can go back to later.
+Wine lets Linux run many Windows programs. Its name stands for "Wine Is Not an Emulator".
+Steam has run on Linux since 2013, and Valve's Proton lets thousands of Windows games play on it.
+LibreOffice, the free office suite, was started in 2010 as a fork of OpenOffice.org.
+Firefox 1.0 came out in November 2004, and Firefox has run on Linux ever since.
+The Apache web server, first released in 1995, helped Linux take over the internet.
+Blender, the free 3D software that runs on Linux, was used to make Flow, which won the Oscar for best animated feature in 2025.
+CERN, home of the Large Hadron Collider, runs its huge computing grid on Linux.
+Google's servers, and the phones and Chromebooks it makes, all run on Linux.
+The Raspberry Pi, a computer the size of a credit card, usually runs Linux. Tens of millions have been sold.
+Greg Kroah-Hartman maintains the Linux kernel's stable versions, the ones most systems actually run.
+Linus Torvalds was born in Helsinki in 1969 and has lived in Oregon, in the United States, for many years.
+In a terminal, Tab completes the names of commands and files: type the first few letters and let Linux do the rest.
+Forgot to run a command as administrator? "sudo !!" runs your last command again, with sudo.
+Almost every command has a manual: "man ls" explains ls, and "man man" explains man.
+Behind your desktop there are text consoles too: Ctrl+Alt+F3 opens one, and Ctrl+Alt+F1 brings you back.
+There's a program called cowsay that draws an ASCII cow saying whatever you type.
+Mistype ls as sl and, with the sl program installed, a steam locomotive drives across your terminal.
+"pacman -S" installs a package: the S stands for "sync", with the package lists on the mirrors.
+Arch Linux has been led by Levente Polyak since 2020, after Aaron Griffin's thirteen years in the role.
+Arch Linux ARM and Arch Linux 32 are community projects that bring Arch to ARM devices and 32-bit PCs.
+Arch's own packages are built from PKGBUILD files, the same simple format shared in the AUR.
+KDE Connect, on your new desktop, lets your phone share files, notifications and its clipboard with your desktop.
+KDE Plasma can look like almost anything: every panel, widget and colour can be changed in System Settings.
