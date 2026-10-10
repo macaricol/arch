@@ -30,6 +30,7 @@ phase_desktop() {
   share 700 1000
   # The desktop's layout and theme: applied the first time you log in.
   schedule_plasma_tweaks
+  configure_shortcuts
   enable_service bluetooth sddm
 
   # The installer asks for the look, then shows its own last screen and
@@ -201,6 +202,14 @@ install_aur_packages() {
 # Plasma writes several of the config files plasma-tweaks edits during its own
 # startup, so that phase can't run from here: autostart it in the first
 # session instead, in phase 2 (after the shell is up) plus a real delay.
+# Global shortcuts, for the apps installed above: Alt+W opens skwd-wall, the
+# wallpaper picker. Written before the first login, as Plasma's shortcut
+# service reads them when the session starts: an app's launch shortcut,
+# under its launcher entry's name in kglobalshortcutsrc's [services].
+configure_shortcuts() {
+  kwriteconfig6 --file kglobalshortcutsrc --group services --group skwd-wall-v2.desktop --key _launch "Alt+W"
+}
+
 schedule_plasma_tweaks() {
   mkdir -p "$HOME/.config/autostart"
   cat > "$HOME/.config/autostart/arch-plasma-tweaks.desktop" <<EOF
