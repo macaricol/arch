@@ -284,8 +284,8 @@ panel_view() {
 # config.json: the ARCHMAN preset of its "slices" picker, matugen for its
 # colours, and the rest), its
 # service, the desktop's wallpaper drawn by its Plasma plugin, and the
-# default wallpaper (WALLPAPER) in its folder, ~/Pictures/Wallpapers, and
-# applied through it: the plugin keeps a wallpaper per screen, by a name
+# default wallpaper (WALLPAPER; in its folder, ~/Pictures/Wallpapers, with
+# the others, since the desktop phase) applied through it: the plugin keeps a wallpaper per screen, by a name
 # not known before now, which skwd-helm works out. Without skwd-wall (a
 # build failed), nothing: the desktop keeps Plasma's own wallpaper.
 set_up_wallpaper_picker() {
@@ -297,7 +297,7 @@ set_up_wallpaper_picker() {
     cp "$SETUP_DIR/assets/skwd-wall/config.json" "$config"
   fi
   mkdir -p "$wallpapers"
-  cp "$WALLPAPER" "$wallpapers/"
+  [[ -f $wallpapers/${WALLPAPER##*/} ]] || cp "$WALLPAPER" "$wallpapers/"
   systemctl --user enable --now skwd-walld.service
   plasma_script 'desktops().forEach(function (d) { d.wallpaperPlugin = "org.skwd.wall.plasma"; });' > /dev/null
   # The service takes a moment to answer: a few tries.

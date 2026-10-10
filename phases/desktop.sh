@@ -98,6 +98,13 @@ install_look_files() {
   local theme_dir=/usr/share/sddm/themes/$SDDM_THEME
   sudo rm -rf "$theme_dir"
   sudo install -Dm644 -t "$theme_dir" "$SETUP_DIR/assets/sddm/archman"/*
+
+  # The wallpapers (assets/wallpapers): system-wide, for the desktop's and
+  # the lock screen's default (WALLPAPER), and in the user's
+  # ~/Pictures/Wallpapers, where skwd-wall finds them.
+  sudo install -Dm644 -t "$WALLPAPERS_DIR" "$SETUP_DIR/assets/wallpapers"/*
+  mkdir -p "$HOME/Pictures/Wallpapers"
+  cp "$SETUP_DIR/assets/wallpapers"/* "$HOME/Pictures/Wallpapers/"
 }
 
 # SDDM's settings, the same with either look; its theme comes with the look

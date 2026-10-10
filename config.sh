@@ -126,7 +126,11 @@ SDDM_THEME='archman'
 # alternative login theme in System Settings.
 ASTRONAUT_REPO='https://github.com/macaricol/sddm-astronaut-theme.git'
 ASTRONAUT_THEME='sddm-astronaut-theme'
-WALLPAPER="/usr/share/sddm/themes/$ASTRONAUT_THEME/Wallpapers/cyberpunk2077.jpg"
+# The wallpapers (assets/wallpapers), installed system-wide here and copied
+# into the user's ~/Pictures/Wallpapers (skwd-wall's folder); and the one
+# applied: the desktop's and the lock screen's.
+WALLPAPERS_DIR=/usr/share/wallpapers/archman
+WALLPAPER="$WALLPAPERS_DIR/synthwave-city-sunset.jpg"
 ICON_THEME_REPO='https://github.com/L4ki/Breeze-Chameleon-Icons.git'
 ICON_THEME='Breeze Chameleon Dark'   # a directory inside that repo
 PLASMOID_REPOS=(                     # each repo's package/ directory, or the repo itself (metadata.json at its top)
