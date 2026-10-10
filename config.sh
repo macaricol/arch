@@ -126,9 +126,11 @@ ASTRONAUT_THEME='sddm-astronaut-theme'
 WALLPAPER="/usr/share/sddm/themes/$ASTRONAUT_THEME/Wallpapers/cyberpunk2077.jpg"
 ICON_THEME_REPO='https://github.com/L4ki/Breeze-Chameleon-Icons.git'
 ICON_THEME='Breeze Chameleon Dark'   # a directory inside that repo
-PLASMOID_REPOS=(                     # each repo must contain a package/ directory
+PLASMOID_REPOS=(                     # each repo's package/ directory, or the repo itself (metadata.json at its top)
   https://github.com/macaricol/kde_modernclock.git
   https://github.com/exequtic/apdatifier
+  https://github.com/luisbocanegra/plasma-panel-colorizer   # the panels' look (the Dock preset)
+  https://github.com/yassine20011/kvitals   # system monitor, in its own panel
 )
 
 # ── Samba ──────────────────────────────────────────────────────────────

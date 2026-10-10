@@ -384,7 +384,7 @@ prebuild_aur_packages "$work/airootfs/usr/local/share/archauto/packages"
 
 # What the first Plasma session (phases/plasma-tweaks.sh) would download:
 # the icon theme (ICON_THEME from ICON_THEME_REPO) and the widgets
-# (PLASMOID_REPOS' package/ directories), fetched now and carried on the
+# (PLASMOID_REPOS' widgets, as package/ directories), fetched now and carried on the
 # USB, so the new system has them even with no internet at its first login.
 # Only what's used is kept, without git's history. Any that can't be
 # fetched are left out; that first session then downloads them as before.
@@ -401,9 +401,15 @@ carry_plasma_extras() {
   fi
   for repo in "${PLASMOID_REPOS[@]}"; do
     name=${repo##*/} name=${name%.git}
+    # The widget: the repo's package/, or the repo itself when its
+    # metadata.json is at the top (only what Plasma needs of it).
     if git clone -q --depth 1 "$repo" "$tmp/$name" && [[ -d $tmp/$name/package ]]; then
       mkdir -p "$dest/plasmoids/$name"
       cp -r "$tmp/$name/package" "$dest/plasmoids/$name/"
+      echo "    widget: $name"
+    elif [[ -f $tmp/$name/metadata.json && -d $tmp/$name/contents ]]; then
+      mkdir -p "$dest/plasmoids/$name/package"
+      cp -r "$tmp/$name"/{metadata.json,contents} "$dest/plasmoids/$name/package/"
       echo "    widget: $name"
     else
       echo "    widget: couldn't fetch $name; the first login will"

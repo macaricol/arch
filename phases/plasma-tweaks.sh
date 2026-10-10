@@ -81,10 +81,11 @@ set_lock_screen_wallpaper() {
     --group org.kde.image --group General --key Image "file://$WALLPAPER"
 }
 
-# Installs each repo's package/ directory as a Plasma applet (into
+# Installs each repo's widget as a Plasma applet (into
 # ~/.local/share/plasma/plasmoids); upgrades it if it's already there. The
-# copy the USB brought (extras/plasmoids/<repo name>) when there is one, so
-# no internet is needed; otherwise downloaded.
+# copy the USB brought (extras/plasmoids/<repo name>/package) when there is
+# one, so no internet is needed; otherwise downloaded: the repo's package/
+# directory, or the repo itself when its metadata.json is at the top.
 install_plasmoids() {
   local repo name tmp package
   for repo in "${PLASMOID_REPOS[@]}"; do
@@ -95,6 +96,7 @@ install_plasmoids() {
       tmp=$(mktemp -d)
       git_clone "$repo" "$tmp"
       package=$tmp/package
+      [[ -d $package ]] || package=$tmp
     fi
     run kpackagetool6 --type Plasma/Applet --install "$package" \
       || run kpackagetool6 --type Plasma/Applet --upgrade "$package"
@@ -114,8 +116,9 @@ plasma_script() {
   printf '%b' "$reply"
 }
 
-# The desktop's layout: the clock on the desktop, the panel at the top with
-# the pinned apps and Apdatifier. Through Plasma's scripting interface, not
+# The desktop's layout: the clock on the desktop; at the top, the main
+# panel on the right with the pinned apps and Apdatifier, and a second one
+# on the left with KVitals, both with Panel Colorizer's Dock look. Through Plasma's scripting interface, not
 # its layout file's numbers (which containment is the panel, which applet
 # the task manager): those are Plasma's to choose. The panel's own settings
 # too, by the interface's documented properties; and, in case a Plasma
@@ -123,18 +126,47 @@ plasma_script() {
 # keys under the panel's number (which the script reports), read when
 # plasmashell restarts at the end of this phase.
 configure_desktop_layout() {
-  local panel
-  panel=$(plasma_script '
-    // The panel: Plasma'"'"'s first, at the top, set as Panel Settings shows
-    // it: alignment right, width fit content, visibility dodge windows,
-    // opacity translucent, floating disabled, height 42. Each on its own,
-    // so one this Plasma doesn'"'"'t have can'"'"'t stop the rest.
+  # For the script below ("null" when missing): Panel Colorizer's Dock
+  # preset, as the installed widget ships it, and KVitals' profile (which
+  # readings it shows: assets/plasma/kvitals.json).
+  local preset=$HOME/.local/share/plasma/plasmoids/luisbocanegra.panel.colorizer/contents/ui/presets/Dock/settings.json
+  local dock=null vitals=null out
+  [[ -f $preset ]] && dock=$(< "$preset")
+  [[ -f $SETUP_DIR/assets/plasma/kvitals.json ]] && vitals=$(< "$SETUP_DIR/assets/plasma/kvitals.json")
+  out=$(plasma_script '
+    var dock = '"$dock"';
+    var vitals = '"$vitals"';
+
+    // A panel'"'"'s settings, as Panel Settings shows them, each on its own,
+    // so one this Plasma doesn'"'"'t have can'"'"'t stop the rest; and what
+    // the panel then says of each, for the log.
+    function configure(panel, settings) {
+      Object.keys(settings).forEach(function (name) {
+        try { panel[name] = settings[name]; } catch (e) {}
+      });
+      return Object.keys(settings).map(function (name) { return name + "=" + panel[name]; }).join(" ");
+    }
+
+    // Panel Colorizer (installed by install_plasmoids) in a panel, the
+    // look of the Dock preset it ships with (dock), its own icon hidden:
+    // all its settings are one, globalSettings, the preset'"'"'s as they are.
+    // (A widget that isn'"'"'t there, its download failed, is left out, not
+    // the rest of the layout with it; so are the others below.)
+    function colorize(panel) {
+      if (!dock) return;
+      var colorizer = panel.addWidget("luisbocanegra.panel.colorizer");
+      if (!colorizer) return;
+      colorizer.currentConfigGroup = ["General"];
+      colorizer.writeConfig("globalSettings", JSON.stringify(dock.globalSettings));
+      colorizer.writeConfig("hideWidget", true);
+    }
+
+    // The main panel: Plasma'"'"'s first, at the top, on the right: width
+    // fit content, visibility dodge windows, opacity translucent, floating
+    // disabled, height 42.
     var panel = panels()[0];
-    var settings = { location: "top", alignment: "right", lengthMode: "fit", hiding: "dodgewindows",
-                     opacity: "translucent", floating: false, height: 42 };
-    Object.keys(settings).forEach(function (name) {
-      try { panel[name] = settings[name]; } catch (e) {}
-    });
+    var said = configure(panel, { location: "top", alignment: "right", lengthMode: "fit", hiding: "dodgewindows",
+                                  opacity: "translucent", floating: false, height: 42 });
 
     // Pinned apps in the task manager (icontasks, or the classic one).
     var tasks = panel.widgets("org.kde.plasma.icontasks").concat(panel.widgets("org.kde.plasma.taskmanager"));
@@ -143,11 +175,11 @@ configure_desktop_layout() {
       w.writeConfig("launchers", ["applications:systemsettings.desktop", "preferred://filemanager", "preferred://browser"]);
     });
 
+    colorize(panel);
+
     // Apdatifier (installed by install_plasmoids), right after the task
     // manager: updates counted in a badge, the AUR'"'"'s too, through paru
     // (installed by the desktop phase), upgrades run in Konsole.
-    // (A widget that isn'"'"'t there, its download failed, is left out, not
-    // the rest of the layout with it.)
     var apd = panel.addWidget("com.github.exequtic.apdatifier");
     if (apd) {
     apd.currentConfigGroup = [];
@@ -185,25 +217,58 @@ configure_desktop_layout() {
     clock.writeConfig("use_24_hour_format", true);
     }
 
-    // The panel'"'"'s number, then what it now says of each setting, for the log.
-    print(panel.id + "\n" + Object.keys(settings).map(function (name) { return name + "=" + panel[name]; }).join(" "));
+    // The second panel: new, at the top, on the left: width fit content,
+    // visibility dodge windows, opacity Plasma'"'"'s own (adaptive),
+    // floating disabled, height 36. KVitals in it, with its profile
+    // (vitals): it only keeps one it'"'"'s told is set up (migrationDone),
+    // else it makes its own; its shortcut, Meta+Shift+V, it sets itself.
+    var second = new Panel;
+    var saidSecond = configure(second, { location: "top", alignment: "left", lengthMode: "fit",
+                                         hiding: "dodgewindows", floating: false, height: 36 });
+    var kvitals = second.addWidget("org.kde.plasma.kvitals");
+    if (kvitals && vitals) {
+      kvitals.currentConfigGroup = ["General"];
+      kvitals.writeConfig("profileList", JSON.stringify(vitals.profileList));
+      kvitals.writeConfig("activeProfileId", vitals.activeProfileId);
+      kvitals.writeConfig("profileListVersion", 1);
+      kvitals.writeConfig("migrationDone", true);
+    }
+    colorize(second);
+
+    // For the log and plasmashellrc: each panel'"'"'s number, then what it
+    // now says of its settings, a line each.
+    print(panel.id + " " + said + "\n" + second.id + " " + saidSecond);
   ') || return 1
-  local said=${panel#*$'\n'}
-  panel=${panel%%$'\n'*}
-  [[ $panel =~ ^[0-9]+$ ]] || { note "Plasma's script gave no panel: $panel"; return 1; }
-  note "Panel: containment $panel; $said"
+  local main=${out%%$'\n'*} second=${out#*$'\n'}
+  [[ ${main%% *} =~ ^[0-9]+$ && ${second%% *} =~ ^[0-9]+$ ]] || { note "Plasma's script gave no panels: $out"; return 1; }
+  note "Main panel: containment $main"
+  note "Second panel: containment $second"
 
   # The same settings by plasmashellrc's keys, for a Plasma whose script
-  # interface lacks one: alignment right, width fit content, visibility
-  # dodge windows, opacity translucent, floating disabled, height 42.
-  local view=(--file plasmashellrc --group PlasmaViews --group "Panel $panel")
-  kwriteconfig6 "${view[@]}" --key alignment 2
+  # interface lacks one: under each panel's number, alignment (2 right,
+  # 1 left), width fit content, visibility dodge windows, opacity
+  # translucent (the main one's), floating disabled, height.
+  panel_view "${main%% *}" alignment 2 panelOpacity 2 thickness 42
+  panel_view "${second%% *}" alignment 1 thickness 36
+}
+
+# panel_view PANEL KEY VALUE... — plasmashellrc's view settings for panel
+# number PANEL: fit content, dodge windows, not floating, and KEY=VALUE for
+# each pair given (thickness goes under Defaults, where Plasma keeps it).
+panel_view() {
+  local view=(--file plasmashellrc --group PlasmaViews --group "Panel $1"); shift
   kwriteconfig6 "${view[@]}" --key panelLengthMode 1
   kwriteconfig6 "${view[@]}" --key panelVisibility 2
-  kwriteconfig6 "${view[@]}" --key panelOpacity 2
   kwriteconfig6 "${view[@]}" --key floating 0
   kwriteconfig6 "${view[@]}" --key floatingApplets 0
-  kwriteconfig6 "${view[@]}" --group Defaults --key thickness 42
+  while (( $# >= 2 )); do
+    if [[ $1 == thickness ]]; then
+      kwriteconfig6 "${view[@]}" --group Defaults --key thickness "$2"
+    else
+      kwriteconfig6 "${view[@]}" --key "$1" "$2"
+    fi
+    shift 2
+  done
 }
 
 # The icon theme: the copy the USB brought (extras/icons) when there is
