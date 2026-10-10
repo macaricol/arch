@@ -8,6 +8,7 @@ phase_plasma_tweaks() {
   # Cleanup runs even if a tweak fails: better one missed setting (it's in
   # the log) than the autostart entry firing again on every login.
   trap cleanup EXIT
+  wait_for_plasma
   local look tweak
   look=$(cat "$SETUP_DIR/look" 2>/dev/null) || look=archman
   local -a tweaks=(configure_kwin configure_dolphin)
@@ -17,6 +18,29 @@ phase_plasma_tweaks() {
     tweak "$tweak"
   done
   systemctl --user restart plasma-plasmashell.service
+}
+
+# wait_for_plasma — until Plasma is ready for its files to be changed: its
+# shell on the session bus (org.kde.plasmashell), and the desktop layout it
+# writes on a first start (the appletsrc file the tweaks edit) there and
+# left alone for 3 s. Plasma saves its settings a moment after changing
+# them, and a tweak made before that would be written over. Up to a minute;
+# then on anyway.
+wait_for_plasma() {
+  local file=$HOME/.config/plasma-org.kde.plasma.desktop-appletsrc until=$(( SECONDS + 60 )) mtime last='' still=0
+  while (( SECONDS < until )); do
+    if busctl --user call org.freedesktop.DBus /org/freedesktop/DBus org.freedesktop.DBus \
+         NameHasOwner s org.kde.plasmashell 2>/dev/null | grep -q true && [[ -f $file ]]; then
+      mtime=$(stat -c %Y "$file")
+      if [[ $mtime == "$last" ]]; then
+        (( ++still < 3 )) || { note "Plasma ready after $(( 60 - until + SECONDS )) s"; return 0; }
+      else
+        last=$mtime still=0
+      fi
+    fi
+    sleep 1
+  done
+  note "Plasma not settled after a minute, tweaking anyway"
 }
 
 # tweak FUNCTION — runs one of the tweaks below; if it fails, the rest still

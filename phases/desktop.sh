@@ -207,7 +207,7 @@ schedule_plasma_tweaks() {
 [Desktop Entry]
 Type=Application
 Name=Arch setup: Plasma first-login tweaks
-Exec=/bin/sh -c "sleep 10 && bash '$SETUP_DIR/setup.sh' plasma-tweaks"
+Exec=bash '$SETUP_DIR/setup.sh' plasma-tweaks
 X-KDE-autostart-phase=2
 EOF
 }
