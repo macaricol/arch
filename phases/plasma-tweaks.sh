@@ -118,7 +118,8 @@ plasma_script() {
 
 # The desktop's layout: the clock on the desktop; at the top, the main
 # panel on the right with the pinned apps and Apdatifier, and a second one
-# on the left with KVitals, both with Panel Colorizer's Dock look. Through Plasma's scripting interface, not
+# on the left with KVitals; each with a Panel Colorizer preset, Fake
+# Floating and Translucent. Through Plasma's scripting interface, not
 # its layout file's numbers (which containment is the panel, which applet
 # the task manager): those are Plasma's to choose. The panel's own settings
 # too, by the interface's documented properties; and, in case a Plasma
@@ -126,15 +127,17 @@ plasma_script() {
 # keys under the panel's number (which the script reports), read when
 # plasmashell restarts at the end of this phase.
 configure_desktop_layout() {
-  # For the script below ("null" when missing): Panel Colorizer's Dock
-  # preset, as the installed widget ships it, and KVitals' profile (which
-  # readings it shows: assets/plasma/kvitals.json).
-  local preset=$HOME/.local/share/plasma/plasmoids/luisbocanegra.panel.colorizer/contents/ui/presets/Dock/settings.json
-  local dock=null vitals=null out
-  [[ -f $preset ]] && dock=$(< "$preset")
+  # For the script below ("null" when missing): two of Panel Colorizer's
+  # presets, as the installed widget ships them, and KVitals' profile
+  # (which readings it shows: assets/plasma/kvitals.json).
+  local presets=$HOME/.local/share/plasma/plasmoids/luisbocanegra.panel.colorizer/contents/ui/presets
+  local fake_floating=null translucent=null vitals=null out
+  [[ -f "$presets/Fake Floating/settings.json" ]] && fake_floating=$(< "$presets/Fake Floating/settings.json")
+  [[ -f $presets/Translucent/settings.json ]] && translucent=$(< "$presets/Translucent/settings.json")
   [[ -f $SETUP_DIR/assets/plasma/kvitals.json ]] && vitals=$(< "$SETUP_DIR/assets/plasma/kvitals.json")
   out=$(plasma_script '
-    var dock = '"$dock"';
+    var fakeFloating = '"$fake_floating"';
+    var translucent = '"$translucent"';
     var vitals = '"$vitals"';
 
     // A panel'"'"'s settings, as Panel Settings shows them, each on its own,
@@ -147,17 +150,17 @@ configure_desktop_layout() {
       return Object.keys(settings).map(function (name) { return name + "=" + panel[name]; }).join(" ");
     }
 
-    // Panel Colorizer (installed by install_plasmoids) in a panel, the
-    // look of the Dock preset it ships with (dock), its own icon hidden:
-    // all its settings are one, globalSettings, the preset'"'"'s as they are.
+    // Panel Colorizer (installed by install_plasmoids) in a panel, with the
+    // look of one of the presets it ships with, its own icon hidden: all
+    // its settings are one, globalSettings, the preset'"'"'s as they are.
     // (A widget that isn'"'"'t there, its download failed, is left out, not
     // the rest of the layout with it; so are the others below.)
-    function colorize(panel) {
-      if (!dock) return;
+    function colorize(panel, preset) {
+      if (!preset) return;
       var colorizer = panel.addWidget("luisbocanegra.panel.colorizer");
       if (!colorizer) return;
       colorizer.currentConfigGroup = ["General"];
-      colorizer.writeConfig("globalSettings", JSON.stringify(dock.globalSettings));
+      colorizer.writeConfig("globalSettings", JSON.stringify(preset.globalSettings));
       colorizer.writeConfig("hideWidget", true);
     }
 
@@ -175,7 +178,10 @@ configure_desktop_layout() {
       w.writeConfig("launchers", ["applications:systemsettings.desktop", "preferred://filemanager", "preferred://browser"]);
     });
 
-    colorize(panel);
+    colorize(panel, fakeFloating);
+
+    // No Peek at Desktop (the default panel ends with one).
+    panel.widgets("org.kde.plasma.showdesktop").forEach(function (w) { w.remove(); });
 
     // Apdatifier (installed by install_plasmoids), right after the task
     // manager: updates counted in a badge, the AUR'"'"'s too, through paru
@@ -233,7 +239,7 @@ configure_desktop_layout() {
       kvitals.writeConfig("profileListVersion", 1);
       kvitals.writeConfig("migrationDone", true);
     }
-    colorize(second);
+    colorize(second, translucent);
 
     // For the log and plasmashellrc: each panel'"'"'s number, then what it
     // now says of its settings, a line each.
