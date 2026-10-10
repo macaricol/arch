@@ -373,9 +373,11 @@ prebuild_aur_packages() {
   fi
   mkdir -p "$dest"
   # Every package built lands in stage/out, the next recipes' dependencies.
+  # The list comes in on fd 3: the builds have stdin (makechrootpkg's
+  # systemd-nspawn passes it into the container, and would swallow the rest).
   stage=$(sudo -u "$user" mktemp -d)
   sudo -u "$user" mkdir "$stage/out"
-  while read -r pkg recipe needs; do
+  while read -r -u 3 pkg recipe needs; do
     if [[ -z ${built[$recipe]:-} ]]; then
       built[$recipe]=failed
       dir=$stage/$recipe
@@ -403,7 +405,7 @@ prebuild_aur_packages() {
     else
       echo "    $pkg: build failed, skipped; installs will compile it"
     fi
-  done < <(aur_recipes "${wanted[@]}")
+  done 3< <(aur_recipes "${wanted[@]}")
   rm -rf "$stage"
 }
 # aur_recipes PACKAGE... — for each, a line: the package, the AUR recipe it
