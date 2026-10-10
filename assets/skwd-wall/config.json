@@ -1,0 +1,103 @@
+{
+  "components": {
+    "wallpaperSelector": {
+      "activePreset": {
+        "slices": "ARCHMAN"
+      },
+      "cornerBL": 16.0,
+      "cornerBR": 16.0,
+      "cornerTL": 16.0,
+      "cornerTR": 16.0,
+      "displayMode": "slices",
+      "enabled": true,
+      "expandedWidth": 600.0,
+      "presets": {
+        "slices": [
+          {
+            "name": "ARCHMAN",
+            "params": {
+              "cornerBL": 16.0,
+              "cornerBR": 16.0,
+              "cornerTL": 16.0,
+              "cornerTR": 16.0,
+              "expandedWidth": 600.0,
+              "roundCorners": true,
+              "skewOffset": 35.0,
+              "sliceEdgeTilt": 0.0,
+              "sliceHeight": 320.0,
+              "sliceParallax": false,
+              "sliceShadows": true,
+              "sliceSpacing": 4.0,
+              "sliceStageX": 0.0,
+              "sliceStageY": 0.0,
+              "sliceWidth": 135.0,
+              "sliceWobble": false,
+              "sliceWobbleStrength": 100.0,
+              "visibleCount": 8
+            }
+          }
+        ]
+      },
+      "roundCorners": true,
+      "showTypeBadges": false,
+      "skewOffset": 35.0,
+      "sliceEdgeTilt": 0.0,
+      "sliceHeight": 320.0,
+      "sliceParallax": false,
+      "sliceShadows": true,
+      "sliceSpacing": 4.0,
+      "sliceStageX": 0.0,
+      "sliceStageY": 0.0,
+      "sliceWidth": 135.0,
+      "sliceWobble": false,
+      "sliceWobbleStrength": 100.0,
+      "startPosition": "applied",
+      "visibleCount": 8
+    }
+  },
+  "features": {
+    "matugen": true
+  },
+  "filterBar": {
+    "show": {
+      "colors": false,
+      "download": false,
+      "favourites": false,
+      "folder": false,
+      "orient": false,
+      "playlists": false,
+      "random": false,
+      "resolution": false,
+      "sort": {
+        "color": false,
+        "date": false,
+        "minimalist": false,
+        "pop": false,
+        "recent": false,
+        "res": false,
+        "richness": false
+      },
+      "tagcloud": false,
+      "theme": false,
+      "type": {
+        "all": false,
+        "static": false,
+        "video": false,
+        "we": false
+      }
+    }
+  },
+  "general": {
+    "randomRotate": false,
+    "uiScale": 0.6
+  },
+  "selector": {
+    "livePreview": true
+  },
+  "theme": {
+    "authority": "skwd",
+    "engine": "matugen",
+    "policy": "wallpaper"
+  },
+  "wallpaperMute": false
+}

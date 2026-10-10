@@ -13,7 +13,7 @@ phase_plasma_tweaks() {
   look=$(cat "$SETUP_DIR/look" 2>/dev/null) || look=archman
   local -a tweaks=(configure_kwin configure_dolphin)
   [[ $look == archman ]] && tweaks+=(apply_dark_theme set_lock_screen_wallpaper install_plasmoids
-                                     configure_desktop_layout install_icon_theme)
+                                     configure_desktop_layout set_up_wallpaper_picker install_icon_theme)
   for tweak in "${tweaks[@]}"; do
     tweak "$tweak"
   done
@@ -279,6 +279,69 @@ panel_view() {
 
 # The icon theme: the copy the USB brought (extras/icons) when there is
 # one, so no internet is needed; otherwise downloaded.
+# skwd-wall, the wallpaper picker (installed by the desktop phase), set up
+# as on the machine ARCHMAN is made on: its settings (assets/skwd-wall/
+# config.json: the ARCHMAN preset of its "slices" picker, matugen for its
+# colours, and the rest), its
+# service, the desktop's wallpaper drawn by its Plasma plugin, and the
+# default wallpaper (WALLPAPER) in its folder, ~/Pictures/Wallpapers, and
+# applied through it: the plugin keeps a wallpaper per screen, by a name
+# not known before now, which skwd-helm works out. Without skwd-wall (a
+# build failed), nothing: the desktop keeps Plasma's own wallpaper.
+set_up_wallpaper_picker() {
+  command -v skwd-helm &>/dev/null && [[ -d /usr/share/plasma/wallpapers/org.skwd.wall.plasma ]] \
+    || { note "No skwd-wall, the desktop keeps Plasma's wallpaper"; return 0; }
+  local config=$HOME/.config/skwd-wall-v2/config.json wallpapers=$HOME/Pictures/Wallpapers
+  if [[ ! -f $config ]]; then
+    mkdir -p "${config%/*}"
+    cp "$SETUP_DIR/assets/skwd-wall/config.json" "$config"
+  fi
+  mkdir -p "$wallpapers"
+  cp "$WALLPAPER" "$wallpapers/"
+  systemctl --user enable --now skwd-walld.service
+  plasma_script 'desktops().forEach(function (d) { d.wallpaperPlugin = "org.skwd.wall.plasma"; });' > /dev/null
+  # The service takes a moment to answer: a few tries.
+  local try applied=0
+  for try in {1..10}; do
+    skwd-helm apply "$wallpapers/${WALLPAPER##*/}" &>/dev/null && { applied=1; break; }
+    sleep 1
+  done
+  (( applied )) || { note "skwd-wall didn't take the default wallpaper"; return 0; }
+  connect_skwd_colours
+}
+
+# Plasma's colours from the wallpaper, by skwd-wall: with the wallpaper its
+# Plasma plugin draws, Plasma's own accent-from-wallpaper has no picture to
+# take a colour from, so skwd-wall works the colours out (matugen) and
+# makes them Plasma's colour scheme, SkwdManaged, accent and all (the icon
+# theme follows the accent). It's connected to Plasma once, which leaves
+# ~/.local/state/skwd-wall-v2/app-themes/kde.json; with no command to do
+# that, the colours are regenerated (skwd-helm retheme) and, if Plasma's
+# scheme isn't skwd's then, that file is written as skwd-wall writes it
+# when connected (with nothing generated yet), and they're regenerated
+# again. Which it took, or that neither did, goes in the log.
+connect_skwd_colours() {
+  local scheme state=$HOME/.local/state/skwd-wall-v2/app-themes/kde.json
+  skwd_scheme() { kreadconfig6 --file kdeglobals --group General --key ColorScheme; }
+  command -v matugen &>/dev/null || { note "No matugen, Plasma keeps its own colours"; return 0; }
+  skwd-helm retheme &>/dev/null || true
+  sleep 2
+  [[ $(skwd_scheme) == SkwdManaged* ]] && { note "skwd-wall's colours: connected by itself"; return 0; }
+  if [[ ! -f $state ]]; then
+    scheme=$(skwd_scheme)
+    mkdir -p "${state%/*}"
+    printf '%s\n' "{\"version\":1,\"config\":\"$HOME/.config/kdeglobals\",\"directory\":\"$HOME/.local/share/color-schemes\",\"previous\":\"${scheme:-BreezeDark}\",\"active\":null,\"outputs\":{},\"enabled\":true,\"pending\":false,\"pending_text\":null,\"pending_selection\":null,\"disabling\":false,\"accent\":{\"previous\":[\"true\",null]},\"restore_stage\":\"scheme\"}" > "$state"
+    chmod 600 "$state"
+    skwd-helm retheme &>/dev/null || true
+    sleep 2
+  fi
+  if [[ $(skwd_scheme) == SkwdManaged* ]]; then
+    note "skwd-wall's colours: connected through its state file"
+  else
+    note "skwd-wall's colours: not connected (Plasma's scheme: $(skwd_scheme)); turn them on in its theme settings"
+  fi
+}
+
 install_icon_theme() {
   mkdir -p "$HOME/.local/share/icons"
   if [[ -d $SETUP_DIR/extras/icons/$ICON_THEME ]]; then

@@ -75,6 +75,7 @@ EXTRA_PACKAGES=(
   fastfetch mpv krdc krdp git code
   ttf-liberation noto-fonts-cjk
   ntfs-3g exfatprogs dosfstools   # format/repair NTFS, exFAT, FAT32 (mounting needs nothing extra)
+  matugen                         # skwd-wall's desktop colours, from the wallpaper
 )
 
 GAMING_PACKAGES=(steam)  # only installed when a supported GPU was detected, see desktop phase
@@ -82,7 +83,9 @@ GAMING_PACKAGES=(steam)  # only installed when a supported GPU was detected, see
 # official repos (makepkg). paru first: the AUR helper, which then keeps them
 # all up to date (paru -Syu, or Apdatifier in the panel), itself included.
 # Those built from source (all but -bin) come prebuilt on the USB.
-AUR_PACKAGES=(paru zen-browser-bin qview)
+# skwd-wall, the wallpaper picker, comes as four, each needing the ones
+# before it (makepkg only fetches dependencies from the official repos).
+AUR_PACKAGES=(paru zen-browser-bin qview skwd-paper-bin skwd-deck-bin skwd-wall-v2-bin skwd-paper-plasma)
 
 # The lib32-* packages are what Steam needs. Installing the right ones up
 # front matters: steam depends on virtual lib32-vulkan-driver / lib32-libgl,
