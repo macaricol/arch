@@ -199,6 +199,6 @@ fi
 # The installer ends by restarting the computer: if it comes back here at
 # all, failed or not, it stopped early. Never a black screen: say so, and
 # restart on Enter.
-curl -fsSL "$BOOTSTRAP_URL" | SPLASH_SINCE=$SPLASH_SINCE REPO=$REPO BRANCH=$BRANCH bash
+curl -fsL --retry 5 --retry-delay 2 --retry-all-errors "$BOOTSTRAP_URL" | SPLASH_SINCE=$SPLASH_SINCE REPO=$REPO BRANCH=$BRANCH bash
 kill "$checking" 2>/dev/null
 give_up --keep "The installation stopped" "Restart to try again."

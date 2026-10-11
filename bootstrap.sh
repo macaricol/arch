@@ -14,8 +14,9 @@ DEST=/tmp/arch-setup
 rm -rf "$DEST"
 mkdir -p "$DEST"
 # GitHub names the tarball's top directory <repo>-<branch>; strip it so
-# setup.sh lands directly in $DEST.
-curl -fsSL --retry 3 --retry-all-errors "https://github.com/$REPO/archive/refs/heads/$BRANCH.tar.gz" \
-  | tar -xz -C "$DEST" --strip-components=1 "${REPO##*/}-$BRANCH"
+# setup.sh lands directly in $DEST. Retried; curl's errors kept off the
+# splash (the USB's start-up says the installation stopped if it fails).
+curl -fsL --retry 5 --retry-delay 2 --retry-all-errors "https://github.com/$REPO/archive/refs/heads/$BRANCH.tar.gz" \
+  | tar -xz -C "$DEST" --strip-components=1 "${REPO##*/}-$BRANCH" 2>/dev/null
 
 exec bash "$DEST/setup.sh" install

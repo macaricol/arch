@@ -96,12 +96,14 @@ phase_wifi() {
   done
 }
 
-# online — whether the internet answers. Each try capped at 3 s: ping's -W
-# only covers waiting for the reply, not looking up the name first, which
-# on a network with no way out (a cable, an address, no internet) can hang
-# for many seconds. Also the USB's start-up's (tools/archauto.sh), as is
-# wait_online.
-online() { timeout 3 ping -c1 -W2 archlinux.org &>/dev/null; }
+# online — whether GitHub answers, where the installer comes from: an HTTPS
+# request, not a ping. github.com is on IPv4 only, and IPv6 comes up first
+# (seconds before DHCP's IPv4 address, on a router that hands out both): a
+# check of a site on both (archlinux.org) passed then, and the download
+# from GitHub failed. Each try capped at 3 s, the name lookup included
+# (on a network with no way out it can hang for many seconds). Also the
+# USB's start-up's (tools/archauto.sh), as is wait_online.
+online() { curl -sfI --max-time 3 -o /dev/null https://github.com; }
 
 # wifi_password VAR — the network's password, into VAR: lib/prompt.sh's
 # field, what's typed shown while Tab is held. Wi-Fi passwords are 8 to 63
