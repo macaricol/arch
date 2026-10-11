@@ -133,9 +133,15 @@ add_kernel_option() {
     || sed -i "s|^\(GRUB_CMDLINE_LINUX_DEFAULT=\".*\)\"|\1 $1\"|" /etc/default/grub
 }
 
+# GRUB as the firmware's boot entry (GRUB, first in its order), and a copy
+# at the drive's fallback path (EFI/BOOT/BOOTX64.EFI, --removable: the
+# firmware's list untouched), which firmware boots from any drive whose
+# entries it doesn't take. Some do that to a new one on the next start
+# (seen: an AMI board, its old GRUB entries left, went to its EFI shell).
 install_bootloader() {
   sed -i 's/^GRUB_TIMEOUT=.*/GRUB_TIMEOUT=0/; s/^GRUB_TIMEOUT_STYLE=.*/GRUB_TIMEOUT_STYLE=hidden/' /etc/default/grub
   run grub-install --target=x86_64-efi --efi-directory=/boot --bootloader-id=GRUB
+  run grub-install --target=x86_64-efi --efi-directory=/boot --removable
   regenerate_grub
 }
 
