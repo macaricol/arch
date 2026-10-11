@@ -137,10 +137,10 @@ plasma_script() {
   printf '%b' "$reply"
 }
 
-# The desktop's layout: the clock on the desktop; at the top, the main
-# panel on the right with the pinned apps and Apdatifier, and a second one
-# on the left with KVitals; each with a Panel Colorizer preset, Fake
-# Floating and Translucent. Through Plasma's scripting interface, not
+# The desktop's layout: the clock on the desktop; at the top, three
+# panels: the main one on the right (the app menu, Apdatifier, the tray,
+# the clock), the pinned apps in the centre, and KVitals on the left; each
+# with Panel Colorizer's Translucent preset. Through Plasma's scripting interface, not
 # its layout file's numbers (which containment is the panel, which applet
 # the task manager): those are Plasma's to choose. The panel's own settings
 # too, by the interface's documented properties; and, in case a Plasma
@@ -148,13 +148,18 @@ plasma_script() {
 # keys under the panel's number (which the script reports), read when
 # plasmashell restarts at the end of this phase.
 configure_desktop_layout() {
-  # For the script below ("null" when missing): two of Panel Colorizer's
-  # presets, as the installed widget ships them, and KVitals' profile
-  # (which readings it shows: assets/plasma/kvitals.json).
+  # For the script below ("null" when missing): Panel Colorizer's
+  # Translucent preset, as the installed widget ships it, and KVitals'
+  # profile (which readings it shows: assets/plasma/kvitals.json). And the
+  # pinned apps, in order: the browser, the file manager, VS Code, Steam
+  # (installed only with a gaming graphics card) and System Settings, the
+  # installed ones.
   local presets=$HOME/.local/share/plasma/plasmoids/luisbocanegra.panel.colorizer/contents/ui/presets
-  local fake_floating=null translucent=null vitals=null out
-  [[ -f "$presets/Fake Floating/settings.json" ]] && fake_floating=$(< "$presets/Fake Floating/settings.json")
+  local translucent=null vitals=null out app launchers='"preferred://browser", "preferred://filemanager"'
   [[ -f $presets/Translucent/settings.json ]] && translucent=$(< "$presets/Translucent/settings.json")
+  for app in code-oss steam systemsettings; do
+    [[ -f /usr/share/applications/$app.desktop ]] && launchers+=", \"applications:$app.desktop\""
+  done
   [[ -f $SETUP_DIR/assets/plasma/kvitals.json ]] && vitals=$(< "$SETUP_DIR/assets/plasma/kvitals.json")
   # The app menu button's icon: the Arch logo (the filesystem package's, in
   # Arch blue) in white, not the icon theme's take on it (Breeze Chameleon's
@@ -166,8 +171,8 @@ configure_desktop_layout() {
   sed 's|fill="#1793d1"|fill="#ffffff"|; s|viewBox="0 0 256 256"|viewBox="-5.33 -5.33 266.67 266.67"|' \
     /usr/share/pixmaps/archlinux-logo.svg > "$logo"
   out=$(plasma_script '
-    var fakeFloating = '"$fake_floating"';
     var translucent = '"$translucent"';
+    var launchers = ['"$launchers"'];
     var vitals = '"$vitals"';
 
     // A panel'"'"'s settings, as Panel Settings shows them, each on its own,
@@ -194,18 +199,31 @@ configure_desktop_layout() {
       colorizer.writeConfig("hideWidget", true);
     }
 
-    // The main panel: Plasma'"'"'s first, at the top, on the right: width
-    // fit content, visibility dodge windows, opacity translucent, floating
-    // disabled, height 42.
-    var panel = panels()[0];
-    var said = configure(panel, { location: "top", alignment: "right", lengthMode: "fit", hiding: "dodgewindows",
-                                  opacity: "translucent", floating: false, height: 42 });
+    // Each panel: at the top, width fit content, visibility dodge windows,
+    // opacity translucent, floating, height 28; where along the top, its own.
+    function top(alignment) {
+      return { location: "top", alignment: alignment, lengthMode: "fit", hiding: "dodgewindows",
+               opacity: "translucent", floating: true, height: 28 };
+    }
 
-    // Pinned apps in the task manager (icontasks, or the classic one).
+    // The main panel: Plasma'"'"'s first, on the right. Its task manager
+    // (icontasks, or the classic one) moves to a panel of its own, below;
+    // where it was, Apdatifier goes.
+    var panel = panels()[0];
+    var said = configure(panel, top("right"));
     var tasks = panel.widgets("org.kde.plasma.icontasks").concat(panel.widgets("org.kde.plasma.taskmanager"));
-    tasks.forEach(function (w) {
-      w.currentConfigGroup = ["General"];
-      w.writeConfig("launchers", ["applications:systemsettings.desktop", "preferred://filemanager", "preferred://browser"]);
+    var order = panel.widgets().map(function (w) { return w.id; });
+    var tasksAt = tasks.length ? order.indexOf(tasks[0].id) : -1;
+    tasks.forEach(function (w) { w.remove(); });
+
+    // Its clock, in Noto Sans at 28 points, not sized to the panel.
+    panel.widgets("org.kde.plasma.digitalclock").forEach(function (w) {
+      w.currentConfigGroup = ["Appearance"];
+      w.writeConfig("autoFontAndSize", false);
+      w.writeConfig("fontFamily", "Noto Sans");
+      w.writeConfig("fontStyleName", "Regular");
+      w.writeConfig("fontWeight", 400);
+      w.writeConfig("fontSize", 28);
     });
 
     // The app menu'"'"'s button: the Arch logo, white like the tray'"'"'s icons
@@ -215,13 +233,13 @@ configure_desktop_layout() {
       w.writeConfig("icon", "archlinux-logo-white");
     });
 
-    colorize(panel, fakeFloating);
+    colorize(panel, translucent);
 
     // No Peek at Desktop (the default panel ends with one).
     panel.widgets("org.kde.plasma.showdesktop").forEach(function (w) { w.remove(); });
 
-    // Apdatifier (installed by install_plasmoids), right after the task
-    // manager: updates counted in a badge, the AUR'"'"'s too, through paru
+    // Apdatifier (installed by install_plasmoids), where the task manager
+    // was: updates counted in a badge, the AUR'"'"'s too, through paru
     // (installed by the desktop phase), upgrades run in Konsole.
     var apd = panel.addWidget("com.github.exequtic.apdatifier");
     if (apd) {
@@ -238,9 +256,8 @@ configure_desktop_layout() {
     apd.writeConfig("counterBadgePosition", "bottomRight");
     apd.writeConfig("selectedIcon", "apdatifier-package");
     apd.writeConfig("hideIconPolicy", 10);
-    var order = panel.widgets().map(function (w) { return w.id; }).filter(function (id) { return id != apd.id; });
-    var after = tasks.length ? order.indexOf(tasks[0].id) : -1;
-    order.splice(after >= 0 ? after + 1 : order.length, 0, apd.id);
+    order = panel.widgets().map(function (w) { return w.id; }).filter(function (id) { return id != apd.id; });
+    order.splice(tasksAt >= 0 ? Math.min(tasksAt, order.length) : order.length, 0, apd.id);
     panel.currentConfigGroup = ["General"];
     panel.writeConfig("AppletOrder", order.join(";"));
     }
@@ -260,14 +277,11 @@ configure_desktop_layout() {
     clock.writeConfig("use_24_hour_format", true);
     }
 
-    // The second panel: new, at the top, on the left: width fit content,
-    // visibility dodge windows, opacity Plasma'"'"'s own (adaptive),
-    // floating disabled, height 36. KVitals in it, with its profile
+    // The second panel: new, on the left. KVitals in it, with its profile
     // (vitals): it only keeps one it'"'"'s told is set up (migrationDone),
     // else it makes its own; its shortcut, Meta+Shift+V, it sets itself.
     var second = new Panel;
-    var saidSecond = configure(second, { location: "top", alignment: "left", lengthMode: "fit",
-                                         hiding: "dodgewindows", floating: false, height: 36 });
+    var saidSecond = configure(second, top("left"));
     var kvitals = second.addWidget("org.kde.plasma.kvitals");
     if (kvitals && vitals) {
       kvitals.currentConfigGroup = ["General"];
@@ -278,32 +292,50 @@ configure_desktop_layout() {
     }
     colorize(second, translucent);
 
+    // The third panel: new, in the centre: the task manager, with the
+    // pinned apps (launchers), and a margins separator after it.
+    var centre = new Panel;
+    var saidCentre = configure(centre, top("center"));
+    var pinned = centre.addWidget("org.kde.plasma.icontasks");
+    if (pinned) {
+      pinned.currentConfigGroup = ["General"];
+      pinned.writeConfig("launchers", launchers);
+    }
+    centre.addWidget("org.kde.plasma.marginsseparator");
+    colorize(centre, translucent);
+
     // For the log and plasmashellrc: each panel'"'"'s number, then what it
     // now says of its settings, a line each.
-    print(panel.id + " " + said + "\n" + second.id + " " + saidSecond);
+    print(panel.id + " " + said + "\n" + second.id + " " + saidSecond + "\n" + centre.id + " " + saidCentre);
   ') || return 1
-  local main=${out%%$'\n'*} second=${out#*$'\n'}
-  [[ ${main%% *} =~ ^[0-9]+$ && ${second%% *} =~ ^[0-9]+$ ]] || { note "Plasma's script gave no panels: $out"; return 1; }
+  local main second centre
+  { read -r main; read -r second; read -r centre; } <<< "$out"
+  [[ ${main%% *} =~ ^[0-9]+$ && ${second%% *} =~ ^[0-9]+$ && ${centre%% *} =~ ^[0-9]+$ ]] \
+    || { note "Plasma's script gave no panels: $out"; return 1; }
   note "Main panel: containment $main"
   note "Second panel: containment $second"
+  note "Centre panel: containment $centre"
 
   # The same settings by plasmashellrc's keys, for a Plasma whose script
   # interface lacks one: under each panel's number, alignment (2 right,
-  # 1 left), width fit content, visibility dodge windows, opacity
-  # translucent (the main one's), floating disabled, height.
-  panel_view "${main%% *}" alignment 2 panelOpacity 2 thickness 42
-  panel_view "${second%% *}" alignment 1 thickness 36
+  # 1 left, 132 centre), and the rest panel_view's.
+  panel_view "${main%% *}" alignment 2
+  panel_view "${second%% *}" alignment 1
+  panel_view "${centre%% *}" alignment 132
 }
 
 # panel_view PANEL KEY VALUE... — plasmashellrc's view settings for panel
-# number PANEL: fit content, dodge windows, not floating, and KEY=VALUE for
-# each pair given (thickness goes under Defaults, where Plasma keeps it).
+# number PANEL: fit content, dodge windows, opacity translucent, floating,
+# height 28, and KEY=VALUE for each pair given (thickness goes under
+# Defaults, where Plasma keeps it).
 panel_view() {
   local view=(--file plasmashellrc --group PlasmaViews --group "Panel $1"); shift
   kwriteconfig6 "${view[@]}" --key panelLengthMode 1
   kwriteconfig6 "${view[@]}" --key panelVisibility 2
-  kwriteconfig6 "${view[@]}" --key floating 0
+  kwriteconfig6 "${view[@]}" --key panelOpacity 2
+  kwriteconfig6 "${view[@]}" --key floating 1
   kwriteconfig6 "${view[@]}" --key floatingApplets 0
+  kwriteconfig6 "${view[@]}" --group Defaults --key thickness 28
   while (( $# >= 2 )); do
     if [[ $1 == thickness ]]; then
       kwriteconfig6 "${view[@]}" --group Defaults --key thickness "$2"
