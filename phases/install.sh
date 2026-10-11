@@ -434,10 +434,18 @@ configure_new_system() {
 }
 
 # Prints the disk the live ISO booted from (/dev/sdX), if it's still mounted.
+# The disk under what's mounted, by walking down from it (lsblk -s): a USB
+# written with the ISO is mounted whole (/dev/sdb, its filesystem starts at
+# the stick's first byte), where a partition's parent (PKNAME) is nothing;
+# others mount a partition, or a device-mapper one over it (Ventoy). A VM's
+# virtual CD is a rom, not a disk: nothing, as there's nothing to unplug.
 live_usb_disk() {
-  local name
-  name=$(lsblk -no PKNAME "$(findmnt -no SOURCE /run/archiso/bootmnt 2>/dev/null)" 2>/dev/null) || return 1
-  [[ -n $name ]] && echo "/dev/$name"
+  local source name type
+  source=$(findmnt -no SOURCE /run/archiso/bootmnt 2>/dev/null) || return 1
+  while read -r name type; do
+    [[ $type == disk ]] && { echo "/dev/$name"; return 0; }
+  done < <(lsblk -nrso NAME,TYPE "$source" 2>/dev/null)
+  return 1
 }
 
 # The Wi-Fi networks the live ISO connected to (its iwd remembers them, in
