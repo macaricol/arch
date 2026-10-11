@@ -17,6 +17,9 @@ from, each with two glyphs redrawn as Pac-Man.
   ▏▎▍▌▋▊▉        left eighths of a cell, for the progress bar's leading edge
                  (lib/ui.sh's draw_progress); the fonts that already have
                  one (▌) keep theirs
+  ←→↑↓           arrows, for the lists' and buttons' key hints (lib/
+                 prompt.sh), in the fonts without them (latarcyrheb-sun32,
+                 which the console otherwise shows as < and >)
 
 The console can't show emoji or colour glyphs, and no stock console font has
 any of them, so they take over the slots of glyphs the installer never
@@ -47,6 +50,7 @@ LOCK = [chr(0xE000 + i) for i in range(LOCK_COLS * LOCK_ROWS)]   # row by row
 DOT = "\ue010"
 LOWER_QUARTER, UPPER_QUARTER = "\u2582", "\ue011"
 EIGHTHS = "▏▎▍▌▋▊▉"   # 1/8 to 7/8 of a cell, filled from the left
+ARROWS = "←→↑↓"
 MOUTH_DEGREES = 38   # half the opening, measured from the horizontal
 # The drawings whose cells are glyphs here.
 ART = [pathlib.Path(__file__).resolve().parent.parent / "assets" / p for p in ("logo/logo-hd.txt", "tux/tux-hd.txt")]
@@ -57,6 +61,7 @@ SPARE = (list("☺☻♀♂♪♫☼♥♦♣♠◘○◙►◄↕‼▬↨∟�
          + list("αΓπΣστΦΘδ∞φε∩≡≥≤⌠⌡≈√ⁿ░▒▓")
          + list("ƒ₧¢¥")                               # CP437 currency relics
          + list("⌐¬½¼²÷")                             # and maths ones
+         + list("☸№‗‾┗┃┏┣┛━┻┓┫┳╋")                     # heavy box drawing and odds and ends
          + [chr(c) for c in range(0x5D0, 0x5EB)]     # Hebrew and Arabic letters, in the
          + [chr(c) for c in range(0x600, 0x700)])    # 512-glyph font only
 
@@ -167,6 +172,55 @@ def draw_eighth(font, k):
     return glyph
 
 
+def stroke(font):
+    """The thickness of the font's horizontal strokes: its hyphen's. (Its
+    vertical ones are up to twice that, in latarcyrheb-sun32: too heavy for
+    an arrow, whose head then fills in.)"""
+    hyphen = font["glyphs"][next(i for i, t in enumerate(font["table"]) if "-" in chars_of(t))]
+    x = font["width"] // 2
+    return max(1, sum(pixel(font, hyphen, x, y) for y in range(font["height"])))
+
+
+def draw_arrow(font, char):
+    """An arrow, as thick as the font's horizontal strokes: ← and → across the cell at the
+    height of the x's middle, their heads as tall as half the capital O;
+    ↑ and ↓ the capital O's height, heads as wide as the cell allows. Lines
+    drawn by their distance from each point, sampled 4 x 4 per pixel."""
+    w, h, row = font["width"], font["height"], (font["width"] + 7) // 8
+    top, bottom = cap_rows(font)
+    x = font["glyphs"][next(i for i, t in enumerate(font["table"]) if "x" in chars_of(t))]
+    xrows = [y for y in range(h) if any(pixel(font, x, c, y) for c in range(w))]
+    half = stroke(font) / 2
+    if char in "←→":
+        cy, left, right = (xrows[0] + xrows[-1] + 1) / 2, 1 + half, w - 1 - half
+        arm = min((bottom - top + 1) / 4, (right - left) / 2)
+        tip, back = (right, left) if char == "→" else (left, right)
+        lean = -arm if char == "→" else arm
+        lines = [((back, cy), (tip, cy)), ((tip, cy), (tip + lean, cy - arm)), ((tip, cy), (tip + lean, cy + arm))]
+    else:
+        # The shaft on whole pixels: an odd stroke centred on one, an even
+        # one between two.
+        cx = w // 2 if stroke(font) % 2 == 0 else (w - 1) // 2 + 0.5
+        arm = min(cx - 1 - half, (bottom - top + 1) / 3)
+        tip, back = (top + half, bottom + 1 - half) if char == "↑" else (bottom + 1 - half, top + half)
+        lean = arm if char == "↑" else -arm
+        lines = [((cx, back), (cx, tip)), ((cx, tip), (cx - arm, tip + lean)), ((cx, tip), (cx + arm, tip + lean))]
+
+    def near(px, py):
+        for (x0, y0), (x1, y1) in lines:
+            dx, dy = x1 - x0, y1 - y0
+            t = max(0, min(1, ((px - x0) * dx + (py - y0) * dy) / (dx * dx + dy * dy)))
+            if (px - x0 - t * dx) ** 2 + (py - y0 - t * dy) ** 2 <= half * half:
+                return True
+        return False
+    glyph = bytearray(font["size"])
+    for y in range(h):
+        for x in range(w):
+            if sum(near(x + (sx + 0.5) / 4, y + (sy + 0.5) / 4) for sy in range(4) for sx in range(4)) >= 8:
+                glyph[y * row + x // 8] |= 0x80 >> (x % 8)
+    return glyph
+
+
 def draw_rows(font, top, bottom):
     """Rows top to bottom (exclusive) filled, full width."""
     w, row = font["width"], (font["width"] + 7) // 8
@@ -233,6 +287,7 @@ def main():
         glyphs += [(c, draw_cell(font, ord(c) - 0xE100)) for c in cells]
         have = set("".join(chars_of(t) for t in font["table"]))
         glyphs += [(c, draw_eighth(font, k)) for k, c in enumerate(EIGHTHS, 1) if c not in have]
+        glyphs += [(c, draw_arrow(font, c)) for c in ARROWS if c not in have]
         assert len(spare) >= len(glyphs), f"{name}: not enough spare glyph slots"
         for slot, (char, glyph) in zip(spare, glyphs):
             font["glyphs"][slot] = glyph
