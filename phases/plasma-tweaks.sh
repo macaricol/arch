@@ -383,31 +383,21 @@ set_up_wallpaper_picker() {
 # Plasma plugin draws, Plasma's own accent-from-wallpaper has no picture to
 # take a colour from, so skwd-wall works the colours out (matugen) and
 # makes them Plasma's colour scheme, SkwdManaged, accent and all (the icon
-# theme follows the accent). It's connected to Plasma once, which leaves
-# ~/.local/state/skwd-wall-v2/app-themes/kde.json; with no command to do
-# that, the colours are regenerated (skwd-helm retheme) and, if Plasma's
-# scheme isn't skwd's then, that file is written as skwd-wall writes it
-# when connected (with nothing generated yet), and they're regenerated
-# again. Which it took, or that neither did, goes in the log.
+# theme follows the accent). It's connected to Plasma once, by its picker
+# (Settings, App themes, KDE Plasma: On), which there's no command for; and
+# not by writing the state that leaves (~/.local/state/skwd-wall-v2/
+# app-themes/kde.json): one skwd-wall didn't make itself, it won't take
+# ("An existing Skwd setup needs review"), nor turn on. So the colours are
+# only regenerated (skwd-helm retheme), in case it connects by itself; the
+# log says whether it did.
 connect_skwd_colours() {
-  local scheme state=$HOME/.local/state/skwd-wall-v2/app-themes/kde.json
-  skwd_scheme() { kreadconfig6 --file kdeglobals --group General --key ColorScheme; }
   command -v matugen &>/dev/null || { note "No matugen, Plasma keeps its own colours"; return 0; }
   skwd-helm retheme &>/dev/null || true
   sleep 2
-  [[ $(skwd_scheme) == SkwdManaged* ]] && { note "skwd-wall's colours: connected by itself"; return 0; }
-  if [[ ! -f $state ]]; then
-    scheme=$(skwd_scheme)
-    mkdir -p "${state%/*}"
-    printf '%s\n' "{\"version\":1,\"config\":\"$HOME/.config/kdeglobals\",\"directory\":\"$HOME/.local/share/color-schemes\",\"previous\":\"${scheme:-BreezeDark}\",\"active\":null,\"outputs\":{},\"enabled\":true,\"pending\":false,\"pending_text\":null,\"pending_selection\":null,\"disabling\":false,\"accent\":{\"previous\":[\"true\",null]},\"restore_stage\":\"scheme\"}" > "$state"
-    chmod 600 "$state"
-    skwd-helm retheme &>/dev/null || true
-    sleep 2
-  fi
-  if [[ $(skwd_scheme) == SkwdManaged* ]]; then
-    note "skwd-wall's colours: connected through its state file"
+  if [[ $(kreadconfig6 --file kdeglobals --group General --key ColorScheme) == SkwdManaged* ]]; then
+    note "skwd-wall's colours: connected by itself"
   else
-    note "skwd-wall's colours: not connected (Plasma's scheme: $(skwd_scheme)); turn them on in its theme settings"
+    note "skwd-wall's colours: not connected; turn them on in its settings (App themes, KDE Plasma)"
   fi
 }
 
