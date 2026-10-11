@@ -67,7 +67,7 @@ BASE_PACKAGES=(base linux linux-firmware btrfs-progs grub efibootmgr nano networ
 KDE_PACKAGES=(
   plasma-desktop sddm sddm-kcm kscreen plasma-pa plasma-nm plasma-systemmonitor
   bluedevil kdeconnect kdenetwork-filesharing kwalletmanager
-  konsole dolphin ark featherpad kio-admin
+  konsole dolphin ark featherpad kio-admin spectacle
   kdegraphics-thumbnailers ffmpegthumbs pipewire-jack
 )
 
@@ -121,6 +121,11 @@ UPMIX_METHOD='psd'        # psd = matrix-decode rears from L-R; also 'simple', '
 UPMIX_LFE_CUTOFF=150      # Hz and below go to the subwoofer
 UPMIX_FC_CUTOFF=12000     # Hz and below go to the centre speaker
 UPMIX_REAR_DELAY=12.0     # ms of Haas delay on the rears, so they stay behind you
+
+# ── Screen ─────────────────────────────────────────────────────────────
+# The screens' brightness, in percent, set in the first Plasma session (a
+# laptop's panel, or a monitor through DDC/CI); both looks.
+BRIGHTNESS=80
 
 # ── Look & feel ────────────────────────────────────────────────────────
 # The login screen: the archman theme (assets/sddm/archman), an Omarchy-style

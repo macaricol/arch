@@ -11,7 +11,7 @@ phase_plasma_tweaks() {
   wait_for_plasma
   local look tweak
   look=$(cat "$SETUP_DIR/look" 2>/dev/null) || look=archman
-  local -a tweaks=(configure_kwin configure_dolphin)
+  local -a tweaks=(configure_kwin configure_dolphin set_brightness)
   [[ $look == archman ]] && tweaks+=(apply_dark_theme set_lock_screen_wallpaper install_plasmoids
                                      configure_desktop_layout set_up_wallpaper_picker install_icon_theme)
   for tweak in "${tweaks[@]}"; do
@@ -53,6 +53,27 @@ tweak() {
   status=$?
   set -e
   (( status == 0 )) || warn "Skipped $1, it failed (status $status)"
+}
+
+# set_brightness — every screen Plasma can dim to BRIGHTNESS percent: its
+# power management's displays (org.kde.ScreenBrightness), a laptop's panel
+# or a monitor through DDC/CI, which it finds a few seconds into the
+# session; up to 15 s for them (a VM has none). Without the brightness
+# popup (flag 1).
+set_brightness() {
+  local service=org.kde.ScreenBrightness iface=org.kde.ScreenBrightness.Display display max
+  local -a displays=()
+  for _ in {1..15}; do
+    mapfile -t displays < <(busctl --user tree --list "$service" 2>/dev/null | grep '/display[0-9]*$')
+    (( ${#displays[@]} )) && break
+    sleep 1
+  done
+  (( ${#displays[@]} )) || { note "No screen whose brightness can be set"; return 0; }
+  for display in "${displays[@]}"; do
+    max=$(busctl --user get-property "$service" "$display" "$iface" MaxBrightness | awk '{ print $2 }')
+    busctl --user call "$service" "$display" "$iface" SetBrightness iu $(( max * BRIGHTNESS / 100 )) 1
+    note "Brightness of $display: $BRIGHTNESS%"
+  done
 }
 
 configure_kwin() {
@@ -135,6 +156,15 @@ configure_desktop_layout() {
   [[ -f "$presets/Fake Floating/settings.json" ]] && fake_floating=$(< "$presets/Fake Floating/settings.json")
   [[ -f $presets/Translucent/settings.json ]] && translucent=$(< "$presets/Translucent/settings.json")
   [[ -f $SETUP_DIR/assets/plasma/kvitals.json ]] && vitals=$(< "$SETUP_DIR/assets/plasma/kvitals.json")
+  # The app menu button's icon: the Arch logo (the filesystem package's, in
+  # Arch blue) in white, not the icon theme's take on it (Breeze Chameleon's
+  # is a round badge); with a small margin (it fills its
+  # 256 square edge to edge): drawn at 96% of the canvas. In
+  # the user's hicolor, which every icon theme falls back to.
+  local logo=$HOME/.local/share/icons/hicolor/scalable/apps/archlinux-logo-white.svg
+  mkdir -p "${logo%/*}"
+  sed 's|fill="#1793d1"|fill="#ffffff"|; s|viewBox="0 0 256 256"|viewBox="-5.33 -5.33 266.67 266.67"|' \
+    /usr/share/pixmaps/archlinux-logo.svg > "$logo"
   out=$(plasma_script '
     var fakeFloating = '"$fake_floating"';
     var translucent = '"$translucent"';
@@ -176,6 +206,13 @@ configure_desktop_layout() {
     tasks.forEach(function (w) {
       w.currentConfigGroup = ["General"];
       w.writeConfig("launchers", ["applications:systemsettings.desktop", "preferred://filemanager", "preferred://browser"]);
+    });
+
+    // The app menu'"'"'s button: the Arch logo, white like the tray'"'"'s icons
+    // (written below this script, as archlinux-logo-white).
+    panel.widgets("org.kde.plasma.kickoff").forEach(function (w) {
+      w.currentConfigGroup = ["General"];
+      w.writeConfig("icon", "archlinux-logo-white");
     });
 
     colorize(panel, fakeFloating);
