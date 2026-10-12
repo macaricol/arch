@@ -152,12 +152,12 @@ configure_desktop_layout() {
   # Translucent preset, as the installed widget ships it, and KVitals'
   # profile (which readings it shows: assets/plasma/kvitals.json). And the
   # pinned apps, in order: the browser, the file manager, VS Code, Steam
-  # (installed only with a gaming graphics card) and System Settings, the
-  # installed ones.
+  # (installed only with a gaming graphics card), Remote Desktop (KRDC),
+  # System Monitor and System Settings, the installed ones.
   local presets=$HOME/.local/share/plasma/plasmoids/luisbocanegra.panel.colorizer/contents/ui/presets
   local translucent=null vitals=null out app launchers='"preferred://browser", "preferred://filemanager"'
   [[ -f $presets/Translucent/settings.json ]] && translucent=$(< "$presets/Translucent/settings.json")
-  for app in code-oss steam systemsettings; do
+  for app in code-oss steam org.kde.krdc org.kde.plasma-systemmonitor systemsettings; do
     [[ -f /usr/share/applications/$app.desktop ]] && launchers+=", \"applications:$app.desktop\""
   done
   [[ -f $SETUP_DIR/assets/plasma/kvitals.json ]] && vitals=$(< "$SETUP_DIR/assets/plasma/kvitals.json")
@@ -200,30 +200,27 @@ configure_desktop_layout() {
     }
 
     // Each panel: at the top, width fit content, visibility dodge windows,
-    // opacity translucent, floating, height 28; where along the top, its own.
+    // opacity translucent, floating, height 30; where along the top, its own.
     function top(alignment) {
       return { location: "top", alignment: alignment, lengthMode: "fit", hiding: "dodgewindows",
-               opacity: "translucent", floating: true, height: 28 };
+               opacity: "translucent", floating: true, height: 30 };
     }
 
     // The main panel: Plasma'"'"'s first, on the right. Its task manager
-    // (icontasks, or the classic one) moves to a panel of its own, below;
-    // where it was, Apdatifier goes.
+    // (icontasks, or the classic one) moves to a panel of its own, below.
     var panel = panels()[0];
     var said = configure(panel, top("right"));
     var tasks = panel.widgets("org.kde.plasma.icontasks").concat(panel.widgets("org.kde.plasma.taskmanager"));
-    var order = panel.widgets().map(function (w) { return w.id; });
-    var tasksAt = tasks.length ? order.indexOf(tasks[0].id) : -1;
     tasks.forEach(function (w) { w.remove(); });
 
-    // Its clock, in Noto Sans at 28 points, not sized to the panel.
+    // Its clock, in Noto Sans Medium at 26 points, not sized to the panel.
     panel.widgets("org.kde.plasma.digitalclock").forEach(function (w) {
       w.currentConfigGroup = ["Appearance"];
       w.writeConfig("autoFontAndSize", false);
       w.writeConfig("fontFamily", "Noto Sans");
-      w.writeConfig("fontStyleName", "Regular");
-      w.writeConfig("fontWeight", 400);
-      w.writeConfig("fontSize", 28);
+      w.writeConfig("fontStyleName", "Medium");
+      w.writeConfig("fontWeight", 500);
+      w.writeConfig("fontSize", 26);
     });
 
     // The app menu'"'"'s button: the Arch logo, white like the tray'"'"'s icons
@@ -238,8 +235,8 @@ configure_desktop_layout() {
     // No Peek at Desktop (the default panel ends with one).
     panel.widgets("org.kde.plasma.showdesktop").forEach(function (w) { w.remove(); });
 
-    // Apdatifier (installed by install_plasmoids), where the task manager
-    // was: updates counted in a badge, the AUR'"'"'s too, through paru
+    // Apdatifier (installed by install_plasmoids), just before the tray:
+    // updates counted in a badge, the AUR'"'"'s too, through paru
     // (installed by the desktop phase), upgrades run in Konsole.
     var apd = panel.addWidget("com.github.exequtic.apdatifier");
     if (apd) {
@@ -256,8 +253,10 @@ configure_desktop_layout() {
     apd.writeConfig("counterBadgePosition", "bottomRight");
     apd.writeConfig("selectedIcon", "apdatifier-package");
     apd.writeConfig("hideIconPolicy", 10);
-    order = panel.widgets().map(function (w) { return w.id; }).filter(function (id) { return id != apd.id; });
-    order.splice(tasksAt >= 0 ? Math.min(tasksAt, order.length) : order.length, 0, apd.id);
+    var order = panel.widgets().map(function (w) { return w.id; }).filter(function (id) { return id != apd.id; });
+    var tray = panel.widgets("org.kde.plasma.systemtray");
+    var before = tray.length ? order.indexOf(tray[0].id) : -1;
+    order.splice(before >= 0 ? before : order.length, 0, apd.id);
     panel.currentConfigGroup = ["General"];
     panel.writeConfig("AppletOrder", order.join(";"));
     }
@@ -326,7 +325,7 @@ configure_desktop_layout() {
 
 # panel_view PANEL KEY VALUE... — plasmashellrc's view settings for panel
 # number PANEL: fit content, dodge windows, opacity translucent, floating,
-# height 28, and KEY=VALUE for each pair given (thickness goes under
+# height 30, and KEY=VALUE for each pair given (thickness goes under
 # Defaults, where Plasma keeps it).
 panel_view() {
   local view=(--file plasmashellrc --group PlasmaViews --group "Panel $1"); shift
@@ -335,7 +334,7 @@ panel_view() {
   kwriteconfig6 "${view[@]}" --key panelOpacity 2
   kwriteconfig6 "${view[@]}" --key floating 1
   kwriteconfig6 "${view[@]}" --key floatingApplets 0
-  kwriteconfig6 "${view[@]}" --group Defaults --key thickness 28
+  kwriteconfig6 "${view[@]}" --group Defaults --key thickness 30
   while (( $# >= 2 )); do
     if [[ $1 == thickness ]]; then
       kwriteconfig6 "${view[@]}" --group Defaults --key thickness "$2"
