@@ -88,7 +88,7 @@ install.
 
 The USB also carries what the first Plasma session would otherwise
 download: the icon theme and the widgets (`ICON_THEME`, `PLASMOID_REPOS`),
-fetched when it's built (about 7 MB in the image). So the ARCHMAN look comes
+fetched when it's built. So the ARCHMAN look comes
 out whole even if the new system has no internet at its first login; from
 an older USB without them, that session downloads them as before.
 

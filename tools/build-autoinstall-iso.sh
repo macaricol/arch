@@ -453,9 +453,11 @@ carry_plasma_extras() {
   local dest=$1 tmp repo name
   echo "==> Fetching the first login's icon theme and widgets..."
   tmp=$(mktemp -d)
-  if git clone -q --depth 1 "$ICON_THEME_REPO" "$tmp/icons" && [[ -d $tmp/icons/$ICON_THEME ]]; then
+  # (The icon theme's repo is the theme itself: as ICON_THEME, without git's files.)
+  if git clone -q --depth 1 "$ICON_THEME_REPO" "$tmp/icons" && [[ -f $tmp/icons/index.theme ]]; then
+    rm -rf "$tmp/icons/.git"
     mkdir -p "$dest/icons"
-    cp -r "$tmp/icons/$ICON_THEME" "$dest/icons/"
+    cp -r "$tmp/icons" "$dest/icons/$ICON_THEME"
     echo "    icons: $ICON_THEME"
   else
     echo "    icons: couldn't fetch $ICON_THEME; the first login will"

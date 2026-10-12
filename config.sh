@@ -140,8 +140,13 @@ ASTRONAUT_THEME='sddm-astronaut-theme'
 # applied: the desktop's and the lock screen's.
 WALLPAPERS_DIR=/usr/share/wallpapers/archman
 WALLPAPER="$WALLPAPERS_DIR/synthwave-city-sunset.jpg"
-ICON_THEME_REPO='https://github.com/L4ki/Breeze-Chameleon-Icons.git'
-ICON_THEME='Breeze Chameleon Dark'   # a directory inside that repo
+# The icon theme: YAMIS (yet another monochrome icon set), the repo itself,
+# installed under ICON_THEME; and the one applied, ICON_THEME_APPLIED, which
+# inherits it: assets/icons/YAMIS-Grey (tools/make-yamis-grey.py), its
+# folders, Trash and Recent Files toned down to a grey.
+ICON_THEME_REPO='https://bitbucket.org/dirn-typo/yet-another-monochrome-icon-set.git'
+ICON_THEME='YAMIS'
+ICON_THEME_APPLIED='YAMIS-Grey'
 PLASMOID_REPOS=(                     # each repo's package/ directory, or the repo itself (metadata.json at its top)
   https://github.com/macaricol/kde_modernclock.git
   https://github.com/exequtic/apdatifier

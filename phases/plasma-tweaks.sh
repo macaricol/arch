@@ -162,8 +162,8 @@ configure_desktop_layout() {
   done
   [[ -f $SETUP_DIR/assets/plasma/kvitals.json ]] && vitals=$(< "$SETUP_DIR/assets/plasma/kvitals.json")
   # The app menu button's icon: the Arch logo (the filesystem package's, in
-  # Arch blue) in white, not the icon theme's take on it (Breeze Chameleon's
-  # is a round badge); with a small margin (it fills its
+  # Arch blue) in white, not the icon theme's take on it (some draw a round
+  # badge); with a small margin (it fills its
   # 256 square edge to edge): drawn at 96% of the canvas. In
   # the user's hicolor, which every icon theme falls back to.
   local logo=$HOME/.local/share/icons/hicolor/scalable/apps/archlinux-logo-white.svg
@@ -345,8 +345,10 @@ panel_view() {
   done
 }
 
-# The icon theme: the copy the USB brought (extras/icons) when there is
-# one, so no internet is needed; otherwise downloaded.
+# The icon theme: YAMIS, the copy the USB brought (extras/icons) when there
+# is one, so no internet is needed; otherwise downloaded (the repo is the
+# theme, its git files left out). Then the one applied over it, YAMIS
+# Grey, from the installer's assets.
 # skwd-wall, the wallpaper picker (installed by the desktop phase), set up
 # as on the machine ARCHMAN is made on: its settings (assets/skwd-wall/
 # config.json: the ARCHMAN preset of its "slices" picker, matugen for its
@@ -401,16 +403,19 @@ connect_skwd_colours() {
 }
 
 install_icon_theme() {
-  mkdir -p "$HOME/.local/share/icons"
+  local icons=$HOME/.local/share/icons
+  mkdir -p "$icons"
   if [[ -d $SETUP_DIR/extras/icons/$ICON_THEME ]]; then
-    cp -r "$SETUP_DIR/extras/icons/$ICON_THEME" "$HOME/.local/share/icons/"
+    cp -r "$SETUP_DIR/extras/icons/$ICON_THEME" "$icons/"
   else
     local tmp; tmp=$(mktemp -d)
-    git_clone "$ICON_THEME_REPO" "$tmp"
-    cp -r "$tmp/$ICON_THEME" "$HOME/.local/share/icons/"
+    git_clone "$ICON_THEME_REPO" "$tmp/$ICON_THEME"
+    rm -rf "$tmp/$ICON_THEME/.git"
+    cp -r "$tmp/$ICON_THEME" "$icons/"
     rm -rf "$tmp"
   fi
-  kwriteconfig6 --file kdeglobals --group Icons --key Theme "$ICON_THEME"
+  cp -r "$SETUP_DIR/assets/icons/$ICON_THEME_APPLIED" "$icons/"
+  kwriteconfig6 --file kdeglobals --group Icons --key Theme "$ICON_THEME_APPLIED"
 }
 
 # Removes the autostart entry and the installer itself, keeping only the

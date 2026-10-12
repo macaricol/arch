@@ -114,7 +114,7 @@ phase_install() {
 choose_look() {
   buttons "Choose your desktop's look" 1 \
     VANILLA "KDE Plasma as it comes: KDE's own Breeze theme, login screen and wallpaper." \
-    ARCHMAN "Dark theme, the ARCHMAN login screen, a cyberpunk wallpaper, Breeze Chameleon icons, a top panel and a clock widget."
+    ARCHMAN "Dark theme, the ARCHMAN login screen, a cyberpunk wallpaper, monochrome icons, top panels and a clock widget."
   if (( PICKED == 0 )); then LOOK=plain; else LOOK=archman; fi
 }
 
