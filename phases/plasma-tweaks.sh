@@ -76,9 +76,14 @@ set_brightness() {
   done
 }
 
+# The screen's bottom corners: bottom left, Show Desktop (the windows out of
+# the way until one is focused); bottom right, KWin's Minimize All script
+# (they're minimized, and stay so; there again, back up), turned on, on its
+# edge number (KWin's ElectricBorder: 3, bottom right).
 configure_kwin() {
-  kwriteconfig6 --file kwinrc --group ElectricBorders --key BottomLeft  ShowDesktop
-  kwriteconfig6 --file kwinrc --group ElectricBorders --key BottomRight ShowDesktop
+  kwriteconfig6 --file kwinrc --group ElectricBorders --key BottomLeft ShowDesktop
+  kwriteconfig6 --file kwinrc --group Plugins --key minimizeallEnabled true
+  kwriteconfig6 --file kwinrc --group Script-minimizeall --key BorderActivate 3
   kwriteconfig6 --file kwinrc --group TabBox --key BorderAlternativeActivate 6
   kwriteconfig6 --file kwinrc --group ScreenEdges --key RemainActiveOnFullscreen true
 }
