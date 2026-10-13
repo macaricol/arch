@@ -374,6 +374,11 @@ Things that look odd but are deliberate:
   down. Press Esc during boot to see the
   messages. On NVIDIA the driver modules go into the initramfs too, so the
   splash has a display that early.
+  The same splash covers reboot and power-off (Plymouth's own shutdown
+  units). Around it, the text console shows for a moment, so it's kept
+  blank: `vt.global_cursor_default=0` hides its cursor, and
+  `/etc/sysctl.d/20-quiet-printk.conf` keeps kernel warnings off it for the
+  whole session (`loglevel=3` only lasts through boot).
 - The live USB is filtered out of the drive menu, and `udevadm settle`
   runs after partitioning so the new device nodes exist before they're used.
 
@@ -402,23 +407,13 @@ CPU microcode (`intel-ucode` / `amd-ucode`) is added here too, picked from the
 detected vendor — see the design note on why it goes in at this stage.
 
 ### GPU drivers — `GPU_PACKAGES_*`, by detected vendor, pacstrapped too
-  The same splash covers reboot and power-off (Plymouth's own shutdown
-  units). Around it, the text console shows for a moment, so it's kept
-  blank: `vt.global_cursor_default=0` hides its cursor, and
-  `/etc/sysctl.d/20-quiet-printk.conf` keeps kernel warnings off it for the
-  whole session (`loglevel=3` only lasts through boot).
-- **Intel** — `mesa`, `lib32-mesa`, `vulkan-intel`, `lib32-vulkan-intel`,
-  `intel-media-driver`: graphics drivers (64- and 32-bit), Vulkan, and
-  hardware video decode/encode
-- **AMD** — `mesa`, `lib32-mesa`, `vulkan-radeon`, `lib32-vulkan-radeon`,
-  `radeontop`: the same, plus a GPU usage monitor
-- **NVIDIA** — `nvidia-open`, `nvidia-utils`, `lib32-nvidia-utils`,
-  `nvidia-settings`, `opencl-nvidia`: open kernel modules plus the userspace
-  driver (64- and 32-bit), config GUI, OpenCL. `nvidia-open` drives Turing
-  (RTX 20xx) and newer only; older cards fall back to nouveau, since the
-  proprietary package no longer exists in the repos.
-- **Fallback** (VMs, unrecognised hardware) — `mesa`, `lib32-mesa` only.
-  Deliberately no software Vulkan: see the design note above.
+
+| Vendor | Packages | Purpose |
+|---|---|---|
+| Intel | `mesa`, `lib32-mesa`, `vulkan-intel`, `lib32-vulkan-intel`, `intel-media-driver` | Graphics drivers (64- and 32-bit), Vulkan, and hardware video decode/encode |
+| AMD | `mesa`, `lib32-mesa`, `vulkan-radeon`, `lib32-vulkan-radeon`, `radeontop` | The same, plus a GPU usage monitor |
+| NVIDIA | `nvidia-open`, `nvidia-utils`, `lib32-nvidia-utils`, `nvidia-settings`, `opencl-nvidia` | Open kernel modules plus the userspace driver (64- and 32-bit), config GUI, OpenCL. `nvidia-open` drives Turing (RTX 20xx) and newer only; older cards fall back to nouveau, since the proprietary package no longer exists in the repos |
+| Fallback (VMs, unrecognised hardware) | `mesa`, `lib32-mesa` | Only these. Deliberately no software Vulkan: see the design note above |
 
 Hybrid setups get every matching vendor. The 32-bit halves are what Steam
 needs, and installing them first is what stops pacman pulling the NVIDIA
@@ -426,58 +421,59 @@ userspace onto an AMD or Intel machine.
 
 ### `KDE_PACKAGES` — the desktop
 
-**Core Plasma**
-- `plasma-desktop` — Plasma shell, panels, widgets, workspace
-- `sddm` — Login screen (display manager)
-- `sddm-kcm` — KDE settings module for configuring SDDM
-- `kscreen` — Display configuration and multi-monitor support
-
-**System tray & management**
-- `plasma-pa` — Audio volume control
-- `plasma-nm` — Network management
-- `plasma-systemmonitor` — System resource monitor
-- `kwalletmanager` — Password and credential manager (KWallet)
-
-**Hardware & connectivity**
-- `bluedevil` — Bluetooth support and tray applet
-- `kdeconnect` — Phone integration (notifications, file sharing, remote control)
-- `kdenetwork-filesharing` — The "Share" tab in Dolphin, for Samba shares
-
-**Applications**
-- `konsole` — Terminal emulator
-- `dolphin` — File manager
-- `ark` — Archive manager (zip, 7z, rar, …)
-- `featherpad` — Lightweight text editor
-- `kio-admin` — Lets Dolphin edit root-owned files behind a polkit prompt,
-  instead of running a whole file manager as root
-
-**Multimedia & thumbnails**
-- `kdegraphics-thumbnailers` — Thumbnails for images and PDFs
-- `ffmpegthumbs` — Video thumbnails in Dolphin
-- `pipewire-jack` — JACK audio support via PipeWire
+| Package | Purpose |
+|---|---|
+| `plasma-desktop` | Plasma shell, panels, widgets, workspace |
+| `sddm` | Login screen (display manager) |
+| `sddm-kcm` | KDE settings module for configuring SDDM |
+| `kscreen` | Display configuration and multi-monitor support |
+| `plasma-pa` | Audio volume control in the tray |
+| `plasma-nm` | Network management in the tray |
+| `plasma-systemmonitor` | System resource monitor (pinned in the centre panel) |
+| `bluedevil` | Bluetooth support and tray applet |
+| `kdeconnect` | Phone integration (notifications, file sharing, remote control) |
+| `kdenetwork-filesharing` | The "Share" tab in Dolphin, for Samba shares |
+| `kwalletmanager` | Password and credential manager (KWallet) |
+| `konsole` | Terminal emulator |
+| `dolphin` | File manager |
+| `ark` | Archive manager (zip, 7z, rar, …) |
+| `featherpad` | Lightweight text editor |
+| `kio-admin` | Lets Dolphin edit root-owned files behind a polkit prompt, instead of running a whole file manager as root |
+| `spectacle` | Screenshots (the Print Screen key) |
+| `kde-gtk-config` | GTK apps follow KDE's settings: the window buttons (minimize and maximize in Zen's own title bar), fonts, cursor and theme |
+| `kdegraphics-thumbnailers` | Thumbnails for images and PDFs |
+| `ffmpegthumbs` | Video thumbnails in Dolphin |
+| `pipewire-jack` | JACK audio support via PipeWire |
 
 ### `EXTRA_PACKAGES` — applications and fonts
 
-- `fastfetch` — System information display
-- `mpv` — Lightweight, scriptable video player
-- `krdc` — Remote desktop client (VNC/RDP)
-- `krdp` — Remote desktop server (RDP)
-- `git` — Version control
-- `code` — The open-source build of Visual Studio Code
-- `ttf-liberation` — Metric-compatible Arial / Times New Roman / Courier New
-- `noto-fonts-cjk` — Chinese, Japanese and Korean coverage
-- `ntfs-3g`, `exfatprogs`, `dosfstools` — format and repair NTFS, exFAT and
-  FAT32. Only formatting and repair need these; mounting works without them.
+| Package | Purpose |
+|---|---|
+| `fastfetch` | System information display |
+| `mpv` | Lightweight, scriptable video player |
+| `krdc` | Remote desktop client, VNC/RDP (pinned in the centre panel) |
+| `krdp` | Remote desktop server (RDP) |
+| `git` | Version control |
+| `code` | The open-source build of Visual Studio Code |
+| `ttf-liberation` | Metric-compatible Arial / Times New Roman / Courier New |
+| `noto-fonts-cjk` | Chinese, Japanese and Korean coverage |
+| `ntfs-3g`, `exfatprogs`, `dosfstools` | Format and repair NTFS, exFAT and FAT32. Only formatting and repair need these; mounting works without them |
+| `matugen` | Works out the desktop's colours from the wallpaper, for skwd-wall |
 
-### `GAMING_PACKAGES` and `AUR_PACKAGES`
+### `GAMING_PACKAGES`, `base-devel` and `AUR_PACKAGES`
 
-- `steam` — Installed only when a real GPU was detected, and after the 32-bit
-  drivers, for the reason in the design notes. Needs the multilib repo, which
-  the install phase enables.
-- `base-devel` — Build tools, required to compile anything from the AUR
-  (built with `MAKEFLAGS=-j$(nproc)`: makepkg.conf leaves it to one core)
-- `paru` (AUR) — the AUR helper: keeps the AUR packages (Zen, qView, and
-  itself) up to date with `paru -Syu`, or from Apdatifier in the panel;
-  installed first, prebuilt on the USB
-- `zen-browser-bin` (AUR) — Firefox-based privacy-focused browser
-- `qview` (AUR) — Lightweight, fast image viewer
+| Package | From | Purpose |
+|---|---|---|
+| `steam` | Official (multilib) | Installed only when a real GPU was detected, and after the 32-bit drivers, for the reason in the design notes. The install phase enables multilib |
+| `base-devel` | Official | Build tools, required to compile anything from the AUR (built with `MAKEFLAGS=-j$(nproc)`: makepkg.conf leaves it to one core) |
+| `paru` | AUR, prebuilt on the USB | The AUR helper: installs the AUR packages after it, and keeps them (itself included) up to date with `paru -Syu`, or from Apdatifier in the panel. Installed first |
+| `zen-browser-bin` | AUR | Firefox-based, privacy-focused browser |
+| `qview` | AUR, prebuilt on the USB | Lightweight, fast image viewer |
+| `skwd-paper-bin` | AUR (recipe `skwd-suite-bin`), prebuilt on the USB | The wallpaper renderers: still images, video and Wallpaper Engine scenes |
+| `skwd-deck-bin` | AUR (recipe `skwd-suite-bin`), prebuilt on the USB | The suite's control daemon and tools (`skwd-walld`, `skwd-helm`) |
+| `skwd-wall-v2-bin` | AUR (recipe `skwd-suite-bin`), prebuilt on the USB | skwd-wall, the wallpaper picker (Alt+W) |
+| `skwd-paper-plasma` | AUR, prebuilt on the USB | Plasma's wallpaper plugin for it, which draws the desktop's wallpaper |
+
+The skwd-wall packages are a beta; the three `-bin` ones are listed in
+`AUR_PREBUILT_BIN` so the USB carries them too (a `-bin` package is
+otherwise only a download, left to installs).
