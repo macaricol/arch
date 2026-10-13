@@ -68,6 +68,7 @@ KDE_PACKAGES=(
   plasma-desktop sddm sddm-kcm kscreen plasma-pa plasma-nm plasma-systemmonitor
   bluedevil kdeconnect kdenetwork-filesharing kwalletmanager
   konsole dolphin ark featherpad kio-admin spectacle
+  kde-gtk-config   # GTK apps (Zen) follow KDE: window buttons, fonts, cursor, theme
   kdegraphics-thumbnailers ffmpegthumbs pipewire-jack
 )
 
