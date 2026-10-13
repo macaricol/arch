@@ -206,9 +206,6 @@ install_aur_packages() {
   done
 }
 
-# Plasma writes several of the config files plasma-tweaks edits during its own
-# startup, so that phase can't run from here: autostart it in the first
-# session instead, in phase 2 (after the shell is up) plus a real delay.
 # Global shortcuts, for the apps installed above: Alt+W opens skwd-wall, the
 # wallpaper picker. Written before the first login, as Plasma's shortcut
 # service reads them when the session starts: an app's launch shortcut,
@@ -217,6 +214,10 @@ configure_shortcuts() {
   kwriteconfig6 --file kglobalshortcutsrc --group services --group skwd-wall-v2.desktop --key _launch "Alt+W"
 }
 
+# Plasma writes several of the config files plasma-tweaks edits during its own
+# startup, so that phase can't run from here: autostart it in the first
+# session instead, in phase 2 (after the shell is up); it waits for Plasma
+# to settle itself (wait_for_plasma).
 schedule_plasma_tweaks() {
   mkdir -p "$HOME/.config/autostart"
   cat > "$HOME/.config/autostart/arch-plasma-tweaks.desktop" <<EOF

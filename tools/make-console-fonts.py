@@ -182,15 +182,16 @@ def stroke(font):
 
 
 def draw_arrow(font, char):
-    """An arrow, as thick as the font's horizontal strokes: ← and → across the cell at the
-    height of the x's middle, their heads as tall as half the capital O;
+    """An arrow, as thick as the font's horizontal strokes: ← and → across
+    the cell at the height of the x's middle, their heads as tall as half the capital O;
     ↑ and ↓ the capital O's height, heads as wide as the cell allows. Lines
     drawn by their distance from each point, sampled 4 x 4 per pixel."""
     w, h, row = font["width"], font["height"], (font["width"] + 7) // 8
     top, bottom = cap_rows(font)
-    x = font["glyphs"][next(i for i, t in enumerate(font["table"]) if "x" in chars_of(t))]
-    xrows = [y for y in range(h) if any(pixel(font, x, c, y) for c in range(w))]
-    half = stroke(font) / 2
+    ex = font["glyphs"][next(i for i, t in enumerate(font["table"]) if "x" in chars_of(t))]
+    xrows = [y for y in range(h) if any(pixel(font, ex, c, y) for c in range(w))]
+    thickness = stroke(font)
+    half = thickness / 2
     if char in "←→":
         cy, left, right = (xrows[0] + xrows[-1] + 1) / 2, 1 + half, w - 1 - half
         arm = min((bottom - top + 1) / 4, (right - left) / 2)
@@ -200,7 +201,7 @@ def draw_arrow(font, char):
     else:
         # The shaft on whole pixels: an odd stroke centred on one, an even
         # one between two.
-        cx = w // 2 if stroke(font) % 2 == 0 else (w - 1) // 2 + 0.5
+        cx = w // 2 if thickness % 2 == 0 else (w - 1) // 2 + 0.5
         arm = min(cx - 1 - half, (bottom - top + 1) / 3)
         tip, back = (top + half, bottom + 1 - half) if char == "↑" else (bottom + 1 - half, top + half)
         lean = arm if char == "↑" else -arm

@@ -431,14 +431,14 @@ PY
 # dependencies from the AUR); a -bin one without checking dependencies.
 build_aur_package() {
   local user=$1 dir=$2 out=$3 recipe=$4 file; shift 4
-  local -a check=(--syncdeps) install=()
+  local -a check=(--syncdeps) preinstall=()
   [[ $recipe == *-bin ]] && check=(--nodeps)
   if [[ -n $BUILD_USER ]]; then
     (( $# == 0 )) || run pacman -U --noconfirm --needed "$@"
     run sudo -u "$user" env -C "$dir" PKGDEST="$out" MAKEFLAGS="-j$(nproc)" makepkg "${check[@]}" --noconfirm
   else
-    for file; do install+=(-I "$file"); done
-    (cd "$dir" && PKGDEST="$out" MAKEFLAGS="-j$(nproc)" run makechrootpkg -c -u -r "$AUR_CHROOT" "${install[@]}" -- "${check[@]}")
+    for file; do preinstall+=(-I "$file"); done
+    (cd "$dir" && PKGDEST="$out" MAKEFLAGS="-j$(nproc)" run makechrootpkg -c -u -r "$AUR_CHROOT" "${preinstall[@]}" -- "${check[@]}")
   fi
 }
 prebuild_aur_packages "$work/airootfs/usr/local/share/archauto/packages"
