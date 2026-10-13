@@ -3,10 +3,13 @@
 # image again from the official Arch ISO, and creates and starts a new VM
 # with it.
 #
-#   tools/rebuild-test.sh [--wifi-test] [--record] [OFFICIAL_ISO]
+#   tools/rebuild-test.sh [--wifi-test] [--record] [--reuse] [OFFICIAL_ISO]
 #
 # --wifi-test builds the image with simulated Wi-Fi networks, for trying the
-# Wi-Fi screen in the VM (see tools/build-autoinstall-iso.sh). --record
+# Wi-Fi screen in the VM (see tools/build-autoinstall-iso.sh). --reuse
+# skips the build: the VM boots the image already here (from the last round,
+# or tools/build-autoinstall-iso.sh run by hand), as it is; for a change to
+# the installer alone, which the image downloads from GitHub anyway. --record
 # records the VM's screen, to archman-test-screen0.webm here (see
 # tools/new-test-vm.sh); the last round's video goes either way.
 # OFFICIAL_ISO defaults to the newest official ISO here (archlinux-
@@ -20,11 +23,12 @@
 set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
-build_options=() vm_options=()
+build_options=() vm_options=() reuse=0
 while [[ ${1:-} == --* ]]; do
   case $1 in
     --wifi-test) build_options+=(--wifi-test) ;;
     --record) vm_options+=(--record) ;;
+    --reuse) reuse=1 ;;
     *) echo "Unknown option: $1" >&2; exit 1 ;;
   esac
   shift
@@ -34,8 +38,13 @@ image=archlinux-autoinstall.iso
 vm=archman-test
 
 (( EUID != 0 )) || { echo "Run this as your user, not with sudo (the VM is yours)." >&2; exit 1; }
-[[ -n $official ]] || { echo "No official ISO here: download one with: sudo tools/build-autoinstall-iso.sh --download" >&2; exit 1; }
-[[ -f $official ]] || { echo "No such ISO: $official" >&2; exit 1; }
+if (( reuse )); then
+  [[ -f $image ]] || { echo "No $image here to reuse: build one, without --reuse." >&2; exit 1; }
+  (( ${#build_options[@]} == 0 )) || echo "(--wifi-test does nothing with --reuse: the image is used as it was built.)"
+else
+  [[ -n $official ]] || { echo "No official ISO here: download one with: sudo tools/build-autoinstall-iso.sh --download" >&2; exit 1; }
+  [[ -f $official ]] || { echo "No such ISO: $official" >&2; exit 1; }
+fi
 
 branch=$(git branch --show-current)
 git fetch -q origin "$branch" 2>/dev/null || true
@@ -61,12 +70,16 @@ else
   echo "    (there wasn't one)"
 fi
 
-echo "==> Deleting $image"
-sudo rm -f "$image"
+if (( reuse )); then
+  echo "==> Reusing $image (built $(date -r "$image" '+%Y-%m-%d %H:%M'))"
+else
+  echo "==> Deleting $image"
+  sudo rm -f "$image"
 
-echo "==> Building $image from $official, for branch $branch"
-sudo BRANCH="$branch" tools/build-autoinstall-iso.sh "${build_options[@]}" "$official" "$image"
-sudo chown "$(id -u):$(id -g)" "$image"   # yours, so the next round needn't sudo to delete it
+  echo "==> Building $image from $official, for branch $branch"
+  sudo BRANCH="$branch" tools/build-autoinstall-iso.sh "${build_options[@]}" "$official" "$image"
+  sudo chown "$(id -u):$(id -g)" "$image"   # yours, so the next round needn't sudo to delete it
+fi
 
 echo "==> Creating the test VM"
 tools/new-test-vm.sh "${vm_options[@]}" "$image" "$vm"
