@@ -328,6 +328,8 @@ install -Dm644 -t "$installer/assets/consolefonts" "$repo_dir"/assets/consolefon
   printf 'LOGO_WIDTH=%q\nLOGO=%q\n' "${logo%%$'\n'*}" "${logo#*$'\n'}"
 } > "$work/airootfs/usr/local/share/archauto/archauto.conf"
 install -Dm755 "$repo_dir/tools/archauto.sh" "$work/airootfs/usr/local/bin/archauto"
+# --wifi-test's simulated networks, for that build only.
+(( ! WIFI_TEST )) || install -Dm644 -t "$work/airootfs/usr/local/share/archauto" "$repo_dir/test/wifi-test.sh"
 
 # The AUR packages carried prebuilt, built here and put in the live system
 # for the installer (lib/system.sh's aur_install): those that compile from
