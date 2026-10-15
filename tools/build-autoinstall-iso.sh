@@ -113,7 +113,10 @@ fi
 # On disk (/var/tmp), not in /tmp: that's usually RAM (tmpfs), and the live
 # system unpacked is some 3.5 GB, then repacked beside itself.
 work=$(mktemp -d -p /var/tmp archman-build.XXXXXX)
-trap 'rm -rf "$work"' EXIT
+efi_mnt=$work/efi_mnt   # where the EFI image is loop-mounted, near the end
+# On any exit: the EFI image unmounted first (should a step fail while it's
+# mounted), so rm never reaches into it and no loop mount is left behind.
+trap 'mountpoint -q "$efi_mnt" && umount "$efi_mnt"; rm -rf "$work"' EXIT
 
 # Prints "<filename> <sha256>" for the current release. sha256sums.txt lists
 # the image twice — under its dated name and under the undated alias — so take
@@ -304,15 +307,16 @@ EOF
 ln -sf ../archauto.service "$work/airootfs/etc/systemd/system/multi-user.target.wants/archauto.service"
 
 # The script it runs: tools/archauto.sh, the splash, the network, then the
-# installer. Copied alongside: the patched console fonts the text logo needs
-# (assets/consolefonts), the logo files and fb-logo.py, and its settings.
-mkdir -p "$work/airootfs/usr/local/bin"
-install -Dm644 -t "$work/airootfs/usr/local/share/archauto" "$repo_dir"/assets/consolefonts/*.psfu.gz \
+# installer. Copied alongside, in share: the patched console fonts the text
+# logo needs (assets/consolefonts), the logo files and fb-logo.py, and its
+# settings.
+share=$work/airootfs/usr/local/share/archauto
+install -Dm644 -t "$share" "$repo_dir"/assets/consolefonts/*.psfu.gz \
   "$repo_dir"/assets/logo/logo-hd.{txt,colors} "$repo_dir"/tools/fb-logo.py
 # The Wi-Fi screen (phases/wifi.sh) has to work before the installer can be
 # downloaded: so the USB carries what it needs of this installer, its
 # screens and prompts.
-installer="$work/airootfs/usr/local/share/archauto/installer"
+installer=$share/installer
 install -Dm644 -t "$installer" "$repo_dir"/{setup.sh,config.sh}
 install -Dm644 -t "$installer/lib" "$repo_dir"/lib/*.sh
 install -Dm644 -t "$installer/phases" "$repo_dir"/phases/wifi.sh
@@ -326,10 +330,10 @@ install -Dm644 -t "$installer/assets/consolefonts" "$repo_dir"/assets/consolefon
   logo=$(SETUP_DIR=$repo_dir TERM=linux PATCHED_FONT=1 bash -c \
     'source "$SETUP_DIR/config.sh"; source "$SETUP_DIR/lib/ui.sh"; logo_lines; printf "%s\n" "$LOGO_WIDTH" "${LOGO_LINES[@]}"')
   printf 'LOGO_WIDTH=%q\nLOGO=%q\n' "${logo%%$'\n'*}" "${logo#*$'\n'}"
-} > "$work/airootfs/usr/local/share/archauto/archauto.conf"
+} > "$share/archauto.conf"
 install -Dm755 "$repo_dir/tools/archauto.sh" "$work/airootfs/usr/local/bin/archauto"
 # --wifi-test's simulated networks, for that build only.
-(( ! WIFI_TEST )) || install -Dm644 -t "$work/airootfs/usr/local/share/archauto" "$repo_dir/test/wifi-test.sh"
+(( ! WIFI_TEST )) || install -Dm644 -t "$share" "$repo_dir/test/wifi-test.sh"
 
 # The AUR packages carried prebuilt, built here and put in the live system
 # for the installer (lib/system.sh's aur_install): those that compile from
@@ -443,12 +447,13 @@ build_aur_package() {
     (cd "$dir" && PKGDEST="$out" MAKEFLAGS="-j$(nproc)" run makechrootpkg -c -u -r "$AUR_CHROOT" "${preinstall[@]}" -- "${check[@]}")
   fi
 }
-prebuild_aur_packages "$work/airootfs/usr/local/share/archauto/packages"
+prebuild_aur_packages "$share/packages"
 
 # What the first Plasma session (phases/plasma-tweaks.sh) would download:
 # the icon theme (ICON_THEME from ICON_THEME_REPO) and the widgets
-# (PLASMOID_REPOS' widgets, as package/ directories), fetched now and carried on the
-# USB, so the new system has them even with no internet at its first login.
+# (PLASMOID_REPOS', as package/ directories), fetched now and carried on
+# the USB, so the new system has them even with no internet at its first
+# login.
 # Only what's used is kept, without git's history. Any that can't be
 # fetched are left out; that first session then downloads them as before.
 carry_plasma_extras() {
@@ -482,7 +487,7 @@ carry_plasma_extras() {
   done
   rm -rf "$tmp"
 }
-carry_plasma_extras "$work/airootfs/usr/local/share/archauto/extras"
+carry_plasma_extras "$share/extras"
 
 echo "==> Repacking squashfs (this takes a while)..."
 rm -f "$work/airootfs.sfs"
@@ -493,7 +498,6 @@ rm -f "$work/airootfs.sfs"
 run mksquashfs "$work/airootfs" "$work/airootfs.sfs" -comp xz -Xbcj x86,arm64 -b 1M -Xdict-size 1M
 
 echo "==> Adding a boot entry to the EFI image..."
-efi_mnt="$work/efi_mnt"
 mkdir -p "$efi_mnt"
 mount -o loop "$work/efiboot.img" "$efi_mnt"
 # Pick the plain install entry by content, not directory order: it has a
@@ -505,7 +509,7 @@ for f in "$efi_mnt"/loader/entries/*.conf; do
   default_entry=$f
   break
 done
-[[ -n $default_entry ]] || { umount "$efi_mnt"; echo "No suitable Arch boot entry found in efiboot.img" >&2; exit 1; }
+[[ -n $default_entry ]] || { echo "No suitable Arch boot entry found in efiboot.img" >&2; exit 1; }   # (the trap unmounts)
 new_entry="$efi_mnt/loader/entries/archauto.conf"
 sed "s|^title .*|title   Automated Install ($REPO)|" "$default_entry" > "$new_entry"
 # Quiet boot: no kernel, initramfs or systemd messages and no cursor, so

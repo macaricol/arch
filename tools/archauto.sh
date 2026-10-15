@@ -7,7 +7,9 @@
 # BOOTSTRAP_URL, TAGLINE, CONSOLE_PALETTE, WIFI_TEST, and the logo as
 # coloured lines: LOGO, LOGO_WIDTH) are in archauto.conf beside its files.
 
-source /usr/local/share/archauto/archauto.conf
+# Its files: the settings, the fonts, the logo, the installer's copy.
+share=/usr/local/share/archauto
+source "$share/archauto.conf"
 
 # Font first, as lib/ui.sh's scale_console_font picks it (nearest ~48 rows
 # with 80+ columns) and from the same patched files, so the installer keeps
@@ -23,7 +25,7 @@ for _ in {1..20}; do
 done
 best='' best_diff=99999
 for font in default8x16 sun12x22 latarcyrheb-sun32; do
-  font=/usr/local/share/archauto/$font.psfu.gz
+  font=$share/$font.psfu.gz
   setfont -C /dev/tty1 "$font" 2>/dev/null || continue
   read -r rows cols < <(stty size < /dev/tty)
   (( cols >= 80 )) || continue
@@ -96,7 +98,7 @@ under_logo() {
 # the rest, draws nothing meanwhile, and keeps the splash up for at least
 # 4 seconds in all. 2 seconds in, one line under the logo says what's
 # going on.
-share=/usr/local/share/archauto
+#
 # show_splash — the screen cleared and the big logo drawn (fb-logo.py, which
 # reports where it ends: LOGO_BOTTOM, SCREEN_HEIGHT), or the text splash;
 # SPLASH_SINCE is when.
@@ -136,8 +138,11 @@ if (( WIFI_TEST )); then
 fi
 
 started=$SECONDS network=0
-(( WIFI_TEST )) || { wait_online 8 && network=1; }   # (--wifi-test: straight to the Wi-Fi screen)
-(( ! WIFI_TEST )) || wifi_test_wait_station
+if (( WIFI_TEST )); then
+  wifi_test_wait_station   # and straight to the Wi-Fi screen, cable or not
+else
+  wait_online 8 && network=1
+fi
 if (( ! network )) && compgen -G '/sys/class/net/*/wireless' > /dev/null; then
   kill "$checking" 2>/dev/null; wait "$checking" 2>/dev/null
   # The Wi-Fi screen stays up, saying it's connected, until the installer's
