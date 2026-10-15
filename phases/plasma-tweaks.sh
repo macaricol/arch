@@ -145,7 +145,8 @@ plasma_script() {
 # The desktop's layout: the clock on the desktop; at the top, three
 # panels: the main one on the right (the app menu, Apdatifier, the tray,
 # the clock), the pinned apps in the centre, and KVitals on the left; each
-# with Panel Colorizer's Translucent preset. Through Plasma's scripting interface, not
+# with Panel Colorizer's Translucent preset. By a script
+# (assets/plasma/layout.js) run through Plasma's scripting interface, not
 # its layout file's numbers (which containment is the panel, which applet
 # the task manager): those are Plasma's to choose. The panel's own settings
 # too, by the interface's documented properties; and, in case a Plasma
@@ -168,150 +169,19 @@ configure_desktop_layout() {
   [[ -f $SETUP_DIR/assets/plasma/kvitals.json ]] && vitals=$(< "$SETUP_DIR/assets/plasma/kvitals.json")
   # The app menu button's icon: the Arch logo (the filesystem package's, in
   # Arch blue) in white, not the icon theme's take on it (some draw a round
-  # badge); with a small margin (it fills its
-  # 256 square edge to edge): drawn at 96% of the canvas. In
-  # the user's hicolor, which every icon theme falls back to.
+  # badge); with a small margin (it fills its 256 square edge to edge):
+  # drawn at 96% of the canvas. In the user's hicolor, which every icon
+  # theme falls back to.
   local logo=$HOME/.local/share/icons/hicolor/scalable/apps/archlinux-logo-white.svg
   mkdir -p "${logo%/*}"
   sed 's|fill="#1793d1"|fill="#ffffff"|; s|viewBox="0 0 256 256"|viewBox="-5.33 -5.33 266.67 266.67"|' \
     /usr/share/pixmaps/archlinux-logo.svg > "$logo"
-  out=$(plasma_script '
-    var translucent = '"$translucent"';
-    var launchers = ['"$launchers"'];
-    var vitals = '"$vitals"';
-
-    // A panel'"'"'s settings, as Panel Settings shows them, each on its own,
-    // so one this Plasma doesn'"'"'t have can'"'"'t stop the rest; and what
-    // the panel then says of each, for the log.
-    function configure(panel, settings) {
-      Object.keys(settings).forEach(function (name) {
-        try { panel[name] = settings[name]; } catch (e) {}
-      });
-      return Object.keys(settings).map(function (name) { return name + "=" + panel[name]; }).join(" ");
-    }
-
-    // Panel Colorizer (installed by install_plasmoids) in a panel, with the
-    // look of one of the presets it ships with, its own icon hidden: all
-    // its settings are one, globalSettings, the preset'"'"'s as they are.
-    // (A widget that isn'"'"'t there, its download failed, is left out, not
-    // the rest of the layout with it; so are the others below.)
-    function colorize(panel, preset) {
-      if (!preset) return;
-      var colorizer = panel.addWidget("luisbocanegra.panel.colorizer");
-      if (!colorizer) return;
-      colorizer.currentConfigGroup = ["General"];
-      colorizer.writeConfig("globalSettings", JSON.stringify(preset.globalSettings));
-      colorizer.writeConfig("hideWidget", true);
-    }
-
-    // Each panel: at the top, width fit content, visibility dodge windows,
-    // opacity translucent, floating, height 30; where along the top, its own.
-    function top(alignment) {
-      return { location: "top", alignment: alignment, lengthMode: "fit", hiding: "dodgewindows",
-               opacity: "translucent", floating: true, height: 30 };
-    }
-
-    // The main panel: Plasma'"'"'s first, on the right. Its task manager
-    // (icontasks, or the classic one) moves to a panel of its own, below.
-    var panel = panels()[0];
-    var said = configure(panel, top("right"));
-    var tasks = panel.widgets("org.kde.plasma.icontasks").concat(panel.widgets("org.kde.plasma.taskmanager"));
-    tasks.forEach(function (w) { w.remove(); });
-
-    // Its clock, in Noto Sans Medium at 26 points, not sized to the panel.
-    panel.widgets("org.kde.plasma.digitalclock").forEach(function (w) {
-      w.currentConfigGroup = ["Appearance"];
-      w.writeConfig("autoFontAndSize", false);
-      w.writeConfig("fontFamily", "Noto Sans");
-      w.writeConfig("fontStyleName", "Medium");
-      w.writeConfig("fontWeight", 500);
-      w.writeConfig("fontSize", 26);
-    });
-
-    // The app menu'"'"'s button: the Arch logo, white like the tray'"'"'s icons
-    // (written below this script, as archlinux-logo-white).
-    panel.widgets("org.kde.plasma.kickoff").forEach(function (w) {
-      w.currentConfigGroup = ["General"];
-      w.writeConfig("icon", "archlinux-logo-white");
-    });
-
-    colorize(panel, translucent);
-
-    // No Peek at Desktop (the default panel ends with one).
-    panel.widgets("org.kde.plasma.showdesktop").forEach(function (w) { w.remove(); });
-
-    // Apdatifier (installed by install_plasmoids), just before the tray:
-    // updates counted in a badge, the AUR'"'"'s too, through paru
-    // (installed by the desktop phase), upgrades run in Konsole.
-    var apd = panel.addWidget("com.github.exequtic.apdatifier");
-    if (apd) {
-    apd.currentConfigGroup = [];
-    apd.writeConfig("popupWidth", 560);
-    apd.writeConfig("popupHeight", 400);
-    apd.currentConfigGroup = ["General"];
-    apd.writeConfig("aur", true);
-    apd.currentConfigGroup = ["Upgrade"];
-    apd.writeConfig("wrapper", "paru");
-    apd.writeConfig("terminal", "/usr/bin/konsole");
-    apd.currentConfigGroup = ["Appearance"];
-    apd.writeConfig("counterMode", "badge");
-    apd.writeConfig("counterBadgePosition", "bottomRight");
-    apd.writeConfig("selectedIcon", "apdatifier-package");
-    apd.writeConfig("hideIconPolicy", 10);
-    var order = panel.widgets().map(function (w) { return w.id; }).filter(function (id) { return id != apd.id; });
-    var tray = panel.widgets("org.kde.plasma.systemtray");
-    var before = tray.length ? order.indexOf(tray[0].id) : -1;
-    order.splice(before >= 0 ? before : order.length, 0, apd.id);
-    panel.currentConfigGroup = ["General"];
-    panel.writeConfig("AppletOrder", order.join(";"));
-    }
-
-    // The Modern Clock on the desktop, left of centre, a third of the way
-    // down, whatever the screen size.
-    var desk = desktops()[0];
-    var screen = screenGeometry(desk.screen);
-    var clock = desk.addWidget("com.github.prayag2.modernclock",
-                               Math.round(screen.width * 0.19), Math.round(screen.height * 0.32), 400, 160);
-    if (clock) {
-    clock.currentConfigGroup = ["Appearance"];
-    clock.writeConfig("date_font_color", "205,227,251");
-    clock.writeConfig("day_font_color", "242,116,223");
-    clock.writeConfig("day_font_size", 40);
-    clock.writeConfig("time_font_color", "205,227,251");
-    clock.writeConfig("use_24_hour_format", true);
-    }
-
-    // The second panel: new, on the left. KVitals in it, with its profile
-    // (vitals): it only keeps one it'"'"'s told is set up (migrationDone),
-    // else it makes its own; its shortcut, Meta+Shift+V, it sets itself.
-    var second = new Panel;
-    var saidSecond = configure(second, top("left"));
-    var kvitals = second.addWidget("org.kde.plasma.kvitals");
-    if (kvitals && vitals) {
-      kvitals.currentConfigGroup = ["General"];
-      kvitals.writeConfig("profileList", JSON.stringify(vitals.profileList));
-      kvitals.writeConfig("activeProfileId", vitals.activeProfileId);
-      kvitals.writeConfig("profileListVersion", 1);
-      kvitals.writeConfig("migrationDone", true);
-    }
-    colorize(second, translucent);
-
-    // The third panel: new, in the centre: the task manager, with the
-    // pinned apps (launchers), and a margins separator after it.
-    var centre = new Panel;
-    var saidCentre = configure(centre, top("center"));
-    var pinned = centre.addWidget("org.kde.plasma.icontasks");
-    if (pinned) {
-      pinned.currentConfigGroup = ["General"];
-      pinned.writeConfig("launchers", launchers);
-    }
-    centre.addWidget("org.kde.plasma.marginsseparator");
-    colorize(centre, translucent);
-
-    // For the log and plasmashellrc: each panel'"'"'s number, then what it
-    // now says of its settings, a line each.
-    print(panel.id + " " + said + "\n" + second.id + " " + saidSecond + "\n" + centre.id + " " + saidCentre);
-  ') || return 1
+  # The layout's script (assets/plasma/layout.js), with those three values
+  # in front of it.
+  local script
+  printf -v script 'var translucent = %s;\nvar launchers = [%s];\nvar vitals = %s;\n%s' \
+    "$translucent" "$launchers" "$vitals" "$(< "$SETUP_DIR/assets/plasma/layout.js")"
+  out=$(plasma_script "$script") || return 1
   local main second centre
   { read -r main; read -r second; read -r centre; } <<< "$out"
   [[ ${main%% *} =~ ^[0-9]+$ && ${second%% *} =~ ^[0-9]+$ && ${centre%% *} =~ ^[0-9]+$ ]] \
@@ -321,64 +191,50 @@ configure_desktop_layout() {
   note "Centre panel: containment $centre"
 
   # The same settings by plasmashellrc's keys, for a Plasma whose script
-  # interface lacks one: under each panel's number, alignment (2 right,
-  # 1 left, 132 centre), and the rest panel_view's.
-  panel_view "${main%% *}" alignment 2
-  panel_view "${second%% *}" alignment 1
-  panel_view "${centre%% *}" alignment 132
+  # interface lacks one: under each panel's number, its alignment (2 right,
+  # 1 left, 132 centre) and the rest.
+  panel_view "${main%% *}" 2
+  panel_view "${second%% *}" 1
+  panel_view "${centre%% *}" 132
 }
 
-# panel_view PANEL KEY VALUE... — plasmashellrc's view settings for panel
-# number PANEL: fit content, dodge windows, opacity translucent, floating,
-# height 30, and KEY=VALUE for each pair given (thickness goes under
-# Defaults, where Plasma keeps it).
+# panel_view PANEL ALIGNMENT — plasmashellrc's view settings for panel
+# number PANEL: ALIGNMENT, fit content, dodge windows, opacity translucent,
+# floating, and height 30 (under Defaults, where Plasma keeps it).
 panel_view() {
-  local view=(--file plasmashellrc --group PlasmaViews --group "Panel $1"); shift
+  local view=(--file plasmashellrc --group PlasmaViews --group "Panel $1")
+  kwriteconfig6 "${view[@]}" --key alignment "$2"
   kwriteconfig6 "${view[@]}" --key panelLengthMode 1
   kwriteconfig6 "${view[@]}" --key panelVisibility 2
   kwriteconfig6 "${view[@]}" --key panelOpacity 2
   kwriteconfig6 "${view[@]}" --key floating 1
   kwriteconfig6 "${view[@]}" --key floatingApplets 0
   kwriteconfig6 "${view[@]}" --group Defaults --key thickness 30
-  while (( $# >= 2 )); do
-    if [[ $1 == thickness ]]; then
-      kwriteconfig6 "${view[@]}" --group Defaults --key thickness "$2"
-    else
-      kwriteconfig6 "${view[@]}" --key "$1" "$2"
-    fi
-    shift 2
-  done
 }
 
-# The icon theme: YAMIS, the copy the USB brought (extras/icons) when there
-# is one, so no internet is needed; otherwise downloaded (the repo is the
-# theme, its git files left out). Then the one applied over it, YAMIS
-# Grey, from the installer's assets.
 # skwd-wall, the wallpaper picker (installed by the desktop phase), set up
 # as on the machine ARCHMAN is made on: its settings (assets/skwd-wall/
 # config.json: the ARCHMAN preset of its "slices" picker, matugen for its
-# colours, and the rest), its
-# service, the desktop's wallpaper drawn by its Plasma plugin, and the
-# default wallpaper (WALLPAPER; in its folder, ~/Pictures/Wallpapers, with
-# the others, since the desktop phase) applied through it: the plugin keeps a wallpaper per screen, by a name
-# not known before now, which skwd-helm works out. Without skwd-wall (a
-# build failed), nothing: the desktop keeps Plasma's own wallpaper.
+# colours, and the rest), its service, the desktop's wallpaper drawn by its
+# Plasma plugin, and the default wallpaper (WALLPAPER, in ~/Pictures/
+# Wallpapers with the others since the desktop phase) applied through it:
+# the plugin keeps a wallpaper per screen, by a name not known before now,
+# which skwd-helm works out. Without skwd-wall (a build failed), nothing:
+# the desktop keeps Plasma's own wallpaper.
 set_up_wallpaper_picker() {
   command -v skwd-helm &>/dev/null && [[ -d /usr/share/plasma/wallpapers/org.skwd.wall.plasma ]] \
     || { note "No skwd-wall, the desktop keeps Plasma's wallpaper"; return 0; }
-  local config=$HOME/.config/skwd-wall-v2/config.json wallpapers=$HOME/Pictures/Wallpapers
+  local config=$HOME/.config/skwd-wall-v2/config.json
   if [[ ! -f $config ]]; then
     mkdir -p "${config%/*}"
     cp "$SETUP_DIR/assets/skwd-wall/config.json" "$config"
   fi
-  mkdir -p "$wallpapers"
-  [[ -f $wallpapers/${WALLPAPER##*/} ]] || cp "$WALLPAPER" "$wallpapers/"
   systemctl --user enable --now skwd-walld.service
   plasma_script 'desktops().forEach(function (d) { d.wallpaperPlugin = "org.skwd.wall.plasma"; });' > /dev/null
   # The service takes a moment to answer: a few tries.
   local try applied=0
   for try in {1..10}; do
-    skwd-helm apply "$wallpapers/${WALLPAPER##*/}" &>/dev/null && { applied=1; break; }
+    skwd-helm apply "$HOME/Pictures/Wallpapers/${WALLPAPER##*/}" &>/dev/null && { applied=1; break; }
     sleep 1
   done
   (( applied )) || { note "skwd-wall didn't take the default wallpaper"; return 0; }
@@ -389,7 +245,7 @@ set_up_wallpaper_picker() {
 # Plasma plugin draws, Plasma's own accent-from-wallpaper has no picture to
 # take a colour from, so skwd-wall works the colours out (matugen) and
 # makes them Plasma's colour scheme, SkwdManaged, accent and all (the icon
-# theme follows the accent). It's connected to Plasma once, by its picker
+# theme follows the scheme). It's connected to Plasma once, by its picker
 # (Settings, App themes, KDE Plasma: On), which there's no command for; and
 # not by writing the state that leaves (~/.local/state/skwd-wall-v2/
 # app-themes/kde.json): one skwd-wall didn't make itself, it won't take
@@ -407,6 +263,10 @@ connect_skwd_colours() {
   fi
 }
 
+# The icon theme: YAMIS, the copy the USB brought (extras/icons) when there
+# is one, so no internet is needed; otherwise downloaded (the repo is the
+# theme, its git files left out). Then the one applied over it, YAMIS
+# Grey, from the installer's assets.
 install_icon_theme() {
   local icons=$HOME/.local/share/icons
   mkdir -p "$icons"

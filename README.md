@@ -114,7 +114,8 @@ mirror is `ISO_MIRROR` in `config.sh`.
                              and banner.png for this README (tools/make-sddm-theme.py)
     assets/plymouth/         the boot splash theme: script, logo, spinner
     assets/sddm/archman/     the login screen: an Omarchy-style unlock screen, as an SDDM theme (tools/make-sddm-theme.py)
-    assets/consolefonts/     the console fonts, with Pac-Man, a padlock and the bar's eighths added (tools/make-console-fonts.py)
+    assets/consolefonts/     the console fonts, with Pac-Man, the logo's and Tux's cells, arrows and the bar's eighths added (tools/make-console-fonts.py)
+    assets/plasma/           the first login's panel layout (layout.js, a Plasma script) and KVitals' readings (kvitals.json)
     lib/ui.sh                console font/palette, centred step screens, run() spinner + setup.log
     lib/prompt.sh            validated input, passwords, arrow-key menu, buttons
     lib/system.sh            CPU/GPU detection, pacman/AUR/service helpers
@@ -124,7 +125,13 @@ mirror is `ISO_MIRROR` in `config.sh`.
     phases/desktop.sh        the desktop, as the user in the chroot: Plasma, theming, Samba, Steam, AUR
     phases/look.sh           the chosen look, system-wide: login screen, default wallpaper
     phases/wifi.sh           live ISO: the Wi-Fi network list, run by the USB before the installer
-    phases/plasma-tweaks.sh  first Plasma session: kwin, theme, widgets (Apdatifier in the panel), panel, icons
+    phases/plasma-tweaks.sh  first Plasma session: kwin, theme, widgets (Apdatifier in the panel), panels, icons
+    tools/                   building the USB (build-autoinstall-iso.sh, archauto.sh: its start-up) and the assets (make-*.py)
+    test/                    for testing only, never part of an install:
+      rebuild-test.sh          a fresh test round: the USB rebuilt (or --reuse'd), a new VM booted from it (--record: a video)
+      new-test-vm.sh           the VirtualBox VM itself
+      test-plasma-layout.sh    the first login's panel layout, dry run, without touching a desktop
+      wifi-test.sh             simulated Wi-Fi networks, on a USB built --wifi-test only
 
 The installer directory travels with the install: `/tmp/arch-setup` on the
 ISO → `/root/arch-setup` in the chroot → `~/.arch-setup` for the desktop
