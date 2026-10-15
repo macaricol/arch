@@ -61,6 +61,10 @@ update_margin
 # True on a real Linux virtual console (the ISO, the first-login tty), not in
 # a terminal emulator, which has its own font and colours.
 on_console() { [[ $TERM == linux ]]; }
+# True when that console has one of the patched fonts loaded
+# (scale_console_font), with the installer's extra glyphs: the sharper logo
+# and Tux, the bar's eighths, the text box's quarters, the password dot.
+patched_font() { on_console && [[ ${PATCHED_FONT:-0} == 1 ]]; }
 
 # The kernel's default console colours are harsh VGA ones; swap all 16 for
 # CONSOLE_PALETTE (config.sh). Only cells drawn afterwards pick up the new
@@ -92,7 +96,7 @@ scale_console_font() {
 # have, so it's used only once one of them is loaded (PATCHED_FONT: see
 # scale_console_font).
 logo_file() {
-  if on_console && [[ ${PATCHED_FONT:-0} == 1 && -f $SETUP_DIR/assets/logo/logo-hd.txt ]]; then
+  if patched_font && [[ -f $SETUP_DIR/assets/logo/logo-hd.txt ]]; then
     echo "$SETUP_DIR/assets/logo/logo-hd.txt"
   else
     echo "$LOGO_FILE"
@@ -188,13 +192,15 @@ centred_details() {
 # errors also go to the log: the next step header, or the USB's failure
 # screen, clears the screen.
 info() {
-  if (( FACTS_ON )); then printf '[info] %s\n' "$*" >> "$LOG_FILE" 2>/dev/null || true; return 0; fi
+  if (( FACTS_ON )); then log_line info "$*"; return 0; fi
   centred_message "$C_TEXT" "$*"
   echo
 }
 # note "Text" — only in the log: something the installer worked around by
 # itself, which tells whoever is installing nothing they can act on.
-note() { printf '[note] %s\n' "$*" >> "$LOG_FILE" 2>/dev/null || true; }
+note() { log_line note "$*"; }
+# log_line TAG TEXT — "[TAG] TEXT" in the log; never fails (no log yet is fine).
+log_line() { printf '[%s] %s\n' "$1" "$2" >> "$LOG_FILE" 2>/dev/null || true; }
 
 # Centred, as info is, without a tag, their lines as even as they can be.
 # The words to say: what happened, plainly, and what to check when there's
@@ -202,11 +208,11 @@ note() { printf '[note] %s\n' "$*" >> "$LOG_FILE" 2>/dev/null || true; }
 warn() {
   centred_message "$C_WARN$C_BOLD" "$*" >&2
   echo >&2
-  printf '[warn] %s\n' "$*" >> "$LOG_FILE" 2>/dev/null || true
+  log_line warn "$*"
 }
 die() {
   centred_message "$C_ERROR$C_BOLD" "$*" >&2
-  printf '[error] %s\n' "$*" >> "$LOG_FILE" 2>/dev/null || true
+  log_line error "$*"
   exit 1
 }
 
@@ -264,6 +270,26 @@ step_weights() {
   awk '/^  step "[^"]*" [0-9]+/ { sum += $NF } END { print sum + 0 }' "$1"
 }
 
+# palette_codes — each of the 16 palette slots' colour codes, foreground
+# and background, in PALETTE_FG and PALETTE_BG (what goes in \e[...m): on
+# the console the slot itself (30-37, then 90-97 for the bright eight;
+# 40-47, 100-107), elsewhere its CONSOLE_PALETTE colour as 24-bit RGB,
+# since a terminal emulator has its own palette.
+palette_codes() {
+  local slot hex rgb
+  PALETTE_FG=() PALETTE_BG=()
+  for slot in {0..15}; do
+    if on_console; then
+      PALETTE_FG[slot]=$(( slot < 8 ? 30 + slot : 82 + slot ))
+      PALETTE_BG[slot]=$(( slot < 8 ? 40 + slot : 92 + slot ))
+    else
+      hex=${CONSOLE_PALETTE[slot]}
+      rgb="$((16#${hex:0:2}));$((16#${hex:2:2}));$((16#${hex:4:2}))"
+      PALETTE_FG[slot]="38;2;$rgb" PALETTE_BG[slot]="48;2;$rgb"
+    fi
+  done
+}
+
 # logo_lines — the logo (logo_file) as printable lines in LOGO_LINES, its
 # width in columns in LOGO_WIDTH. Its .colors file gives each cell a hex
 # digit, fg * 4 + bg, of the colours 0 background, 1 letters, 2 extrusion,
@@ -283,24 +309,17 @@ logo_lines() {
   mapfile -t lines < "$file"
   mapfile -t attrs < "$colours"
   LOGO_WIDTH=${#lines[0]}
-  local i hex
-  local -a slots=(0 6 2 3)
-  for i in 0 1 2 3; do
-    if on_console; then
-      fg[i]=$(( 30 + slots[i] )) bg[i]=$(( 40 + slots[i] ))
-    else
-      hex=${CONSOLE_PALETTE[slots[i]]}
-      fg[i]="38;2;$((16#${hex:0:2}));$((16#${hex:2:2}));$((16#${hex:4:2}))"
-      bg[i]="48;2;$((16#${hex:0:2}));$((16#${hex:2:2}));$((16#${hex:4:2}))"
-    fi
-  done
+  local i
+  local -a slots=(0 6 2 3)   # the logo's four colours, by palette slot
+  palette_codes
+  for i in 0 1 2 3; do fg[i]=${PALETTE_FG[slots[i]]} bg[i]=${PALETTE_BG[slots[i]]}; done
   bg[0]=49   # the dark: whatever the background is (slot 0 on the console)
   local row col char attr sgr prev out
   for row in "${!lines[@]}"; do
     out='' prev=''
     for (( col = 0; col < ${#lines[row]}; col++ )); do
       char=${lines[row]:col:1} attr=${attrs[row]:col:1}
-      attr=$(( 16#$attr ))
+      attr=$(( 16#$attr ))   # one hex digit: the letter's colour * 4 + its background's
       if [[ $char == ' ' ]]; then sgr=0; else sgr="0;${fg[attr / 4]};${bg[attr % 4]}"; fi
       [[ $sgr != "$prev" ]] && out+=$'\e['"${sgr}m" prev=$sgr
       out+=$char
@@ -314,27 +333,21 @@ logo_lines() {
 # resolution, when the patched font with its cells is loaded (as
 # logo_file), else tux, in half blocks. Its .colors file gives each
 # cell two characters, its character's palette slot and its background's
-# (hex), "." for none: on the console those slots, elsewhere their colours
-# as 24-bit RGB, as logo_lines does. Each slot's code worked out once, not
-# a cell at a time: there are a few thousand cells.
+# (hex), "." for none, coloured as palette_codes says. Each digit's code
+# looked up once, not a cell at a time: there are a few thousand cells.
 tux_lines() {
   local LC_ALL=C.UTF-8 file=$SETUP_DIR/assets/tux/tux.txt   # ${#} and ${:i:1} count characters
-  if on_console && [[ ${PATCHED_FONT:-0} == 1 && -f $SETUP_DIR/assets/tux/tux-hd.txt ]]; then
+  if patched_font && [[ -f $SETUP_DIR/assets/tux/tux-hd.txt ]]; then
     file=$SETUP_DIR/assets/tux/tux-hd.txt
   fi
   TUX_LINES=() TUX_WIDTH=0
   [[ -r $file && -r ${file%.txt}.colors ]] || return 0
-  local -A fg=([.]=39) bg=([.]=49)
-  local slot digit hex
+  local -A fg=([.]=39) bg=([.]=49)   # by hex digit; ".": the terminal's own
+  local slot digit
+  palette_codes
   for slot in {0..15}; do
     printf -v digit '%x' "$slot"
-    if on_console; then
-      fg[$digit]=$(( slot < 8 ? 30 + slot : 82 + slot )) bg[$digit]=$(( 40 + slot ))
-    else
-      hex=${CONSOLE_PALETTE[slot]}
-      hex="$((16#${hex:0:2}));$((16#${hex:2:2}));$((16#${hex:4:2}))"
-      fg[$digit]="38;2;$hex" bg[$digit]="48;2;$hex"
-    fi
+    fg[$digit]=${PALETTE_FG[slot]} bg[$digit]=${PALETTE_BG[slot]}
   done
   local -a lines attrs
   mapfile -t lines < "$file"
@@ -344,6 +357,7 @@ tux_lines() {
     out='' prev=''
     (( ${#lines[row]} > TUX_WIDTH )) && TUX_WIDTH=${#lines[row]}
     for (( col = 0; col < ${#lines[row]}; col++ )); do
+      # The cell's two digits in the .colors line: its colour, its background.
       sgr="0;${fg[${attrs[row]:col*2:1}]};${bg[${attrs[row]:col*2+1:1}]}"
       [[ $sgr != "$prev" ]] && out+=$'\e['"${sgr}m" prev=$sgr
       out+=${lines[row]:col:1}
@@ -391,7 +405,7 @@ draw_progress() {
 # animation is quick to make, and it's written in one go over the last.
 progress_line() {
   local full=$(( PROGRESS_SHOWN / 8 )) part=$(( PROGRESS_SHOWN % 8 )) filled empty edge=''
-  if on_console && [[ ${PATCHED_FONT:-0} != 1 ]]; then part=0; fi
+  if on_console && ! patched_font; then part=0; fi   # no eighths: whole cells
   printf -v filled '%*s' "$full" ''
   printf -v empty '%*s' $(( PROGRESS_WIDTH - full - (part > 0) )) ''
   (( part )) && edge=$'\e[44m'"${C_ACCENT}${EIGHTHS[part]}${C_RESET}"   # (on the empty part's navy)
@@ -659,6 +673,8 @@ facts_tick() {
   local m=$(( n - 1 ))
   if (( FACT_INDEX < 0 || FACT_INDEX >= n )); then
     FACT_INDEX=0 FACT_STRIDE=1 FACT_SINCE=$now draw=1
+    # The strides that visit all m before repeating: those sharing no factor
+    # with m (their greatest common divisor, by Euclid, is 1).
     local -a strides=() ; local s a b t
     for (( s = 1; s < m; s++ )); do
       a=$s b=$m; while (( b )); do t=$(( a % b )) a=$b b=$t; done
