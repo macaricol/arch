@@ -114,7 +114,8 @@ mirror is `ISO_MIRROR` in `config.sh`.
                              and banner.png for this README (tools/make-sddm-theme.py)
     assets/plymouth/         the boot splash theme: script, logo, spinner
     assets/sddm/archman/     the login screen: an Omarchy-style unlock screen, as an SDDM theme (tools/make-sddm-theme.py)
-    assets/consolefonts/     the console fonts, with Pac-Man, a padlock and the bar's eighths added (tools/make-console-fonts.py)
+    assets/consolefonts/     the console fonts, with Pac-Man, the logo's and Tux's cells, arrows and the bar's eighths added (tools/make-console-fonts.py)
+    assets/plasma/           the first login's panel layout (layout.js, a Plasma script) and KVitals' readings (kvitals.json)
     lib/ui.sh                console font/palette, centred step screens, run() spinner + setup.log
     lib/prompt.sh            validated input, passwords, arrow-key menu, buttons
     lib/system.sh            CPU/GPU detection, pacman/AUR/service helpers

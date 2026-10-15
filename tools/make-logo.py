@@ -115,7 +115,6 @@ ART = {
 }
 
 
-
 def from_art(rows, unit):
     return [[rows[y // unit][x // unit] == "#" for x in range(len(rows[0]) * unit)]
             for y in range(len(rows) * unit)]
@@ -280,7 +279,7 @@ def compose(unit, top, shadow, outline, width, height):
     return canvas
 
 
-def limit_patterns(lines, named, bits):
+def limit_patterns(lines, named):
     """Merges the rarest private-use patterns into their nearest (fewest
     pixels apart) remaining one until at most MAX_PATTERNS are left."""
     def pattern(c):
@@ -310,7 +309,7 @@ def cells(canvas, cell_w, cell_h, named):
     the fg wherever there are any; a third colour in a cell becomes
     whichever of the other two it has more of (a pixel or two, behind a
     letter's edge)."""
-    lines, colours, used = [], [], set()
+    lines, colours = [], []
     for row in range(len(canvas) // cell_h):
         line = attrs = ""
         for col in range(len(canvas[0]) // cell_w):
@@ -328,7 +327,7 @@ def cells(canvas, cell_w, cell_h, named):
             attrs += f"{fg * 4 + bg:x}"
         lines.append(line)
         colours.append(attrs)
-    lines = limit_patterns(lines, named, cell_w * cell_h)
+    lines = limit_patterns(lines, named)
     used = {ord(c) - PUA for line in lines for c in line if ord(c) >= PUA}
     while lines and not lines[0].strip():
         lines.pop(0), colours.pop(0)

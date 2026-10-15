@@ -24,18 +24,46 @@ phase_install() {
   setup_console
   # The progress bar covers the installing, not the questions before it: the
   # steps below from partitioning on, then the desktop phase's, which the chroot
-  # phase runs and which carries the bar on. Weights: see lib/ui.sh's step.
+  # phase runs and which carries the bar on. Weights: see lib/ui.sh's step
+  # (step_weights reads them off the step lines here, as they're written).
   # The desktop phase's AUR step weighs by what this USB brought prebuilt.
   PROGRESS_TOTAL=$(( $(step_weights "$SETUP_DIR/phases/install.sh") + $(step_weights "$SETUP_DIR/phases/desktop.sh")
                      + $(aur_weight "$ISO_PACKAGES") ))
 
-  # The questions, until they end in a yes: nothing is touched before.
-  # There's no way out of them but answering, or turning the device off:
-  # leaving would end the USB's start-up and leave the screen black. The
-  # keyboard first, unless the USB's Wi-Fi screen asked already; going back
-  # from the review starts again at the keyboard, on the layout picked; Esc
-  # on the drive list, at the account questions. Every answer given comes
-  # back to keep or change.
+  ask_questions
+  # Bash's own clock; it keeps running through arch-chroot and the desktop
+  # phase.
+  local started=$SECONDS
+
+  step "Preparing the drive" 6
+  partition_and_mount
+
+  step "Installing Arch Linux" 58
+  install_base
+
+  step "Setting up your system" 13
+  configure_new_system
+  # The time it took, before the question below waits on you.
+  local took=$(( SECONDS - started ))
+
+  choose_look
+  header "Applying the look"
+  SPIN_CENTRED=1
+  run arch-chroot /mnt env LOOK="$LOOK" bash "/home/$USER_NAME/.arch-setup/setup.sh" look
+
+  close_new_system
+  say_goodbye "$took"
+  restart_now
+}
+
+# ask_questions — the questions, until they end in a yes: nothing is touched
+# before. There's no way out of them but answering, or turning the device
+# off: leaving would end the USB's start-up and leave the screen black. The
+# keyboard first, unless the USB's Wi-Fi screen asked already; going back
+# from the review starts again at the keyboard, on the layout picked; Esc
+# on the drive list, at the account questions. Every answer given comes
+# back to keep or change.
+ask_questions() {
   local ask_keyboard=0
   read_keyboard_choice || choose_keyboard
   while :; do
@@ -58,53 +86,44 @@ phase_install() {
     buttons '' 0 \
       "Go back" "Edit your answers. Your drive hasn't been touched yet." \
       "Yes, install" "Erase $DRIVE_LABEL and install ARCHMAN on it."
-    (( PICKED == 1 )) && break
+    (( PICKED == 1 )) && return 0
   done
-  # Bash's own clock; it keeps running through arch-chroot and the desktop
-  # phase.
-  local started=$SECONDS
+}
 
-  step "Preparing the drive" 6
-  partition_and_mount
-
-  step "Installing Arch Linux" 58
-  install_base
-
-  step "Setting up your system" 13
-  configure_new_system
-  # The time it took, before the question below waits on you.
-  local took=$(( SECONDS - started ))
-
-  choose_look
-  header "Applying the look"
-  SPIN_CENTRED=1
-  run arch-chroot /mnt env LOOK="$LOOK" bash "/home/$USER_NAME/.arch-setup/setup.sh" look
-
-  # Unmount first so nothing on the new system is lost if the stick is
-  # pulled; and the live ISO may be running from that stick, so `reboot`
-  # gets loaded into memory now while it can still be read. If it can't be
-  # run anyway, sysrq reboots directly — safe, as the target is unmounted.
+# close_new_system — the new system unmounted first, so nothing on it is
+# lost if the stick is pulled; and the live ISO may be running from that
+# stick, so `reboot` gets loaded into memory now while it can still be
+# read. If it can't be run anyway, sysrq reboots directly — safe, as the
+# target is unmounted.
+close_new_system() {
   swapoff -a 2>/dev/null || true
   unmount_new_system || warn "Couldn't finish closing the new system. Leave the USB stick in until your device restarts."
   systemctl --version > /dev/null
+}
 
+# say_goodbye SECONDS — the last screen: how long it took, how to restart
+# (unplugging the USB, or Enter), Tux; then waits for that.
+say_goodbye() {
   finish "All done!"
-  info "ARCHMAN installed in $(plural $(( took / 60 )) minute) and $(plural $(( took % 60 )) second)"
+  info "ARCHMAN installed in $(plural $(( $1 / 60 )) minute) and $(plural $(( $1 % 60 )) second)"
   local usb=''
   usb=$(live_usb_disk) || true
   restart_hint "$usb"
   show_tux
   wait_for_usb_removal "$usb"
+}
+
+# restart_now — the new system is unmounted and synced, and the live ISO's
+# own files are in RAM, so nothing needs a shutdown: --force twice reboots
+# at once, without stopping services ("Stopped ..." screens) or waiting on
+# processes (iwd ignores SIGTERM, which held a single --force for 90 s).
+# No kernel message on the screen after it, not even the reboot's own
+# "reboot: Restarting system", an emergency one that dmesg -n 1 (its
+# lowest) still lets through: the console's level at 0, so none at all.
+# systemctl's own "Rebooting." goes nowhere.
+restart_now() {
   info "Restarting..."
   sync
-  # The new system is unmounted and synced, and the live ISO's own files
-  # are in RAM, so nothing needs a shutdown: --force twice reboots at once,
-  # without stopping services ("Stopped ..." screens) or waiting on
-  # processes (iwd ignores SIGTERM, which held a single --force for 90 s).
-  # No kernel message on the screen after it, not even the reboot's own
-  # "reboot: Restarting system", an emergency one that dmesg -n 1 (its
-  # lowest) still lets through: the console's level at 0, so none at all.
-  # systemctl's own "Rebooting." goes nowhere.
   echo 0 > /proc/sys/kernel/printk 2>/dev/null || dmesg -n 1 2>/dev/null || true
   systemctl reboot --force --force &>/dev/null || echo b > /proc/sysrq-trigger
 }
