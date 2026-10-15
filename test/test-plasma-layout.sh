@@ -6,7 +6,7 @@
 # interface, with a default panel like a fresh session's. Prints each
 # panel's settings and widgets, and what's written to plasmashellrc.
 #
-#   tools/test-plasma-layout.sh
+#   test/test-plasma-layout.sh
 #
 # Panel Colorizer's preset is missing from the stand-in's home (no widgets
 # installed), so the colorizers are left out, as on a session where its

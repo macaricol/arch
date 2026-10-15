@@ -126,64 +126,18 @@ checking=$!
 # online and wait_online, by the clock, are the Wi-Fi screen's, from the
 # copy of the installer: its file defines functions only.
 source "$share/installer/phases/wifi.sh"
-# --wifi-test (a build for testing in a VM): three simulated Wi-Fi radios
-# (mac80211_hwsim), two of them access points, "TestNet" (secret123) and
-# "Neighbours WiFi" (whatever99), the third the one the Wi-Fi screen uses;
-# and the screen is shown even with a cable, which is what then reaches the
-# internet once "connected". Off in a normal build.
-#
-# The access points aren't iwd's: iwd as both the access point and the one
-# connecting to it never completes the handshake (connect-timeout), and
-# then loses the access points. So, as iwd's own tests do it, they're
-# apart: their radios moved into a network namespace of their own, where
-# iwd doesn't see them, run by wpa_supplicant (on the ISO) as access
-# points. The simulated radios share one medium across namespaces, so the
-# Wi-Fi screen's radio sees them like any network. What it did, and any
-# error: /run/wifi-test.log.
+# --wifi-test (a build for testing in a VM): simulated Wi-Fi networks
+# (test/wifi-test.sh, on the USB only then), and the Wi-Fi screen shown
+# even with a cable. Off in a normal build.
 if (( WIFI_TEST )); then
   export WIFI_TEST
-  wifi_test_ap() {   # wifi_test_ap PHY INTERFACE SSID PASSPHRASE FREQUENCY
-    local ns=(ip netns exec wifi-test) dev
-    iw phy "$1" set netns name wifi-test || return 1
-    # The interface iwd made on that radio came along: replace it with one
-    # wpa_supplicant runs.
-    for dev in $("${ns[@]}" iw dev | awk -v p="${1#phy}" '/^phy#/ { on = (substr($1, 5) == p) } on && $1 == "Interface" { print $2 }'); do
-      "${ns[@]}" iw dev "$dev" del
-    done
-    "${ns[@]}" iw phy "$1" interface add "$2" type managed
-    "${ns[@]}" ip link set "$2" up
-    printf 'network={\n  ssid="%s"\n  mode=2\n  frequency=%s\n  key_mgmt=WPA-PSK\n  proto=RSN\n  pairwise=CCMP\n  group=CCMP\n  psk="%s"\n}\n' \
-      "$3" "$5" "$4" > "/run/wifi-test-$2.conf"
-    "${ns[@]}" wpa_supplicant -B -i "$2" -c "/run/wifi-test-$2.conf"
-  }
-  {
-    modprobe mac80211_hwsim radios=3
-    for _ in {1..20}; do
-      (( $(ls /sys/class/ieee80211 2>/dev/null | wc -l) >= 3 )) && break
-      sleep 0.5
-    done
-    sleep 1   # iwd taking the new radios
-    mapfile -t phys < <(ls /sys/class/ieee80211 | sort -V | tail -3)
-    echo "radios: ${phys[*]} (the first stays with iwd)"
-    ip netns add wifi-test
-    wifi_test_ap "${phys[1]}" ap1 "TestNet" "secret123" 2437
-    wifi_test_ap "${phys[2]}" ap2 "Neighbours WiFi" "whatever99" 2462
-    sleep 2
-    ip netns exec wifi-test iw dev
-  } >> /run/wifi-test.log 2>&1
+  source "$share/wifi-test.sh"
+  wifi_test_setup
 fi
 
 started=$SECONDS network=0
 (( WIFI_TEST )) || { wait_online 8 && network=1; }   # (--wifi-test: straight to the Wi-Fi screen)
-if (( WIFI_TEST )); then
-  # iwd deletes and re-creates the interface of a radio it takes over: wait
-  # for the one left to it, or the check below finds no Wi-Fi at all.
-  for _ in {1..20}; do
-    compgen -G '/sys/class/net/*/wireless' > /dev/null && break
-    sleep 0.5
-  done
-  ls /sys/class/net >> /run/wifi-test.log 2>&1
-fi
+(( ! WIFI_TEST )) || wifi_test_wait_station
 if (( ! network )) && compgen -G '/sys/class/net/*/wireless' > /dev/null; then
   kill "$checking" 2>/dev/null; wait "$checking" 2>/dev/null
   # The Wi-Fi screen stays up, saying it's connected, until the installer's
