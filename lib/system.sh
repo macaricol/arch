@@ -42,14 +42,22 @@ prebuilt_package() {
   return 1
 }
 
+# desktop_aur_packages — the AUR packages to install, one a line, in order:
+# AUR_PACKAGES, then with KDE Plasma (DESKTOP, kde unless hyprland)
+# KDE_AUR_PACKAGES.
+desktop_aur_packages() {
+  printf '%s\n' "${AUR_PACKAGES[@]}"
+  [[ ${DESKTOP:-kde} == hyprland ]] || printf '%s\n' "${KDE_AUR_PACKAGES[@]}"
+}
+
 # aur_weight DIR [PACKAGE] — roughly the seconds installing PACKAGE (or all
-# of AUR_PACKAGES) takes, for the progress bar, given the prebuilt packages
+# of desktop_aur_packages) takes, for the progress bar, given the prebuilt packages
 # in DIR: a prebuilt one installs (3), else a -bin one downloads (15) and
 # one built from source compiles (165; qview on a VM's single core).
 aur_weight() {
   local pkg weight=0
-  local -a packages=("${AUR_PACKAGES[@]}")
-  [[ -z ${2:-} ]] || packages=("$2")
+  local -a packages
+  if [[ -n ${2:-} ]]; then packages=("$2"); else mapfile -t packages < <(desktop_aur_packages); fi
   for pkg in "${packages[@]}"; do
     if prebuilt_package "$1" "$pkg" > /dev/null; then weight=$(( weight + 3 ))
     elif [[ $pkg == *-bin ]]; then weight=$(( weight + 15 ))

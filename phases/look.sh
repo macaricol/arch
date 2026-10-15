@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Phase — the desktop's look, as chosen at the end of the install
 # (lib/prompt.sh's choose_look), as root on the new system, from the
-# installer through arch-chroot. LOOK is archman or plain.
+# installer through arch-chroot. LOOK is archman or plain; DESKTOP kde or
+# hyprland (which has the ARCHMAN login screen, and nothing else here).
 #
 # Everything for both looks is installed by then; this only picks one. The
 # system-wide part happens here: the login screen and the default
@@ -17,12 +18,14 @@ phase_look() {
   local conf=/etc/sddm.conf.d/kde_settings.conf
   mkdir -p /etc/sddm.conf.d
   if [[ $LOOK == archman ]]; then
-    # The ARCHMAN login screen (assets/sddm/archman),
-    # and the wallpaper as the system-wide default, so the first Plasma
-    # session starts with it.
+    # The ARCHMAN login screen (assets/sddm/archman); with KDE Plasma, the
+    # wallpaper as the system-wide default too, so its first session starts
+    # with it.
     kwriteconfig6 --file "$conf" --group Theme --key Current "$SDDM_THEME"
-    local xml=/usr/share/plasma/wallpapers/org.kde.image/contents/config/main.xml
-    sed -i "/<entry name=\"Image\" type=\"String\">/,/<\/entry>/ s|<default>.*</default>|<default>file://$WALLPAPER</default>|" "$xml"
+    if [[ ${DESKTOP:-kde} == kde ]]; then
+      local xml=/usr/share/plasma/wallpapers/org.kde.image/contents/config/main.xml
+      sed -i "/<entry name=\"Image\" type=\"String\">/,/<\/entry>/ s|<default>.*</default>|<default>file://$WALLPAPER</default>|" "$xml"
+    fi
   else
     # KDE's own login screen (from plasma-desktop); SDDM's built-in default
     # isn't it.

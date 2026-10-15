@@ -2,12 +2,15 @@
 # Phase 3 — the desktop, as the new user, inside arch-chroot: run by the
 # chroot phase, carrying on the installer's console and progress bar, with
 # sudo allowed without a password while it runs. Drivers, desktop, apps,
-# services.
+# services. The desktop is DESKTOP's: kde (KDE Plasma, the default) or
+# hyprland, as it comes.
 
 phase_desktop() {
-  # Weight: measured on a VM (81 s, once merged).
+  local name="KDE Plasma"
+  [[ ${DESKTOP:-kde} == hyprland ]] && name=Hyprland
+  # Weight: measured on a VM (81 s, once merged; KDE Plasma's).
   step "Installing the desktop and apps" 80
-  note "Installing KDE Plasma, the desktop you'll log into, and your apps. This is the big download."
+  note "Installing $name, the desktop you'll log into, and your apps. This is the big download."
   install_desktop_packages
 
   # Weight: by whether the USB brought them prebuilt (aur_weight); not a
@@ -18,19 +21,32 @@ phase_desktop() {
   # The settings, a second or so each: one step, not a screen flashing past
   # for each. Weight: the parts' measured times; the look's files the most.
   step "Setting up your desktop" 11
-  note "The login screen, wallpapers, keyboard, sound, video player, file sharing and Bluetooth..."
-  share 0 500
-  install_look_files
-  configure_login_screen
-  configure_keyboard
-  share 500 700
-  configure_mpv
-  configure_audio
-  configure_samba
-  share 700 1000
-  # The desktop's layout and theme: applied the first time you log in.
-  schedule_plasma_tweaks
-  configure_shortcuts
+  if [[ ${DESKTOP:-kde} == hyprland ]]; then
+    note "The login screen, keyboard, sound, video player and Bluetooth..."
+    share 0 500
+    install_login_theme
+    configure_login_screen
+    configure_keyboard
+    configure_hyprland
+    share 500 1000
+    configure_mpv
+    configure_audio
+  else
+    note "The login screen, wallpapers, keyboard, sound, video player, file sharing and Bluetooth..."
+    share 0 500
+    install_look_files
+    configure_login_screen
+    configure_keyboard
+    configure_plasma_keyboard
+    share 500 700
+    configure_mpv
+    configure_audio
+    configure_samba
+    share 700 1000
+    # The desktop's layout and theme: applied the first time you log in.
+    schedule_plasma_tweaks
+    configure_shortcuts
+  fi
   enable_service bluetooth sddm
 
   # The installer asks for the look, then shows its own last screen and
@@ -82,10 +98,10 @@ EOF
 # in plasma-tweaks: that runs as the user in the first Plasma session, after
 # the login screen has been shown and typed into, with no sudo.
 
-# The files of both looks, whichever is chosen at the end (phases/look.sh
-# switches one on; the other stays available in System Settings): the
-# astronaut SDDM theme, with the wallpapers and its fonts, and the ARCHMAN
-# login screen.
+# KDE Plasma's files of both looks, whichever is chosen at the end
+# (phases/look.sh switches one on; the other stays available in System
+# Settings): the astronaut SDDM theme, with its fonts, the ARCHMAN login
+# screen, and the wallpapers.
 install_look_files() {
   local astronaut=/usr/share/sddm/themes/$ASTRONAUT_THEME
   share 0 700   # the step's bar shares (lib/ui.sh's share): the clone is the big one
@@ -93,11 +109,7 @@ install_look_files() {
   share 700 1000
   sudo cp -r "$astronaut"/Fonts/* /usr/share/fonts/
   run sudo fc-cache -f
-
-  # The ARCHMAN login screen (assets/sddm/archman).
-  local theme_dir=/usr/share/sddm/themes/$SDDM_THEME
-  sudo rm -rf "$theme_dir"
-  sudo install -Dm644 -t "$theme_dir" "$SETUP_DIR/assets/sddm/archman"/*
+  install_login_theme
 
   # The wallpapers (assets/wallpapers): system-wide, for the desktop's and
   # the lock screen's default (WALLPAPER), and in the user's
@@ -105,6 +117,14 @@ install_look_files() {
   sudo install -Dm644 -t "$WALLPAPERS_DIR" "$SETUP_DIR/assets/wallpapers"/*
   mkdir -p "$HOME/Pictures/Wallpapers"
   cp "$SETUP_DIR/assets/wallpapers"/* "$HOME/Pictures/Wallpapers/"
+}
+
+# The ARCHMAN login screen (assets/sddm/archman), with either desktop: plain
+# QtQuick, which SDDM brings.
+install_login_theme() {
+  local theme_dir=/usr/share/sddm/themes/$SDDM_THEME
+  sudo rm -rf "$theme_dir"
+  sudo install -Dm644 -t "$theme_dir" "$SETUP_DIR/assets/sddm/archman"/*
 }
 
 # SDDM's settings, the same with either look; its theme comes with the look
@@ -119,8 +139,8 @@ configure_login_screen() {
 }
 
 # The keyboard layout chosen in the install phase (X11_LAYOUT, X11_VARIANT,
-# X11_OPTIONS) for the login screen and for Plasma, both read when they
-# start.
+# X11_OPTIONS) for the login screen, read when it starts; the desktop's
+# follows (configure_plasma_keyboard, configure_hyprland).
 configure_keyboard() {
   # SDDM's greeter runs on X11 and ignores Plasma's keyboard setting
   # (kxkbrc): without this, the first password is typed on a US layout, and
@@ -133,6 +153,10 @@ configure_keyboard() {
     [[ -z $X11_OPTIONS ]] || printf '    Option "XkbOptions" "%s"\n' "$X11_OPTIONS"
     printf 'EndSection\n'
   } | sudo tee /etc/X11/xorg.conf.d/00-keyboard.conf > /dev/null
+}
+
+# The same layout for Plasma (kxkbrc), read when it starts.
+configure_plasma_keyboard() {
   kwriteconfig6 --file kxkbrc --group Layout --key LayoutList "$X11_LAYOUT"
   kwriteconfig6 --file kxkbrc --group Layout --key VariantList "$X11_VARIANT"
   if [[ -n $X11_OPTIONS ]]; then
@@ -140,6 +164,29 @@ configure_keyboard() {
     kwriteconfig6 --file kxkbrc --group Layout --key ResetOldOptions true
   fi
   kwriteconfig6 --file kxkbrc --group Layout --key Use true
+}
+
+# Hyprland's config, ~/.config/hypr/hyprland.lua: its own default (the
+# package's), as it comes, but for the keyboard layout chosen (its input
+# section's kb_ settings) and the password prompt for admin tasks
+# (hyprpolkitagent's user service) started with the session. Without its
+# default (a Hyprland that has moved it), nothing: Hyprland writes its own
+# on its first start.
+configure_hyprland() {
+  local default=/usr/share/hypr/hyprland.lua config=$HOME/.config/hypr/hyprland.lua
+  [[ -f $default ]] || { note "No $default, Hyprland makes its own config"; return 0; }
+  mkdir -p "${config%/*}"
+  sed -e "s|^\([[:space:]]*kb_layout[[:space:]]*=[[:space:]]*\)\"[^\"]*\"|\1\"$X11_LAYOUT\"|" \
+      -e "s|^\([[:space:]]*kb_variant[[:space:]]*=[[:space:]]*\)\"[^\"]*\"|\1\"$X11_VARIANT\"|" \
+      -e "s|^\([[:space:]]*kb_options[[:space:]]*=[[:space:]]*\)\"[^\"]*\"|\1\"$X11_OPTIONS\"|" \
+      "$default" > "$config"
+  cat >> "$config" <<'EOF'
+
+-- Added by the ARCHMAN installer: the password prompt for admin tasks.
+hl.on("hyprland.start", function ()
+    hl.exec_cmd("systemctl --user start hyprpolkitagent")
+end)
+EOF
 }
 
 configure_samba() {
@@ -177,7 +224,9 @@ EOF
 # geo.mirror.pkgbuild.com, noto-fonts not yet on glua.ua.pt). Then fresh
 # lists, and -Syu, as packages from newer lists need the system up to date.
 install_desktop_packages() {
-  local -a packages=("${KDE_PACKAGES[@]}" "${EXTRA_PACKAGES[@]}" base-devel)
+  local -a packages=("${KDE_PACKAGES[@]}")
+  [[ ${DESKTOP:-kde} == hyprland ]] && packages=("${HYPRLAND_PACKAGES[@]}")
+  packages+=("${EXTRA_PACKAGES[@]}" base-devel)
   if [[ -n $(gpu_vendors) ]]; then
     packages+=("${GAMING_PACKAGES[@]}")
   else
@@ -198,7 +247,7 @@ install_aur_packages() {
   # weight (aur_weight).
   local pkg parts used=0 part
   parts=$(aur_weight "$SETUP_DIR/packages")
-  for pkg in "${AUR_PACKAGES[@]}"; do
+  for pkg in $(desktop_aur_packages); do
     part=$(aur_weight "$SETUP_DIR/packages" "$pkg")
     share $(( 1000 * used / parts )) $(( 1000 * (used + part) / parts ))
     aur_install "$pkg"

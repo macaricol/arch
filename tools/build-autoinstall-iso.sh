@@ -15,8 +15,8 @@
 # Requires root (to loop-mount the EFI image), through sudo, and these
 # packages (it checks first, and prints the command for any missing):
 #   sudo pacman -S --needed libisoburn squashfs-tools devtools git curl
-# devtools builds the AUR packages that compile from source (AUR_PACKAGES in
-# config.sh, all but the -bin ones) into the ISO, so installs from it don't
+# devtools builds the AUR packages that compile from source (AUR_PACKAGES and
+# KDE_AUR_PACKAGES in config.sh, all but the -bin ones) into the ISO, so installs from it don't
 # compile them.
 #
 # This only produces a new ISO file; it never touches a block device. Test it
@@ -352,7 +352,7 @@ prebuild_aur_packages() {
   local dest=$1 user pkg recipe needs stage dir file
   local -a wanted=() deps=()
   local -A built=()
-  for pkg in "${AUR_PACKAGES[@]}"; do
+  for pkg in "${AUR_PACKAGES[@]}" "${KDE_AUR_PACKAGES[@]}"; do
     if [[ $pkg != *-bin ]] || [[ " ${AUR_PREBUILT_BIN[*]} " == *" $pkg "* ]]; then wanted+=("$pkg"); fi
   done
   (( ${#wanted[@]} )) || return 0

@@ -2,12 +2,12 @@
   <img src="assets/logo/banner.png" alt="ARCHMAN" width="664">
 </p>
 
-# Arch Linux + KDE Plasma installer
+# Arch Linux installer, with KDE Plasma or Hyprland
 
-An installer on a USB stick, the ARCHMAN USB, for a UEFI machine: Btrfs root with `@`/`@home`
-subvolumes, RAM-sized swap with working hibernation, GRUB, a minimal KDE
-Plasma desktop, GPU drivers (64- and 32-bit), Steam, and a handful of AUR
-packages. In English (US), with the timezone, date formats and keyboard of
+An installer on a USB stick, the ARCHMAN USB, for a UEFI machine: Btrfs
+root with `@`/`@home` subvolumes, RAM-sized swap with working hibernation,
+GRUB, a desktop (a minimal KDE Plasma, or Hyprland as it comes), GPU
+drivers (64- and 32-bit), Steam, and a handful of AUR packages. In English (US), with the timezone, date formats and keyboard of
 where it's installed (the keyboard is asked, that one first) — see `config.sh`.
 
 ## Quick start
@@ -22,16 +22,18 @@ the computer from it:
 
 It boots straight into the installer. Without a cable, pick your Wi-Fi
 network from the list it shows. Then pick your keyboard layout (the one of
-where you are comes first) and answer three prompts (hostname, username, and one password used for both
-your user and root),
-pick the drive from an arrow-key menu, type `YES`, and walk away. The
-installer sets up everything, desktop included, then asks one last thing:
-the ARCHMAN look (dark theme, its own login screen, wallpaper, icons, a top
-panel and a clock widget) or plain KDE Plasma, as it comes. Then it asks
-you to remove the USB and reboots as soon as you unplug it (or press
-Enter): straight into SDDM, where the first Plasma session applies the
-desktop tweaks. One reboot, and no prompts between the first screens and
-that last question.
+where you are comes first) and the desktop, KDE Plasma or Hyprland; answer
+three prompts (hostname, username, and one password used for both your
+user and root); pick the drive from an arrow-key menu, check the answers
+on the review screen, pick "Yes, install", and walk away. The installer
+sets up everything, desktop included. With KDE Plasma it then asks one
+last thing: the ARCHMAN look (dark theme, its own login screen,
+wallpapers, icons, top panels and a clock widget) or plain KDE Plasma, as
+it comes; Hyprland comes as it is, with the ARCHMAN login screen. Then it
+asks you to remove the USB and reboots as soon as you unplug it (or
+press Enter): straight into SDDM, where the first Plasma session applies
+the desktop tweaks. One reboot, and no prompts between the first screens
+and that last question.
 
 The installer itself is fetched from this repo at boot, from the `REPO`
 and `BRANCH` in `config.sh` baked into the USB. For a USB that installs
@@ -444,23 +446,47 @@ userspace onto an AMD or Intel machine.
 | `kdegraphics-thumbnailers` | Thumbnails for images and PDFs |
 | `ffmpegthumbs` | Video thumbnails in Dolphin |
 | `pipewire-jack` | JACK audio support via PipeWire |
+| `krdc` | Remote desktop client, VNC/RDP (pinned in the centre panel) |
+| `krdp` | Plasma's remote desktop server (RDP) |
+| `matugen` | Works out the desktop's colours from the wallpaper, for skwd-wall |
 
-### `EXTRA_PACKAGES` — applications and fonts
+### `HYPRLAND_PACKAGES` — the desktop, with Hyprland
+
+Hyprland as it comes: its own default config, with only the keyboard layout
+filled in and the admin password prompt started with the session.
+
+| Package | Purpose |
+|---|---|
+| `hyprland` | The compositor; its default config, `/usr/share/hypr/hyprland.lua`, copied to `~/.config/hypr/` |
+| `xdg-desktop-portal-hyprland` | Screen sharing and screenshots for apps (the portal) |
+| `xdg-desktop-portal-gtk` | File open/save dialogs for apps that ask the portal |
+| `hyprpolkitagent` | The password prompt for admin tasks |
+| `qt5-wayland`, `qt6-wayland` | Qt apps run natively on Wayland |
+| `kitty` | Terminal (Super+Q in the default config) |
+| `dolphin` | File manager (Super+E) |
+| `hyprlauncher` | App menu (Super+R) |
+| `wireplumber`, `pipewire-pulse`, `pipewire-jack` | Sound through PipeWire; `wpctl` for the volume keys |
+| `brightnessctl`, `playerctl` | The brightness and media keys |
+| `bluez`, `bluez-utils` | Bluetooth (the service, and `bluetoothctl`) |
+| `noto-fonts` | A font for the terminal and apps |
+| `sddm` | Login screen, with the ARCHMAN theme |
+
+### `EXTRA_PACKAGES` — applications and fonts, with both desktops
 
 | Package | Purpose |
 |---|---|
 | `fastfetch` | System information display |
 | `mpv` | Lightweight, scriptable video player |
-| `krdc` | Remote desktop client, VNC/RDP (pinned in the centre panel) |
-| `krdp` | Remote desktop server (RDP) |
 | `git` | Version control |
 | `code` | The open-source build of Visual Studio Code |
 | `ttf-liberation` | Metric-compatible Arial / Times New Roman / Courier New |
 | `noto-fonts-cjk` | Chinese, Japanese and Korean coverage |
 | `ntfs-3g`, `exfatprogs`, `dosfstools` | Format and repair NTFS, exFAT and FAT32. Only formatting and repair need these; mounting works without them |
-| `matugen` | Works out the desktop's colours from the wallpaper, for skwd-wall |
 
-### `GAMING_PACKAGES`, `base-devel` and `AUR_PACKAGES`
+### `GAMING_PACKAGES`, `base-devel`, `AUR_PACKAGES` and `KDE_AUR_PACKAGES`
+
+With both desktops, but for the four skwd-wall packages (`KDE_AUR_PACKAGES`),
+installed with KDE Plasma only.
 
 | Package | From | Purpose |
 |---|---|---|
@@ -474,6 +500,6 @@ userspace onto an AMD or Intel machine.
 | `skwd-wall-v2-bin` | AUR (recipe `skwd-suite-bin`), prebuilt on the USB | skwd-wall, the wallpaper picker (Alt+W) |
 | `skwd-paper-plasma` | AUR, prebuilt on the USB | Plasma's wallpaper plugin for it, which draws the desktop's wallpaper |
 
-The skwd-wall packages are a beta; the three `-bin` ones are listed in
+The skwd-wall packages are a beta, built on the USB whichever desktop is picked; the three `-bin` ones are listed in
 `AUR_PREBUILT_BIN` so the USB carries them too (a `-bin` package is
 otherwise only a download, left to installs).

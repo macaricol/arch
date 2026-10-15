@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
-# Arch Linux + KDE Plasma installer — single entry point. Started only by
-# the ARCHMAN USB (tools/build-autoinstall-iso.sh), through bootstrap.sh.
+# Arch Linux installer, with KDE Plasma or Hyprland — single entry point.
+# Started only by the ARCHMAN USB (tools/build-autoinstall-iso.sh), through
+# bootstrap.sh.
 #
 #   setup.sh install         on the live ISO (as root): partition, install, then
 #                            re-invokes itself inside the new system with "chroot"
 #   setup.sh chroot          (internal) inside arch-chroot: system configuration
-#   setup.sh desktop         (internal) as the new user, in arch-chroot: desktop, apps
+#   setup.sh desktop         (internal) as the new user, in arch-chroot, DESKTOP=kde|hyprland:
+#                            desktop, apps
 #   setup.sh look            (internal) as root, LOOK=archman|plain: the desktop's look
 #   setup.sh wifi            (internal) live ISO, as root: pick a Wi-Fi network
 #   setup.sh plasma-tweaks   (internal) first Plasma session: desktop tweaks

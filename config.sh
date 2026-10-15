@@ -64,19 +64,36 @@ BTRFS_MOUNT_OPTS='noatime,compress=zstd:1'
 # ── Packages ───────────────────────────────────────────────────────────
 BASE_PACKAGES=(base linux linux-firmware btrfs-progs grub efibootmgr nano networkmanager sudo plymouth pciutils)
 
+# The desktop, one of two, picked at the install's questions (DESKTOP: kde
+# or hyprland): its packages, then EXTRA_PACKAGES, the same with both.
 KDE_PACKAGES=(
   plasma-desktop sddm sddm-kcm kscreen plasma-pa plasma-nm plasma-systemmonitor
   bluedevil kdeconnect kdenetwork-filesharing kwalletmanager
   konsole dolphin ark featherpad kio-admin spectacle
   kde-gtk-config   # GTK apps (Zen) follow KDE: window buttons, fonts, cursor, theme
   kdegraphics-thumbnailers ffmpegthumbs pipewire-jack
+  krdc krdp        # remote desktop: client, and Plasma's server
+  matugen          # skwd-wall's desktop colours, from the wallpaper
+)
+
+# Hyprland as it comes: its own default config (/usr/share/hypr/hyprland.lua),
+# with what that config's keybinds start (kitty, dolphin, hyprlauncher;
+# wpctl, brightnessctl, playerctl for the media keys), and what any desktop
+# needs to work: screen sharing and file pickers (the portals), the password
+# prompt for admin tasks (hyprpolkitagent), Qt apps on Wayland, sound,
+# Bluetooth, a font, and SDDM to log in.
+HYPRLAND_PACKAGES=(
+  hyprland xdg-desktop-portal-hyprland xdg-desktop-portal-gtk hyprpolkitagent
+  qt5-wayland qt6-wayland
+  kitty dolphin hyprlauncher
+  wireplumber pipewire-pulse pipewire-jack brightnessctl playerctl
+  bluez bluez-utils noto-fonts sddm
 )
 
 EXTRA_PACKAGES=(
-  fastfetch mpv krdc krdp git code
+  fastfetch mpv git code
   ttf-liberation noto-fonts-cjk
   ntfs-3g exfatprogs dosfstools   # format/repair NTFS, exFAT, FAT32 (mounting needs nothing extra)
-  matugen                         # skwd-wall's desktop colours, from the wallpaper
 )
 
 GAMING_PACKAGES=(steam)  # only installed when a supported GPU was detected, see desktop phase
@@ -84,9 +101,11 @@ GAMING_PACKAGES=(steam)  # only installed when a supported GPU was detected, see
 # dependencies all official): the AUR helper, which installs the rest (it
 # finds each one's recipe and AUR dependencies) and then keeps them all up
 # to date (paru -Syu, or Apdatifier in the panel), itself included. Those
-# built from source (all but -bin) come prebuilt on the USB. skwd-wall, the
-# wallpaper picker, comes as four, from two recipes.
-AUR_PACKAGES=(paru zen-browser-bin qview skwd-paper-bin skwd-deck-bin skwd-wall-v2-bin skwd-paper-plasma)
+# built from source (all but -bin) come prebuilt on the USB. With both
+# desktops; then with KDE Plasma, skwd-wall, the wallpaper picker, as four,
+# from two recipes (lib/system.sh's desktop_aur_packages).
+AUR_PACKAGES=(paru zen-browser-bin qview)
+KDE_AUR_PACKAGES=(skwd-paper-bin skwd-deck-bin skwd-wall-v2-bin skwd-paper-plasma)
 # The -bin ones the USB carries prebuilt too (tools/build-autoinstall-iso.sh;
 # a -bin package is only a download, otherwise left to installs): skwd-wall's,
 # a beta, so an install doesn't depend on its downloads being up then.

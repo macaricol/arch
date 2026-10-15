@@ -22,36 +22,31 @@ phase_install() {
   local shown=$(( EPOCHSECONDS - ${SPLASH_SINCE:-$EPOCHSECONDS} ))
   (( shown >= 4 )) || sleep $(( 4 - shown ))
   setup_console
-  # The progress bar covers the installing, not the questions before it: the
-  # steps below from partitioning on, then the desktop phase's, which the chroot
-  # phase runs and which carries the bar on. Weights: see lib/ui.sh's step.
-  # The desktop phase's AUR step weighs by what this USB brought prebuilt.
-  PROGRESS_TOTAL=$(( $(step_weights "$SETUP_DIR/phases/install.sh") + $(step_weights "$SETUP_DIR/phases/desktop.sh")
-                     + $(aur_weight "$ISO_PACKAGES") ))
 
   # The questions, until they end in a yes: nothing is touched before.
   # There's no way out of them but answering, or turning the device off:
   # leaving would end the USB's start-up and leave the screen black. The
-  # keyboard first, unless the USB's Wi-Fi screen asked already; going back
-  # from the review starts again at the keyboard, on the layout picked; Esc
-  # on the drive list, at the account questions. Every answer given comes
-  # back to keep or change.
-  local ask_keyboard=0
+  # keyboard first, unless the USB's Wi-Fi screen asked already, then the
+  # desktop; going back from the review starts again at the keyboard, on
+  # the layout picked; Esc on the drive list, at the account questions.
+  # Every answer given comes back to keep or change.
+  local ask_keyboard=0 ask_desktop=1
   read_keyboard_choice || choose_keyboard
   while :; do
     (( ! ask_keyboard )) || choose_keyboard
-    ask_keyboard=1
+    (( ! ask_desktop )) || choose_desktop
+    ask_keyboard=1 ask_desktop=1
     header "Set up your account"
     input HOST_NAME "Hostname" valid_hostname
     input USER_NAME "Username" valid_username
     # One password for both the user and root.
     password PASSWORD "Password"
 
-    select_drive || { ask_keyboard=0; continue; }   # Esc: back to the account
+    select_drive || { ask_keyboard=0 ask_desktop=0; continue; }   # Esc: back to the account
 
     header "Review & confirm"
     centred_details Hostname: "$HOST_NAME" Username: "$USER_NAME" Drive: "$DRIVE_LABEL" \
-      Timezone: "$TIMEZONE" Keyboard: "$KEYBOARD_LABEL"
+      Timezone: "$TIMEZONE" Keyboard: "$KEYBOARD_LABEL" Desktop: "$DESKTOP_LABEL"
     echo
     warn "Everything on $DRIVE_LABEL will be erased. This can't be undone."
     # Going back is the one picked to start with: the other erases the drive.
@@ -60,6 +55,13 @@ phase_install() {
       "Yes, install" "Erase $DRIVE_LABEL and install ARCHMAN on it."
     (( PICKED == 1 )) && break
   done
+  # The progress bar covers the installing, not the questions before it: the
+  # steps below from partitioning on, then the desktop phase's, which the chroot
+  # phase runs and which carries the bar on. Weights: see lib/ui.sh's step.
+  # The desktop phase's AUR step weighs by what this USB brought prebuilt,
+  # of the desktop's AUR packages.
+  PROGRESS_TOTAL=$(( $(step_weights "$SETUP_DIR/phases/install.sh") + $(step_weights "$SETUP_DIR/phases/desktop.sh")
+                     + $(aur_weight "$ISO_PACKAGES") ))
   # Bash's own clock; it keeps running through arch-chroot and the desktop
   # phase.
   local started=$SECONDS
@@ -75,10 +77,17 @@ phase_install() {
   # The time it took, before the question below waits on you.
   local took=$(( SECONDS - started ))
 
-  choose_look
-  header "Applying the look"
+  # KDE Plasma's look, asked for; Hyprland comes as it is, with the ARCHMAN
+  # login screen.
+  if [[ $DESKTOP == kde ]]; then
+    choose_look
+    header "Applying the look"
+  else
+    LOOK=archman
+    header "Finishing up"
+  fi
   SPIN_CENTRED=1
-  run arch-chroot /mnt env LOOK="$LOOK" bash "/home/$USER_NAME/.arch-setup/setup.sh" look
+  run arch-chroot /mnt env LOOK="$LOOK" DESKTOP="$DESKTOP" bash "/home/$USER_NAME/.arch-setup/setup.sh" look
 
   # Unmount first so nothing on the new system is lost if the stick is
   # pulled; and the live ISO may be running from that stick, so `reboot`
@@ -107,6 +116,16 @@ phase_install() {
   # systemctl's own "Rebooting." goes nowhere.
   echo 0 > /proc/sys/kernel/printk 2>/dev/null || dmesg -n 1 2>/dev/null || true
   systemctl reboot --force --force &>/dev/null || echo b > /proc/sysrq-trigger
+}
+
+# choose_desktop — asks which desktop to install, into DESKTOP (kde or
+# hyprland) and DESKTOP_LABEL; the one picked before (going back from the
+# review) to start with, else KDE Plasma.
+choose_desktop() {
+  buttons "Choose your desktop" "$([[ ${DESKTOP:-kde} == hyprland ]] && echo 1 || echo 0)" \
+    "KDE Plasma" "A complete desktop, ready to use: a taskbar, an app menu, and settings for everything." \
+    Hyprland "A tiling desktop, driven by the keyboard: windows arrange themselves. As it comes, for those who know it."
+  if (( PICKED == 1 )); then DESKTOP=hyprland DESKTOP_LABEL=Hyprland; else DESKTOP=kde DESKTOP_LABEL="KDE Plasma"; fi
 }
 
 # choose_look — asks which look the desktop gets, into LOOK: plain (KDE as
@@ -426,7 +445,7 @@ configure_new_system() {
   mapfile -t progress < <(progress_env)
   arch-chroot /mnt env HOST_NAME="$HOST_NAME" USER_NAME="$USER_NAME" TIMEZONE="$TIMEZONE" TIME_LOCALE="$TIME_LOCALE" \
     KEYMAP="$KEYMAP" X11_LAYOUT="$X11_LAYOUT" X11_VARIANT="$X11_VARIANT" X11_OPTIONS="$X11_OPTIONS" \
-    SWAP_PART="$SWAP_PART" PATCHED_FONT="${PATCHED_FONT:-0}" "${progress[@]}" \
+    SWAP_PART="$SWAP_PART" PATCHED_FONT="${PATCHED_FONT:-0}" DESKTOP="$DESKTOP" "${progress[@]}" \
     bash /root/arch-setup/setup.sh chroot
   # The desktop phase has done every step, and logged the last one's time: the
   # screens that follow show the bar full.

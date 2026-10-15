@@ -168,7 +168,7 @@ run_desktop_phase() {
   mapfile -t progress < <(progress_env)
   runuser -u "$USER_NAME" -- env TERM="$TERM" \
     X11_LAYOUT="$X11_LAYOUT" X11_VARIANT="$X11_VARIANT" X11_OPTIONS="$X11_OPTIONS" \
-    PATCHED_FONT="${PATCHED_FONT:-0}" "${progress[@]}" \
+    PATCHED_FONT="${PATCHED_FONT:-0}" DESKTOP="${DESKTOP:-kde}" "${progress[@]}" \
     bash "$home/.arch-setup/setup.sh" desktop
   rm -f "$rule"
 }
