@@ -64,8 +64,13 @@ if VBoxManage showvminfo "$vm" &>/dev/null; then
     VBoxManage showvminfo "$vm" --machinereadable | grep -q '^VMState="\(poweroff\|aborted\)"' && break
     sleep 0.5
   done
-  sleep 1
-  VBoxManage unregistervm "$vm" --delete
+  # And then a moment more before VirtualBox lets go of it: deleting too
+  # soon fails (VBOX_E_INVALID_OBJECT_STATE), so a few tries.
+  for try in 1 2 3 4 5; do
+    sleep 1
+    VBoxManage unregistervm "$vm" --delete 2>/dev/null && break
+    (( try < 5 )) || VBoxManage unregistervm "$vm" --delete   # the last: its error shown
+  done
 else
   echo "    (there wasn't one)"
 fi

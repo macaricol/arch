@@ -38,7 +38,7 @@ disk="$folder/$name/$name.vdi"
 video=$PWD/$name.webm
 
 # The last round's video. VirtualBox adds -screen0 to the name it's given.
-rm -f "$PWD/$name.webm" "$PWD/$name"-screen*.webm
+rm -f "$video" "${video%.webm}"-screen*.webm
 
 echo "==> Creating $name"
 VBoxManage createvm --name "$name" --ostype ArchLinux_64 --register > /dev/null
