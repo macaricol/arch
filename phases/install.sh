@@ -79,7 +79,7 @@ phase_install() {
 
   # KDE Plasma's look, asked for; Hyprland comes as it is, with the ARCHMAN
   # login screen.
-  if [[ $DESKTOP == kde ]]; then
+  if ! is_hyprland; then
     choose_look
     header "Applying the look"
   else
@@ -122,7 +122,7 @@ phase_install() {
 # hyprland) and DESKTOP_LABEL; the one picked before (going back from the
 # review) to start with, else KDE Plasma.
 choose_desktop() {
-  buttons "Choose your desktop" "$([[ ${DESKTOP:-kde} == hyprland ]] && echo 1 || echo 0)" \
+  buttons "Choose your desktop" "$(is_hyprland && echo 1 || echo 0)" \
     "KDE Plasma" "A complete desktop, ready to use: a taskbar, an app menu, and settings for everything." \
     Hyprland "A tiling desktop, driven by the keyboard: windows arrange themselves. As it comes, for those who know it."
   if (( PICKED == 1 )); then DESKTOP=hyprland DESKTOP_LABEL=Hyprland; else DESKTOP=kde DESKTOP_LABEL="KDE Plasma"; fi
@@ -475,14 +475,19 @@ live_usb_disk() {
 # and the name in hex when it has other characters than letters, digits,
 # - and _; NetworkManager then gets the name as its bytes.
 carry_wifi_networks() {
-  local file base ssid name security secret dir=/mnt/etc/NetworkManager/system-connections
+  local file base ssid name security secret hex i escapes dir=/mnt/etc/NetworkManager/system-connections
   for file in /var/lib/iwd/*.psk /var/lib/iwd/*.open; do
     [[ -f $file ]] || continue
     base=${file##*/} base=${base%.*}
     if [[ $base == =* ]]; then
-      [[ ${base#=} =~ ^([0-9a-fA-F]{2})+$ ]] || continue
-      printf -v name '%b' "$(sed 's/../\\x&/g' <<< "${base#=}")"
-      ssid=$(sed 's/../&\n/g' <<< "${base#=}" | while read -r byte; do [[ -z $byte ]] || printf '%d;' "0x$byte"; done)
+      # Hex, two digits a byte: the name as text (for its id and file), and
+      # the SSID as NetworkManager takes raw bytes, "104;105;" for "hi".
+      hex=${base#=} escapes='' ssid=''
+      [[ $hex =~ ^([0-9a-fA-F]{2})+$ ]] || continue
+      for (( i = 0; i < ${#hex}; i += 2 )); do
+        escapes+="\\x${hex:i:2}" ssid+="$(( 16#${hex:i:2} ));"
+      done
+      printf -v name '%b' "$escapes"
     else
       name=$base ssid=$base
     fi

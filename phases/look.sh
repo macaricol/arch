@@ -22,7 +22,7 @@ phase_look() {
     # wallpaper as the system-wide default too, so its first session starts
     # with it.
     kwriteconfig6 --file "$conf" --group Theme --key Current "$SDDM_THEME"
-    if [[ ${DESKTOP:-kde} == kde ]]; then
+    if ! is_hyprland; then
       local xml=/usr/share/plasma/wallpapers/org.kde.image/contents/config/main.xml
       sed -i "/<entry name=\"Image\" type=\"String\">/,/<\/entry>/ s|<default>.*</default>|<default>file://$WALLPAPER</default>|" "$xml"
     fi

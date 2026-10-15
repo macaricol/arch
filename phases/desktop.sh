@@ -7,7 +7,7 @@
 
 phase_desktop() {
   local name="KDE Plasma"
-  [[ ${DESKTOP:-kde} == hyprland ]] && name=Hyprland
+  is_hyprland && name=Hyprland
   # Weight: measured on a VM (81 s, once merged; KDE Plasma's).
   step "Installing the desktop and apps" 80
   note "Installing $name, the desktop you'll log into, and your apps. This is the big download."
@@ -21,7 +21,7 @@ phase_desktop() {
   # The settings, a second or so each: one step, not a screen flashing past
   # for each. Weight: the parts' measured times; the look's files the most.
   step "Setting up your desktop" 11
-  if [[ ${DESKTOP:-kde} == hyprland ]]; then
+  if is_hyprland; then
     note "The login screen, keyboard, sound, video player and Bluetooth..."
     share 0 500
     install_login_theme
@@ -225,7 +225,7 @@ EOF
 # lists, and -Syu, as packages from newer lists need the system up to date.
 install_desktop_packages() {
   local -a packages=("${KDE_PACKAGES[@]}")
-  [[ ${DESKTOP:-kde} == hyprland ]] && packages=("${HYPRLAND_PACKAGES[@]}")
+  is_hyprland && packages=("${HYPRLAND_PACKAGES[@]}")
   packages+=("${EXTRA_PACKAGES[@]}" base-devel)
   if [[ -n $(gpu_vendors) ]]; then
     packages+=("${GAMING_PACKAGES[@]}")

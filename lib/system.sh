@@ -42,12 +42,15 @@ prebuilt_package() {
   return 1
 }
 
+# is_hyprland — true when the desktop picked (DESKTOP) is Hyprland; anything
+# else, unset included, is KDE Plasma.
+is_hyprland() { [[ ${DESKTOP:-kde} == hyprland ]]; }
+
 # desktop_aur_packages — the AUR packages to install, one a line, in order:
-# AUR_PACKAGES, then with KDE Plasma (DESKTOP, kde unless hyprland)
-# KDE_AUR_PACKAGES.
+# AUR_PACKAGES, then with KDE Plasma KDE_AUR_PACKAGES.
 desktop_aur_packages() {
   printf '%s\n' "${AUR_PACKAGES[@]}"
-  [[ ${DESKTOP:-kde} == hyprland ]] || printf '%s\n' "${KDE_AUR_PACKAGES[@]}"
+  is_hyprland || printf '%s\n' "${KDE_AUR_PACKAGES[@]}"
 }
 
 # aur_weight DIR [PACKAGE] — roughly the seconds installing PACKAGE (or all

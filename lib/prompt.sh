@@ -91,7 +91,7 @@ field() {
   # The box's edges, a row each: the quarters in its navy, or (without the
   # glyphs) blank, the same rows taken either way.
   local __above='' __below=''
-  if on_console && [[ ${PATCHED_FONT:-0} == 1 ]]; then
+  if patched_font; then
     __above=$(repeat "$LOWER_QUARTER" "$FIELD_WIDTH") __below=$(repeat "$UPPER_QUARTER" "$FIELD_WIDTH")
   fi
   # The field's spot: the one cursor position saved (\e7), and never saved
@@ -161,7 +161,7 @@ input() {
 # The character a typed secret is masked with: the round dot from the
 # patched console fonts when one is loaded, else •.
 mask_char() {
-  if on_console && [[ ${PATCHED_FONT:-0} == 1 ]]; then printf '%s' "$DOT"; else printf '•'; fi
+  if patched_font; then printf '%s' "$DOT"; else printf '•'; fi
 }
 
 # password VAR "Label" — asked twice; both entries must match. Both start
