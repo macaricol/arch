@@ -72,15 +72,11 @@ phase_wifi() {
       # On failure the screens below say what went wrong plainly; iwctl's
       # own words are in the log (run).
       if ! run wifi_connect "$device" "$name"; then
-        if [[ -n $password ]]; then
-          buttons "Couldn't connect to $name" 0 \
-            "Try again" "The password may be wrong. Type it again." \
-            "Other network" "Go back to the list of Wi-Fi networks."
-        else
-          buttons "Couldn't connect to $name" 0 \
-            "Try again" "The network didn't answer. Try connecting again." \
-            "Other network" "Go back to the list of Wi-Fi networks."
-        fi
+        local why="The network didn't answer. Try connecting again."
+        [[ -z $password ]] || why="The password may be wrong. Type it again."
+        buttons "Couldn't connect to $name" 0 \
+          "Try again" "$why" \
+          "Other network" "Go back to the list of Wi-Fi networks."
       elif ! run wait_online; then
         buttons "$name doesn't reach the internet" 1 \
           "Try again" "It connected, but the internet didn't answer. Try connecting again." \

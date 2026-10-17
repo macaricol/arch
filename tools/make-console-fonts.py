@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """Builds assets/consolefonts/: the three console fonts lib/ui.sh picks
-from, each with two glyphs redrawn as Pac-Man.
+from, each with these glyphs added:
 
-  ᗧ (U+15E7)  Pac-Man, mouth open to the right: the spinner's
-  ⬤ (U+2B24)  Pac-Man, mouth closed: the same circle, for its chomp
+  ᗧ (U+15E7)     Pac-Man, mouth open to the right: the spinner's
+  ⬤ (U+2B24)     Pac-Man, mouth closed: the same circle, for its chomp
   U+E010         a round bullet, for typed passwords (the fonts' own •
-                 ranges from a square to a diamond), and the login screen's
+                 ranges from a square to a diamond); the login screen's
+                 dot.png too (tools/make-sddm-theme.py)
   ▂ (U+2582)     the lower quarter of a cell, and U+E011 the upper one (the
                  console maps no characters beyond U+FFFF, which the
                  standard upper quarter is): the installer's text box, a
@@ -26,13 +27,11 @@ any of them, so they take over the slots of glyphs the installer never
 prints (old DOS and box-drawing symbols like ☺ ♀ ╬, or Hebrew and Arabic
 letters in the 512-glyph font).
 The two Pac-Men are as tall as the font's capital O and centred on it, so
-they sit in a line of text like a letter. The login screen's padlock is
-drawn here too (draw_lock), but for tools/make-sddm-theme.py, not kept in
-the fonts: it's the shape of Omarchy's (default/plymouth/lock.png in
-basecamp/omarchy), redrawn from its measurements; like there, it's 80% as
-tall as the 3-row password box beside it and centred on it.
+they sit in a line of text like a letter.
 
-Run it again only to change the drawing; the output is committed:
+Run it again to change the drawing, and after tools/make-logo.py or
+tools/make-tux.py (their cells); then tools/make-sddm-theme.py, whose
+images use these fonts. The output is committed:
   tools/make-console-fonts.py
 """
 import gzip
@@ -45,8 +44,6 @@ SOURCE = pathlib.Path("/usr/share/kbd/consolefonts")
 OUT = pathlib.Path(__file__).resolve().parent.parent / "assets" / "consolefonts"
 
 PACMAN, CLOSED = "ᗧ", "⬤"
-LOCK_COLS, LOCK_ROWS = 5, 3
-LOCK = [chr(0xE000 + i) for i in range(LOCK_COLS * LOCK_ROWS)]   # row by row
 DOT = "\ue010"
 LOWER_QUARTER, UPPER_QUARTER = "\u2582", "\ue011"
 EIGHTHS = "▏▎▍▌▋▊▉"   # 1/8 to 7/8 of a cell, filled from the left
@@ -67,7 +64,8 @@ SPARE = (list("☺☻♀♂♪♫☼♥♦♣♠◘○◙►◄↕‼▬↨∟�
 
 
 def load(path):
-    data = gzip.open(path).read()
+    with gzip.open(path) as f:
+        data = f.read()
     assert data[:4] == b"\x72\xb5\x4a\x86", f"{path}: not a PSF2 font"
     _, header, flags, count, size, height, width = struct.unpack("<7I", data[4:32])
     assert flags & 1, f"{path}: no Unicode table"
@@ -99,46 +97,38 @@ def pixel(font, glyph, x, y):
     return bool(glyph[y * row + x // 8] & (0x80 >> (x % 8)))
 
 
+def glyph_of(font, char):
+    """The glyph char is mapped to."""
+    return font["glyphs"][next(i for i, t in enumerate(font["table"]) if char in chars_of(t))]
+
+
+def ink_rows(font, glyph):
+    """The rows with any pixel set."""
+    return [y for y in range(font["height"]) if any(pixel(font, glyph, x, y) for x in range(font["width"]))]
+
+
 def cap_rows(font):
     """First and last row of the capital O."""
-    o = font["glyphs"][next(i for i, t in enumerate(font["table"]) if "O" in chars_of(t))]
-    rows = [y for y in range(font["height"]) if any(pixel(font, o, x, y) for x in range(font["width"]))]
+    rows = ink_rows(font, glyph_of(font, "O"))
     return rows[0], rows[-1]
 
 
-def lock_shape(u, v):
-    """Omarchy's padlock, in its own 84x96 pixel coordinates: a body with
-    rounded corners over the lower 60%, a shackle 54 wide and 12 thick with
-    a round top, and a pill-shaped keyhole."""
-    def rounded_rect(x0, y0, x1, y1, r):
-        cx, cy = min(max(u, x0 + r), x1 - r), min(max(v, y0 + r), y1 - r)
-        return (u - cx) ** 2 + (v - cy) ** 2 <= r * r
-    if 37 <= v <= 96:
-        return rounded_rect(0, 37, 84, 96, 10) and not rounded_rect(36, 54, 48, 78, 6)
-    if 0 <= v < 37:   # shackle: a ring around (42, 27), radii 15 to 27, with straight legs below it
-        d = math.hypot(u - 42, v - 27) if v < 27 else abs(u - 42)
-        return 15 <= d <= 27
-    return False
+def fill(font, on):
+    """A glyph with pixel (x, y) set wherever on(x, y)."""
+    w, row = font["width"], (font["width"] + 7) // 8
+    glyph = bytearray(font["size"])
+    for y in range(font["height"]):
+        for x in range(w):
+            if on(x, y):
+                glyph[y * row + x // 8] |= 0x80 >> (x % 8)
+    return glyph
 
 
-def draw_lock(font):
-    """The padlock's 15 tiles, row by row: the shape scaled to 80% of three
-    rows' height and centred in a 5x3 block of cells."""
-    w, h, row = font["width"], font["height"], (font["width"] + 7) // 8
-    block_w, block_h = LOCK_COLS * w, LOCK_ROWS * h
-    lock_h = block_h * 0.8
-    scale = lock_h / 96
-    x0, y0 = (block_w - 84 * scale) / 2, (block_h - lock_h) / 2
-    tiles = [bytearray(font["size"]) for _ in LOCK]
-    for y in range(block_h):
-        for x in range(block_w):
-            hits = sum(lock_shape((x + (sx + 0.5) / 4 - x0) / scale, (y + (sy + 0.5) / 4 - y0) / scale)
-                       for sy in range(4) for sx in range(4))
-            if hits >= 8:
-                tile = tiles[(y // h) * LOCK_COLS + x // w]
-                tx, ty = x % w, y % h
-                tile[ty * row + tx // 8] |= 0x80 >> (tx % 8)
-    return tiles
+def rasterise(font, inside):
+    """A glyph of the shape inside(u, v), in pixel coordinates: a pixel on
+    if most of it is covered, sampled 4 x 4."""
+    return fill(font, lambda x, y: sum(inside(x + (sx + 0.5) / 4, y + (sy + 0.5) / 4)
+                                       for sy in range(4) for sx in range(4)) >= 8)
 
 
 def draw_dot(font):
@@ -146,51 +136,38 @@ def draw_dot(font):
     it. Its diameter is odd and its centre on a pixel, so it comes out
     symmetric: an even one, or one between rows, rasterises as a square or
     a rounded rectangle at these sizes."""
-    w, h, row = font["width"], font["height"], (font["width"] + 7) // 8
     top, bottom = cap_rows(font)
     diameter = max(3, round((bottom - top + 1) / 2)) | 1
     r = diameter / 2
-    cx, cy = (w - 2) // 2, math.floor((top + bottom) / 2 + 0.5)
-    glyph = bytearray(font["size"])
-    for y in range(h):
-        for x in range(w):
-            hits = sum((x + (sx + 0.5) / 4 - 0.5 - cx) ** 2 + (y + (sy + 0.5) / 4 - 0.5 - cy) ** 2 <= r * r
-                       for sy in range(4) for sx in range(4))
-            if hits >= 8:
-                glyph[y * row + x // 8] |= 0x80 >> (x % 8)
-    return glyph
+    cx, cy = (font["width"] - 2) // 2, math.floor((top + bottom) / 2 + 0.5)
+    return rasterise(font, lambda u, v: (u - 0.5 - cx) ** 2 + (v - 0.5 - cy) ** 2 <= r * r)
 
 
 def draw_eighth(font, k):
     """The left k/8 of the cell, full height: one pixel column an eighth in
     the 8-wide font, as near as whole pixels go in the others."""
-    w, h, row = font["width"], font["height"], (font["width"] + 7) // 8
-    glyph = bytearray(font["size"])
-    for y in range(h):
-        for x in range(round(w * k / 8)):
-            glyph[y * row + x // 8] |= 0x80 >> (x % 8)
-    return glyph
+    edge = round(font["width"] * k / 8)
+    return fill(font, lambda x, y: x < edge)
 
 
 def stroke(font):
     """The thickness of the font's horizontal strokes: its hyphen's. (Its
     vertical ones are up to twice that, in latarcyrheb-sun32: too heavy for
     an arrow, whose head then fills in.)"""
-    hyphen = font["glyphs"][next(i for i, t in enumerate(font["table"]) if "-" in chars_of(t))]
-    x = font["width"] // 2
+    hyphen, x = glyph_of(font, "-"), font["width"] // 2
     return max(1, sum(pixel(font, hyphen, x, y) for y in range(font["height"])))
 
 
 def draw_arrow(font, char):
-    """An arrow, as thick as the font's horizontal strokes: ← and → across the cell at the
-    height of the x's middle, their heads as tall as half the capital O;
-    ↑ and ↓ the capital O's height, heads as wide as the cell allows. Lines
-    drawn by their distance from each point, sampled 4 x 4 per pixel."""
-    w, h, row = font["width"], font["height"], (font["width"] + 7) // 8
+    """An arrow, as thick as the font's horizontal strokes: ← and → across
+    the cell at the height of the x's middle, their heads as tall as half
+    the capital O; ↑ and ↓ the capital O's height, heads as wide as the
+    cell allows. Lines drawn by their distance from each point."""
+    w = font["width"]
     top, bottom = cap_rows(font)
-    x = font["glyphs"][next(i for i, t in enumerate(font["table"]) if "x" in chars_of(t))]
-    xrows = [y for y in range(h) if any(pixel(font, x, c, y) for c in range(w))]
-    half = stroke(font) / 2
+    xrows = ink_rows(font, glyph_of(font, "x"))
+    thickness = stroke(font)
+    half = thickness / 2
     if char in "←→":
         cy, left, right = (xrows[0] + xrows[-1] + 1) / 2, 1 + half, w - 1 - half
         arm = min((bottom - top + 1) / 4, (right - left) / 2)
@@ -200,7 +177,7 @@ def draw_arrow(font, char):
     else:
         # The shaft on whole pixels: an odd stroke centred on one, an even
         # one between two.
-        cx = w // 2 if stroke(font) % 2 == 0 else (w - 1) // 2 + 0.5
+        cx = w // 2 if thickness % 2 == 0 else (w - 1) // 2 + 0.5
         arm = min(cx - 1 - half, (bottom - top + 1) / 3)
         tip, back = (top + half, bottom + 1 - half) if char == "↑" else (bottom + 1 - half, top + half)
         lean = arm if char == "↑" else -arm
@@ -213,71 +190,46 @@ def draw_arrow(font, char):
             if (px - x0 - t * dx) ** 2 + (py - y0 - t * dy) ** 2 <= half * half:
                 return True
         return False
-    glyph = bytearray(font["size"])
-    for y in range(h):
-        for x in range(w):
-            if sum(near(x + (sx + 0.5) / 4, y + (sy + 0.5) / 4) for sy in range(4) for sx in range(4)) >= 8:
-                glyph[y * row + x // 8] |= 0x80 >> (x % 8)
-    return glyph
+    return rasterise(font, near)
 
 
 def draw_rows(font, top, bottom):
     """Rows top to bottom (exclusive) filled, full width."""
-    w, row = font["width"], (font["width"] + 7) // 8
-    glyph = bytearray(font["size"])
-    for y in range(top, bottom):
-        for x in range(w):
-            glyph[y * row + x // 8] |= 0x80 >> (x % 8)
-    return glyph
+    return fill(font, lambda x, y: top <= y < bottom)
 
 
 def draw_cell(font, bits):
     """A logo cell: the glyph split into 2 columns and 4 rows of blocks, on
     the same boundaries as the font's own ▌▐ and ▀▄, filled where bits says."""
-    w, h, row = font["width"], font["height"], (font["width"] + 7) // 8
-    xs, ys = (0, w // 2, w), [round(h * k / 4) for k in range(5)]
-    glyph = bytearray(font["size"])
-    for n in range(8):
-        if bits >> n & 1:
-            for y in range(ys[n // 2], ys[n // 2 + 1]):
-                for x in range(xs[n % 2], xs[n % 2 + 1]):
-                    glyph[y * row + x // 8] |= 0x80 >> (x % 8)
-    return glyph
+    half, ends = font["width"] // 2, [round(font["height"] * k / 4) for k in range(1, 5)]
+
+    def on(x, y):
+        row = next(k for k, end in enumerate(ends) if y < end)
+        return bits >> (2 * row + (x >= half)) & 1
+    return fill(font, on)
 
 
-def draw(font, mouth):
+def draw_pacman(font, mouth):
     """A filled circle as tall as the capital O and centred on it; mouth > 0
     cuts a wedge open to the right."""
-    w, h, row = font["width"], font["height"], (font["width"] + 7) // 8
-    o = font["glyphs"][next(i for i, t in enumerate(font["table"]) if "O" in chars_of(t))]
-    rows = [y for y in range(h) if any(pixel(font, o, x, y) for x in range(w))]
-    diameter = min(rows[-1] - rows[0] + 1, w - 1)
-    cy = (rows[0] + rows[-1]) / 2
+    w = font["width"]
+    top, bottom = cap_rows(font)
+    diameter = min(bottom - top + 1, w - 1)
+    cy = (top + bottom) / 2
     cx = (w - 2) / 2 if diameter == w - 1 else (w - 1) / 2   # keep the last column as a gap
     r = diameter / 2 + 0.25   # a little fuller: rounder rows at the top and bottom
-    glyph = bytearray(font["size"])
-    for y in range(h):
-        for x in range(w):
-            # 4x4 samples per pixel; on if most of the pixel is covered
-            inside = 0
-            for sy in range(4):
-                for sx in range(4):
-                    dx, dy = x + (sx + 0.5) / 4 - 0.5 - cx, y + (sy + 0.5) / 4 - 0.5 - cy
-                    if dx * dx + dy * dy > r * r:
-                        continue
-                    if mouth and dx > 0 and abs(math.degrees(math.atan2(dy, dx))) < mouth:
-                        continue
-                    inside += 1
-            if inside >= 8:
-                glyph[y * row + x // 8] |= 0x80 >> (x % 8)
-    return glyph
+
+    def inside(u, v):
+        dx, dy = u - 0.5 - cx, v - 0.5 - cy
+        return dx * dx + dy * dy <= r * r and not (mouth and dx > 0 and abs(math.degrees(math.atan2(dy, dx))) < mouth)
+    return rasterise(font, inside)
 
 
 def main():
     for name in FONTS:
         font = load(SOURCE / f"{name}.psfu.gz")
         spare = [i for c in SPARE for i, t in enumerate(font["table"]) if chars_of(t) == c]
-        glyphs = [(PACMAN, draw(font, MOUTH_DEGREES)), (CLOSED, draw(font, 0))]
+        glyphs = [(PACMAN, draw_pacman(font, MOUTH_DEGREES)), (CLOSED, draw_pacman(font, 0))]
         glyphs += [(DOT, draw_dot(font))]
         # The quarters on the same boundaries as the logo's cells (draw_cell).
         h = font["height"]

@@ -54,7 +54,7 @@ configure_accounts() {
 
   write_sudoers /etc/sudoers.d/10-wheel '%wheel ALL=(ALL:ALL) ALL'
 
-  run systemctl enable NetworkManager
+  enable_service NetworkManager
 }
 
 # Plymouth splash instead of scrolling boot messages (Esc still shows them),
@@ -146,29 +146,28 @@ install_bootloader() {
 }
 
 # Moves this installer into the new user's home, for the desktop phase and the
-# Plasma first-login step. Nothing in this phase logs after it, since the log
-# file lives in the directory being moved.
+# Plasma first-login step. The log moves with it, and what this phase logs
+# afterwards follows it there.
 hand_over_to_user() {
-  local dest=/home/$USER_NAME/.arch-setup
+  local dest=/home/$USER_NAME/$USER_SETUP_DIR
   rm -rf "$dest"
   mv "$SETUP_DIR" "$dest"
   chown -R "$USER_NAME:$USER_NAME" "$dest"
+  LOG_FILE=$dest/setup.log
 }
 
 # The desktop setup (phases/desktop.sh), run here as the new user rather than on
 # a first boot: all of it works in the chroot, on the live system's network,
 # so the machine reboots once, straight into SDDM. A temporary sudo rule
 # stands in for the password the phase would otherwise ask for, and the
-# progress bar carries on from the install phase's (lib/ui.sh's progress_env).
+# progress bar carries on from the install phase's (lib/ui.sh's screen_env).
 run_desktop_phase() {
-  local home=/home/$USER_NAME rule=/etc/sudoers.d/90-arch-setup-install
+  local rule=/etc/sudoers.d/90-arch-setup-install
   write_sudoers "$rule" "$USER_NAME ALL=(ALL:ALL) NOPASSWD: ALL"
   trap 'rm -f '"$rule" EXIT
-  local -a progress
-  mapfile -t progress < <(progress_env)
+  screen_env
   runuser -u "$USER_NAME" -- env TERM="$TERM" \
-    X11_LAYOUT="$X11_LAYOUT" X11_VARIANT="$X11_VARIANT" X11_OPTIONS="$X11_OPTIONS" \
-    PATCHED_FONT="${PATCHED_FONT:-0}" "${progress[@]}" \
-    bash "$home/.arch-setup/setup.sh" desktop
+    X11_LAYOUT="$X11_LAYOUT" X11_VARIANT="$X11_VARIANT" X11_OPTIONS="$X11_OPTIONS" "${SCREEN_ENV[@]}" \
+    bash "/home/$USER_NAME/$USER_SETUP_DIR/setup.sh" desktop
   rm -f "$rule"
 }

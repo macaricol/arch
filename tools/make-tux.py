@@ -24,9 +24,10 @@ the background is). The console has backgrounds in slots 0-7 only, and
 with the 512-glyph font foregrounds too: so the splat is slot 5 (config.sh's
 CONSOLE_PALETTE), and the white belly, 15, comes out as 7 with that font.
 
-Needs ffmpeg, to read the image. Run it again only to change the drawing,
-then tools/make-console-fonts.py (the patterns) and lib/ui.sh needs
-nothing; the output is committed:
+Needs ffmpeg, to read the image. Run it again to change the drawing, and
+after tools/make-logo.py (the patterns it shares); then
+tools/make-console-fonts.py, for the new patterns' glyphs (lib/ui.sh needs
+no change). The output is committed:
   tools/make-tux.py
 """
 import collections
@@ -40,7 +41,9 @@ OUT = ROOT / "assets" / "tux"
 LOGO = ROOT / "assets" / "logo" / "logo-hd.txt"
 COLS, ROWS = 64, 23      # cells
 SEED = 3
-NEW_PATTERNS = 15        # the console fonts' room, beyond the logo's patterns
+# The console fonts' room, beyond the logo's patterns: 71 spare slots for
+# cells, shared with tools/make-logo.py (its MAX_PATTERNS, 71 - 15).
+NEW_PATTERNS = 15
 BLACK, YELLOW, SPLAT, WHITE = 0, 3, 5, 15
 # How the cell patterns name their bits (tools/make-logo.py): bit n is row
 # n // 2, column n % 2 of a 2 x 4 cell; four of them are block characters.
@@ -195,9 +198,7 @@ def logo_cells(px):
         for x in range(0, len(px[0]), 2):
             cell = [px[y + n // 2][x + n % 2] for n in range(8)]
             fg, bg, near = two_colours(cell)
-            bits = sum(1 << n for n, c in enumerate(cell) if near(c) == fg and fg is not None)
-            if fg is None:                      # all background
-                bits = 0
+            bits = sum(1 << n for n, c in enumerate(cell) if near(c) == fg)
             row.append((bits, fg, bg))
         grid.append(row)
     logo = {ord(c) - PUA for c in LOGO.read_text() if ord(c) >= PUA}

@@ -80,16 +80,16 @@ EXTRA_PACKAGES=(
 )
 
 GAMING_PACKAGES=(steam)  # only installed when a supported GPU was detected, see desktop phase
-# From the AUR, installed in this order; their dependencies must be in the
-# official repos (makepkg). paru first: the AUR helper, which then keeps them
-# all up to date (paru -Syu, or Apdatifier in the panel), itself included.
-# Those built from source (all but -bin) come prebuilt on the USB.
-# skwd-wall, the wallpaper picker, comes as four, each needing the ones
-# before it (makepkg only fetches dependencies from the official repos).
+# From the AUR, installed in this order. paru first, with makepkg (its
+# dependencies all official): the AUR helper, which installs the rest (it
+# finds each one's recipe and AUR dependencies) and then keeps them all up
+# to date (paru -Syu, or Apdatifier in the panel), itself included. Those
+# built from source (all but -bin) come prebuilt on the USB. skwd-wall, the
+# wallpaper picker, comes as four, from two recipes.
 AUR_PACKAGES=(paru zen-browser-bin qview skwd-paper-bin skwd-deck-bin skwd-wall-v2-bin skwd-paper-plasma)
 # The -bin ones the USB carries prebuilt too (tools/build-autoinstall-iso.sh;
 # a -bin package is only a download, otherwise left to installs): skwd-wall's,
-# a beta, kept from GitHub and the AUR at install time.
+# a beta, so an install doesn't depend on its downloads being up then.
 AUR_PREBUILT_BIN=(skwd-paper-bin skwd-deck-bin skwd-wall-v2-bin)
 
 # The lib32-* packages are what Steam needs. Installing the right ones up
@@ -132,8 +132,8 @@ BRIGHTNESS=80
 # The login screen: the archman theme (assets/sddm/archman), an Omarchy-style
 # unlock screen in the installer's look (rebuild with tools/make-sddm-theme.py).
 SDDM_THEME='archman'
-# Installed too: the wallpapers come from it, and it stays available as an
-# alternative login theme in System Settings.
+# Installed too, with its fonts: it stays available as an alternative login
+# theme in System Settings.
 ASTRONAUT_REPO='https://github.com/macaricol/sddm-astronaut-theme.git'
 ASTRONAUT_THEME='sddm-astronaut-theme'
 # The wallpapers (assets/wallpapers), installed system-wide here and copied
@@ -151,7 +151,7 @@ ICON_THEME_APPLIED='YAMIS-Grey'
 PLASMOID_REPOS=(                     # each repo's package/ directory, or the repo itself (metadata.json at its top)
   https://github.com/macaricol/kde_modernclock.git
   https://github.com/exequtic/apdatifier
-  https://github.com/luisbocanegra/plasma-panel-colorizer   # the panels' look (the Dock preset)
+  https://github.com/luisbocanegra/plasma-panel-colorizer   # the panels' look (the Translucent preset)
   https://github.com/yassine20011/kvitals   # system monitor, in its own panel
 )
 
