@@ -20,14 +20,15 @@ the computer from it:
     sudo tools/build-autoinstall-iso.sh
     sudo dd if=archlinux-autoinstall.iso of=/dev/sdX bs=4M status=progress oflag=sync
 
-It boots straight into the installer. Without a cable, pick your Wi-Fi
-network from the list it shows. Then pick your keyboard layout (the one of
-where you are comes first) and answer three prompts (hostname, username, and one password used for both
-your user and root),
-pick the drive from an arrow-key menu, type `YES`, and walk away. The
+It boots straight into the installer. Pick your keyboard layout (the one
+of where you are comes first); without a cable, that comes on the Wi-Fi
+screen, followed by the networks in range to pick from. Then answer three
+prompts (hostname, username, and one password, typed twice, used for both
+your user and root), pick the drive from an arrow-key menu, choose "Yes,
+install" on the review screen, and walk away. The
 installer sets up everything, desktop included, then asks one last thing:
-the ARCHMAN look (dark theme, its own login screen, wallpaper, icons, a top
-panel and a clock widget) or plain KDE Plasma, as it comes. Then it asks
+the ARCHMAN look (dark theme, its own login screen, wallpaper, icons, three
+top panels and a clock widget) or plain KDE Plasma, as it comes. Then it asks
 you to remove the USB and reboots as soon as you unplug it (or press
 Enter): straight into SDDM, where the first Plasma session applies the
 desktop tweaks. One reboot, and no prompts between the first screens and
@@ -60,14 +61,16 @@ straight in, quietly — no kernel or systemd messages and no login text —
 and shows the ARCHMAN logo across two thirds of the screen
 (`tools/fb-logo.py`, drawn on the framebuffer), with "Checking if this
 device is ready..." under it 2 seconds in. The logo stays up while the
-network comes up and through the installer's own checks (UEFI, internet),
-which draw nothing over it, for at least 4 seconds in all;
-the first thing after it is the account screen.
+network comes up and through the installer's location lookup (ipinfo.io),
+which draws nothing over it, for at least 4 seconds in all;
+the first thing after it is the keyboard layout list (or, after the Wi-Fi
+screen, the account screen).
 
 With no cable plugged in, on a machine with Wi-Fi, it asks for the keyboard
 layout and shows the networks in range instead, strongest first, each with
 its signal and whether it's secured: pick one with the arrow keys, type its
-password, and once connected it goes straight on to the installer. The new system gets the same network (as a NetworkManager
+password, and once connected it goes straight on to the installer (networks
+with a company login, 802.1X, aren't supported). The new system gets the same network (as a NetworkManager
 connection), so it's online from its first boot. If there's no Wi-Fi
 either, it waits up to 30 seconds for a cable. Whatever goes wrong, it says
 so in plain words, what to do about it, and restarts on Enter: no shell or
@@ -78,7 +81,8 @@ password.)
     sudo tools/build-autoinstall-iso.sh
 
 The AUR packages that compile from source (`AUR_PACKAGES` without the
-`-bin` ones: paru and qview) are built into the USB, in a clean chroot with
+`-bin` ones: paru, qview and skwd-paper-plasma), and the `-bin` ones in
+`AUR_PREBUILT_BIN`, are built into the USB, in a clean chroot with
 devtools' `makechrootpkg` (created once in `/var/lib/archman-build`, about
 200 MB, and updated on every run), so installs from it don't spend minutes
 compiling them. An install uses the USB's even when the AUR has a newer
@@ -106,27 +110,37 @@ mirror is `ISO_MIRROR` in `config.sh`.
 
 ## How it fits together
 
-    bootstrap.sh             fetched by the USB at boot: the repo tarball to /tmp, then setup.sh install
+    bootstrap.sh             fetched by the USB at boot: the repo tarball to /tmp (any branch, / in its name too), then setup.sh install
     setup.sh <phase>         single entry point; loads config + lib, runs one phase
     config.sh                every tunable value: locale, disk, package lists, theme
     assets/logo/             the logo drawn above every step (tools/make-logo.py): logo.txt,
                              logo-hd.txt at double resolution for the console, their .colors,
                              and banner.png for this README (tools/make-sddm-theme.py)
+    assets/tux/              Tux on his splat, for the last screen (tools/make-tux.py)
+    assets/linux-facts.txt   the facts shown while the steps run
     assets/plymouth/         the boot splash theme: script, logo, spinner
     assets/sddm/archman/     the login screen: an Omarchy-style unlock screen, as an SDDM theme (tools/make-sddm-theme.py)
     assets/consolefonts/     the console fonts, with Pac-Man, the logo's and Tux's cells, arrows and the bar's eighths added (tools/make-console-fonts.py)
     assets/plasma/           the first login's panel layout (layout.js, a Plasma script) and KVitals' readings (kvitals.json)
-    lib/ui.sh                console font/palette, centred step screens, run() spinner + setup.log
+    assets/wallpapers/       the wallpapers, installed system-wide and into ~/Pictures/Wallpapers
+    assets/icons/YAMIS-Grey/ the icon theme the ARCHMAN look applies, over YAMIS (tools/make-yamis-grey.py)
+    assets/skwd-wall/        skwd-wall's settings (config.json)
+    lib/ui.sh                console font/palette, centred step screens, progress bar, facts, run() spinner + setup.log
     lib/prompt.sh            validated input, passwords, arrow-key menu, buttons
-    lib/system.sh            CPU/GPU detection, pacman/AUR/service helpers
+    lib/system.sh            CPU/GPU detection, pacman/AUR/service helpers, write_file, the installer's paths
+    lib/location.sh          the ipinfo.io lookup and what follows from it: timezone, date formats, mirror countries
     lib/keyboard.sh          the keyboard layouts and their question (Wi-Fi screen or install phase)
-    phases/install.sh        live ISO: partition, format, pacstrap (+ CPU/GPU drivers), hand off to chroot
-    phases/chroot.sh         locale, accounts, sudo, hibernation, GRUB, then runs desktop.sh as the user
+    phases/install.sh        live ISO: the questions, partition, format, mirrors, pacstrap (+ CPU/GPU drivers),
+                             Wi-Fi carried over, hand off to chroot; then the look question and the restart
+    phases/chroot.sh         locale, accounts, sudo, boot splash, hibernation, GRUB, then runs desktop.sh as the user
     phases/desktop.sh        the desktop, as the user in the chroot: Plasma, theming, Samba, Steam, AUR
     phases/look.sh           the chosen look, system-wide: login screen, default wallpaper
     phases/wifi.sh           live ISO: the Wi-Fi network list, run by the USB before the installer
-    phases/plasma-tweaks.sh  first Plasma session: kwin, theme, widgets (Apdatifier in the panel), panels, icons
-    tools/                   building the USB (build-autoinstall-iso.sh, archauto.sh: its start-up) and the assets (make-*.py)
+    phases/plasma-tweaks.sh  first Plasma session: kwin, Dolphin, brightness, theme, widgets (Apdatifier in the panel),
+                             panels, wallpaper picker, icons
+    tools/                   building the USB (build-autoinstall-iso.sh; archauto.sh, its start-up; fb-logo.py, its
+                             splash; ci-build-iso.sh, the monthly build's) and the assets (make-*.py)
+    .github/workflows/iso.yml  the monthly build
     test/                    for testing only, never part of an install:
       rebuild-test.sh          a fresh test round: the USB rebuilt (or --reuse'd), a new VM booted from it (--record: a video)
       new-test-vm.sh           the VirtualBox VM itself
@@ -136,19 +150,26 @@ mirror is `ISO_MIRROR` in `config.sh`.
 The installer directory travels with the install: `/tmp/arch-setup` on the
 ISO → `/root/arch-setup` in the chroot → `~/.arch-setup` for the desktop
 phase (still in the chroot) and the Plasma first-login step, which then
-deletes it, leaving only `~/arch-setup.log`.
+deletes it, leaving only `~/arch-setup.log`. Its log, `setup.log`, moves
+with it.
 
-Every command that goes through `run()` is logged there, with its full
-output shown on the terminal only if it fails.
+Every command that goes through `run()` is logged there with its full
+output. On the installer's own screens nothing of it is shown, even on
+failure: the installer says what went wrong in plain words.
 
 ## Configuration
 
-Everything lives in `config.sh`: the installer's tagline and console
+Everything lives in `config.sh`: the repo and branch the USB installs from
+(`REPO`, `BRANCH`), the official ISO's mirror (`ISO_MIRROR`), the installer's tagline and console
 palette (`TAGLINE`, `CONSOLE_PALETTE`), timezone and date formats (both detected by default), language (`LOCALE`), mirror
-countries, EFI size, Btrfs mount options, the package lists (`BASE_`,
-`KDE_`, `EXTRA_`, `GAMING_`, `AUR_PACKAGES`, per-vendor `GPU_PACKAGES_*`),
-the surround-upmix settings (`UPMIX_*`), the SDDM theme and wallpaper, icon
-theme, Plasma widgets, and the Samba workgroup.
+countries, pacman's parallel downloads (`PARALLEL_DOWNLOADS`), EFI size,
+Btrfs mount options, the package lists (`BASE_`,
+`KDE_`, `EXTRA_`, `GAMING_`, `AUR_PACKAGES`, per-vendor `GPU_PACKAGES_*`,
+and `AUR_PREBUILT_BIN`, the `-bin` ones the USB carries),
+the surround-upmix settings (`UPMIX_*`), the screens' brightness
+(`BRIGHTNESS`), the SDDM theme, the wallpapers (`WALLPAPERS_DIR`) and the
+one applied (`WALLPAPER`), the icon theme and the one applied over it
+(`ICON_THEME`, `ICON_THEME_APPLIED`), Plasma widgets, and the Samba workgroup.
 
 ## Design notes
 
@@ -162,7 +183,7 @@ Things that look odd but are deliberate:
   virtual `lib32-vulkan-driver`, and `pacman --noconfirm` picks the first
   provider — `lib32-nvidia-utils`, which pulls the whole NVIDIA userspace
   even on AMD/Intel. Having the right provider installed first avoids that.
-  With no Intel/AMD/NVIDIA GPU detected (VMs), only plain `mesa` is installed
+  With no Intel/AMD/NVIDIA GPU detected (VMs), only `mesa` and `lib32-mesa` are installed
   and Steam is skipped: software Vulkan (`vulkan-swrast`) would satisfy the
   dependency, but a 64-bit Vulkan device makes the SDDM theme's video
   background render blank under VirtualBox. The drivers come with the base
@@ -174,7 +195,9 @@ Things that look odd but are deliberate:
   `config.sh`; one transaction means pacman's checks and post-install hooks
   (font, icon and desktop caches) run once instead of once per list. From
   the installer it's `pacman -S`: pacstrap synced the package lists moments
-  before, so there's nothing to update. The installer also has pacman download `PARALLEL_DOWNLOADS` files at once
+  before, so there's nothing to update; unless a mirror has already deleted
+  a version the lists name, when it fetches fresh lists and installs with
+  `-Syu`. The installer also has pacman download `PARALLEL_DOWNLOADS` files at once
   (10; pacman's default is 5), set in the USB's `pacman.conf`, which
   pacstrap copies into the new system.
 - **Surround upmixing is written twice**, to
@@ -210,7 +233,7 @@ Things that look odd but are deliberate:
   network there's no location yet, so English (US) leads, then the rest
   alphabetically. The installer keeps that choice (`/run/archman-keyboard`)
   and asks again only on starting over. The Wi-Fi password field shows what
-  is typed on Tab, and refuses a password that isn't 8 to 63 characters.
+  is typed while Tab is held, and refuses a password that isn't 8 to 63 characters.
 - **English everywhere, dates the local way.** The language is English (US)
   throughout (`LOCALE`: `LANG=en_US.UTF-8`), never asked. Dates and times
   alone (`LC_TIME`, `TIME_LOCALE='auto'`) follow the country from the same
@@ -258,8 +281,8 @@ Things that look odd but are deliberate:
   smoothing off, and colours and tagline come from `config.sh`. Rerun the
   tool after changing the logo, fonts, palette or tagline. It logs in the
   last user, or on the first login the only one, into the default session.
-  The astronaut theme is still installed: the wallpapers come from it, and
-  it can be picked in System Settings. SDDM's greeter runs on X11 and
+  The astronaut theme is still installed, with its fonts, and it can be
+  picked in System Settings. SDDM's greeter runs on X11 and
   ignores Plasma's keyboard setting, so the chosen layout is also written to
   `/etc/X11/xorg.conf.d/00-keyboard.conf`, or the password would be typed
   on a US layout.
@@ -277,36 +300,43 @@ Things that look odd but are deliberate:
   wait for an answer. Both looks' files are installed either way (they stay
   available in System Settings); the choice only decides what's switched
   on: the login screen and default wallpaper right away (`phases/look.sh`,
-  as root through arch-chroot), the dark theme, lock screen, widgets, panel
-  and icons in the first Plasma session (plasma-tweaks reads the choice from
-  `look` in the installer's directory). Hot corners, Dolphin's previews,
-  the keyboard layout and the boot splash are the same with both.
+  as root through arch-chroot), the dark theme, lock screen, widgets,
+  panels, wallpaper picker and icons in the first Plasma session
+  (plasma-tweaks reads the choice from `look` in the installer's
+  directory). Hot corners (bottom left shows the desktop, bottom right
+  minimizes all), Dolphin's previews, the screens' brightness
+  (`BRIGHTNESS`, a laptop's panel or a monitor through DDC/CI), the
+  keyboard layout and the boot splash are the same with both.
+- **The ARCHMAN look's wallpaper is drawn by skwd-wall** (Alt+W picks
+  another), whose colours, from the wallpaper by matugen, can become
+  Plasma's colour scheme. The icons are YAMIS-Grey: YAMIS, folders greyed.
 - **plasma-tweaks is autostarted, not run from desktop.sh**, because Plasma writes
-  several of the config files it edits during its own startup. The
-  containment and applet IDs it uses come from Plasma's stock first-session
-  layout. Each tweak runs on its own: one that fails is logged and skipped,
+  several of the config files it edits during its own startup. The panels
+  and widgets are set by a script (`assets/plasma/layout.js`) run through
+  Plasma's scripting interface, which finds them itself rather than relying
+  on fixed containment IDs. Each tweak runs on its own: one that fails is logged and skipped,
   and the rest still apply.
 - **The installer restyles the console** while it runs (on a real tty only,
-  `TERM=linux`): it picks the largest of three stock kbd fonts that keeps
-  about 48 rows and 80 columns, so text isn't tiny on high-resolution
-  screens, and swaps the 16 VGA colours for `CONSOLE_PALETTE`. The fonts
-  are copies from `assets/consolefonts` with two unused glyphs redrawn as
-  Pac-Man: `ᗧ`, the tag on every message, and `⬤`, its closed mouth, which
-  the spinner alternates with it while eating a row of pellets. They also
-  carry the login screen's padlock, Omarchy's lock shape
-  redrawn as a block of 5×3 tiles (U+E000–U+E00E), 80% as tall as the
-  password box beside it. No stock console font has any of these;
-  `tools/make-console-fonts.py` rebuilds the copies.
+  `TERM=linux`): the USB's start-up picks, of three patched kbd fonts, the
+  one nearest 48 rows with at least 80 columns, so text isn't tiny on
+  high-resolution screens, and the installer keeps it (`CONSOLE_FONT`); the
+  16 VGA colours become `CONSOLE_PALETTE`. The fonts are copies from
+  `assets/consolefonts` with glyphs the installer never prints redrawn: the
+  logo's and Tux's cells, arrows, the bar's eighths, and Pac-Man, `ᗧ` and
+  `⬤`, open and closed, which the spinner alternates while eating a row of
+  pellets. No stock console font has these; `tools/make-console-fonts.py`
+  rebuilds the copies. The same tool draws the login screen's padlock,
+  Omarchy's lock shape as a block of 5×3 tiles, 80% as tall as the password
+  box beside it, for `tools/make-sddm-theme.py`; it isn't kept in the fonts.
 - **Fonts are loaded only after printing a visible character.** Arch's
   kernel defers the framebuffer console's takeover until something is
   printed (`CONFIG_FRAMEBUFFER_CONSOLE_DEFERRED_TAKEOVER`, for flicker-free
   boots). After a quiet boot nothing has been, so the console is still the
   placeholder `dummycon`, and every `setfont` fails with kbd's misleading
   "Unable to load such font with such kernel version" (`ENOSYS`).
-  Escape sequences and spaces don't count: `dummycon` ignores both. So
-  `scale_console_font` and the USB's splash print a `.`, erase it, and retry
-  `setfont` until the takeover (asynchronous) has happened.
-  If loading still fails, setfont's error is in `journalctl -b -t arch-setup`.
+  Escape sequences and spaces don't count: `dummycon` ignores both. So the
+  USB's start-up prints a `.`, erases it, and retries `setfont` until the
+  takeover (asynchronous) has happened.
 - **The console gets a double-resolution logo.** Plain console characters
   go no finer than half blocks, two pixels per cell, which is `logo.txt`.
   The style is the classic arcade title: pink letters over a blue copy of
@@ -331,18 +361,24 @@ Things that look odd but are deliberate:
   cell, and writes `logo-hd.txt`: each cell that isn't empty, full or a
   half block is a private-use character (U+E100 + its pixel pattern), and
   `tools/make-console-fonts.py` draws those patterns into the fonts. It's
-  shown only once a patched font is loaded (by the install phase, as root;
-  it tells the chroot and desktop phases through `PATCHED_FONT`), and
-  `logo.txt` everywhere else, such as in a terminal emulator. Each step
-  then clears the screen and redraws the logo, a progress bar and the step
-  title in one centred column; earlier output stays in the log, which is
+  shown only once a patched font is loaded (by the USB's start-up; the
+  install phase passes it on to the chroot and desktop phases through
+  `PATCHED_FONT`), and `logo.txt` everywhere else, such as in a terminal
+  emulator. Each step's screen shows the logo, a progress bar and the step
+  title in one centred column; the next step only replaces the title and
+  clears the last one's warnings. Earlier output stays in the log, which is
   why `warn` writes there too. None of this persists after a reboot.
+- **Linux facts, and Tux.** Under each step's spinner a fact about Linux
+  (`assets/linux-facts.txt`) stays up for as long as it takes to read,
+  Linux's birth first, then the rest in a random order, carrying on across
+  the phases. The last screen says how long the install took, and shows
+  Tux on his splat (`assets/tux`), unless the screen is too short for him.
 - **The progress bar is weighted and keeps moving.** Each step carries a
   weight, roughly its seconds (`step "Installing the desktop and apps" 80`), so long
   steps take their share of the bar. The weights are one full run's times on
   a fast connection; a slower one stretches the download steps, but pacman's
   measured progress keeps those moving. A step running several long commands
-  splits into shares, one per command (`share 50 250`), so the first to
+  splits into shares, one per command (`share 50 1000`), so the first to
   finish can't fill the step and leave the bar standing through the rest.
   Within a share, the bar never stands still: it creeps towards 95% of the
   share from wherever it is, slowing as it gets closer (three quarters of
@@ -356,7 +392,7 @@ Things that look odd but are deliberate:
   clone` reports its own percentage. makepkg reports nothing usable (its
   pacman output is only the dependencies), so a build creeps. The chroot and
   desktop phases carry on the bar exactly where the install phase left it
-  (`progress_env`); nothing that moves it runs in a subshell, where its
+  (`screen_env`); nothing that moves it runs in a subshell, where its
   progress would be lost and the bar would jump back. The bar doesn't jump
   to a new estimate but glides there, 20 frames a second, covering a tenth
   of the remaining distance each frame (`animate_progress`). It moves an
@@ -366,7 +402,7 @@ Things that look odd but are deliberate:
   bar's line is redrawn. Adding a step means giving it a weight; the totals
   add themselves up (`step_weights`). Each step's real duration goes into
   the log next to its weight, and a split step's shares too, for tuning:
-  `grep '\[time\]' setup.log`.
+  `grep '\[time\]' ~/arch-setup.log`.
 - **The prompts are the installer's own** (`lib/prompt.sh`): lists, text
   fields and buttons, drawn with nothing but the terminal, in its look.
   Erasing the drive takes a "Yes, install" on the review screen, with "Go
@@ -385,7 +421,11 @@ Things that look odd but are deliberate:
   units). Around it, the text console shows for a moment, so it's kept
   blank: `vt.global_cursor_default=0` hides its cursor, and
   `/etc/sysctl.d/20-quiet-printk.conf` keeps kernel warnings off it for the
-  whole session (`loglevel=3` only lasts through boot).
+  whole session (`loglevel=3` only lasts through boot). GRUB's menu is
+  hidden (timeout 0) and its "Loading Linux..." lines commented out; besides
+  its own boot entry, a copy goes to the drive's fallback path
+  (`EFI/BOOT/BOOTX64.EFI`, `--removable`), for firmware that ignores a new
+  drive's entries.
 - The live USB is filtered out of the drive menu, and `udevadm settle`
   runs after partitioning so the new device nodes exist before they're used.
 

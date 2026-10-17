@@ -6,10 +6,10 @@ themselves shifted up and left (the extrusion, in its own colour), set edge
 to edge so every letter covers the extrusion of the next. H is pixel art on
 a grid of 2 px units, M and N blocks with a notch cut from the top, the R
 the original's outline with a dot inside; all are drawn as a thick outline
-with a dark inside; the C is a solid Pac-Man with his eye cut out; the A's are the Arch
-Linux logo's mark, kept solid, rasterised from the copy the filesystem
-package installs (/usr/share/pixmaps/archlinux-logo.svg), which needs
-rsvg-convert (librsvg) to run this.
+with a dark inside; the C is a solid Pac-Man with his eye cut out; the A's
+are the Arch Linux logo's mark, kept solid, rasterised from the copy the
+filesystem package installs (/usr/share/pixmaps/archlinux-logo.svg), which
+needs rsvg-convert (librsvg) to run this.
 
 The console's own characters can't go finer than logo.txt: half blocks, two
 pixels per character cell. logo-hd.txt holds 2 x 4 pixels a cell, so the
@@ -24,15 +24,18 @@ loaded, and logo.txt everywhere else: the same design at half the
 resolution, in half blocks only, which every font has, with solid letters
 (there's no room for outlines).
 
-Run it again only to change the drawing; the output is committed:
+Run it again only to change the drawing, then tools/make-tux.py (it keeps
+the logo's patterns), tools/make-console-fonts.py (the patterns' glyphs)
+and tools/make-sddm-theme.py (logo.png, banner.png). The output is
+committed:
   tools/make-logo.py
 """
+import functools
 import math
 import pathlib
 import re
 import struct
 import subprocess
-import tempfile
 import zlib
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -41,10 +44,13 @@ ARCH_SVG = pathlib.Path("/usr/share/pixmaps/archlinux-logo.svg")
 WIDTH, HEIGHT = 158, 28        # pixels: 79 x 7 cells of 2 x 4 (the console has 80)
 CELL_W, CELL_H = 2, 4
 PUA = 0xE100                   # + the cell's bit pattern
-# At most this many distinct patterns, which is what the 256-glyph console
-# fonts have room for besides tools/make-console-fonts.py's other glyphs.
-# Beyond it, the rarest are drawn with their nearest neighbour instead.
-MAX_PATTERNS = 62
+# At most this many distinct patterns; beyond it, the rarest are drawn with
+# their nearest neighbour instead. The console fonts have room for 71 cells
+# beside tools/make-console-fonts.py's other glyphs (default8x16, the
+# tightest: 82 spare slots, 11 of them taken), shared with the patterns
+# tools/make-tux.py adds (its NEW_PATTERNS, 15): the logo's plus those must
+# stay within 71.
+MAX_PATTERNS = 71 - 15
 
 # The two versions' proportions. Full: 2 px units, 24 px letters, a 3 px
 # extrusion, 2 px outlines. Plain (half the resolution) has no room for
@@ -62,17 +68,14 @@ def near_segment(u, v, x0, y0, x1, y1, half):
     return math.hypot(u - (x0 + t * dx), v - (y0 + t * dy)) <= half
 
 
-def load_arch_mark(size=600):
+@functools.cache
+def arch_mark(size=600):
     """The Arch logo's mark (its first path; the others are the ™) as a
     size x size grid of booleans, cropped to the mark's bounding box."""
-    svg = ARCH_SVG.read_text()
-    path = re.search(r'<path d="[^"]*"', svg).group(0)
-    with tempfile.TemporaryDirectory() as tmp:
-        src, png = pathlib.Path(tmp, "mark.svg"), pathlib.Path(tmp, "mark.png")
-        src.write_text('<svg viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg">'
-                       f'<g fill="#000">{path}/></g></svg>')
-        subprocess.run(["rsvg-convert", "-w", str(size), "-h", str(size), str(src), "-o", str(png)], check=True)
-        data = png.read_bytes()
+    path = re.search(r'<path d="[^"]*"', ARCH_SVG.read_text()).group(0)
+    svg = f'<svg viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg"><g fill="#000">{path}/></g></svg>'
+    data = subprocess.run(["rsvg-convert", "-w", str(size), "-h", str(size)],
+                          input=svg.encode(), capture_output=True, check=True).stdout
     # Decode the PNG (8-bit RGBA, as rsvg-convert writes it); keep the alpha.
     pos, idat = 8, b""
     while pos < len(data):
@@ -81,6 +84,7 @@ def load_arch_mark(size=600):
         pos += 12 + length
         if kind == b"IHDR":
             width, height = struct.unpack(">II", body[:8])
+            assert body[8:13] == bytes([8, 6, 0, 0, 0]), "not an 8-bit RGBA PNG without interlacing"
         elif kind == b"IDAT":
             idat += body
     raw, stride, prev, i, alpha = zlib.decompress(idat), width * 4, bytearray(width * 4), 0, []
@@ -104,9 +108,6 @@ def load_arch_mark(size=600):
     rows = [y for y in range(height) if any(alpha[y])]
     cols = [x for x in range(width) if any(alpha[y][x] for y in rows)]
     return [row[cols[0]:cols[-1] + 1] for row in alpha[rows[0]:rows[-1] + 1]]
-
-
-ARCH_MARK = load_arch_mark()
 
 
 # H: 12 units tall, 4-unit stems and a 6-unit bar, as in the arcade original.
@@ -189,8 +190,9 @@ def arch_a(w=20, h=24):
     """The Arch mark at w x h. At this size it comes out lighter than the
     letters, so it's taken at a quarter coverage and thickened a pixel; its
     two slivers, thinner than a pixel here, are then cut back in as slits."""
-    mh, mw = len(ARCH_MARK), len(ARCH_MARK[0])
-    g = sample(lambda u, v: 0 <= u < w and 0 <= v < h and ARCH_MARK[int(v / h * mh)][int(u / w * mw)], w, h, 0.25)
+    mark = arch_mark()
+    mh, mw = len(mark), len(mark[0])
+    g = sample(lambda u, v: 0 <= u < w and 0 <= v < h and mark[int(v / h * mh)][int(u / w * mw)], w, h, 0.25)
     g = [[g[y][x] or any(0 <= y + dy < h and 0 <= x + dx < w and g[y + dy][x + dx]
                          for dy, dx in ((-1, 0), (1, 0), (0, -1), (0, 1)))
           for x in range(w)] for y in range(h)]
@@ -291,12 +293,11 @@ def limit_patterns(lines, named):
                 counts[c] = counts.get(c, 0) + 1
     while len(counts) > MAX_PATTERNS:
         rare = min(counts, key=counts.get)
-        del counts[rare]
-        choices = list(counts) + [n for n in named.values() if n != " "]
-        near = min(choices, key=lambda c: bin(pattern(c) ^ pattern(rare)).count("1"))
+        n = counts.pop(rare)
+        near = min(list(counts) + list(named.values()), key=lambda c: bin(pattern(c) ^ pattern(rare)).count("1"))
         lines = [line.replace(rare, near) for line in lines]
         if near in counts:
-            counts[near] += 1
+            counts[near] += n
     return lines
 
 

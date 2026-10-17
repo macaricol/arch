@@ -4,6 +4,17 @@
 # Runs a command as root: directly when already root, through sudo otherwise.
 as_root() { if (( EUID == 0 )); then "$@"; else sudo "$@"; fi; }
 
+# write_file PATH [MODE] — standard input into PATH, as root, its
+# directories made first; MODE 644 unless given.
+write_file() { as_root install -Dm "${2:-644}" /dev/stdin "$1"; }
+
+# Where the installer is on the new system: in root's home for the chroot
+# phase, then in the user's (hand_over_to_user) for the desktop phase and
+# the first Plasma session, which it autostarts from PLASMA_TWEAKS_AUTOSTART.
+CHROOT_SETUP_DIR=/root/arch-setup
+USER_SETUP_DIR=.arch-setup                                         # under the user's home
+PLASMA_TWEAKS_AUTOSTART=.config/autostart/arch-plasma-tweaks.desktop   # likewise
+
 # retry DELAY COMMAND... — runs COMMAND up to 3 times, DELAY seconds apart.
 # For downloads: a dropped connection shouldn't lose a run that's minutes in.
 # On a step's screen each try's warning takes the last one's place (nothing
@@ -69,9 +80,9 @@ aur_weight() {
 # packages it depends on. Before it (paru itself), with makepkg, from the
 # repo of the package's name; its dependencies must then be in the official
 # repos (makepkg -s installs them; -r removes the build-only ones
-# afterwards). Built on disk:
-# in the installer's chroot, /tmp is in RAM; and on every core, which
-# makepkg.conf leaves to the user (MAKEFLAGS). Both the clone (from
+# afterwards). Built on disk (in the installer's chroot, /tmp is in RAM),
+# and on every core, which makepkg.conf leaves to the user (MAKEFLAGS).
+# Both the clone (from
 # aur.archlinux.org, which drops connections now and then) and the build
 # (which downloads the sources) are retried. The clone, a few files, takes
 # the first 5% of the progress bar's current share (lib/ui.sh's share).

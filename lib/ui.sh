@@ -2,7 +2,6 @@
 # Terminal output: console look, messages, step headers, and the run() spinner.
 
 LOG_FILE=${LOG_FILE:-$SETUP_DIR/setup.log}
-LOGO_FILE=$SETUP_DIR/assets/logo/logo.txt
 
 # Colours by what they're for. On the console they're CONSOLE_PALETTE's
 # slots (config.sh, where the roles are listed too); elsewhere a terminal
@@ -92,15 +91,13 @@ scale_console_font() {
   update_margin
 }
 
-# The double-resolution logo is drawn with glyphs only the patched fonts
-# have, so it's used only once one of them is loaded (PATCHED_FONT: see
-# scale_console_font).
-logo_file() {
-  if patched_font && [[ -f $SETUP_DIR/assets/logo/logo-hd.txt ]]; then
-    echo "$SETUP_DIR/assets/logo/logo-hd.txt"
-  else
-    echo "$LOGO_FILE"
-  fi
+# sharpest FILE.txt — FILE-hd.txt, at double the resolution, when it's
+# there and one of the patched fonts is loaded (PATCHED_FONT: see
+# scale_console_font), as it's drawn with glyphs only they have; else
+# FILE.txt. For the logo and Tux.
+sharpest() {
+  local hd=${1%.txt}-hd.txt
+  if patched_font && [[ -f $hd ]]; then echo "$hd"; else echo "$1"; fi
 }
 
 # cursor on|off — on the console, the cursor is hidden except while
@@ -166,7 +163,7 @@ plural() { (( $1 == 1 )) && echo "$1 $2" || echo "$1 ${2}s"; }
 centred_message() {
   local LC_ALL=C.UTF-8 line
   balanced_wrap "$2" $(( LAYOUT_WIDTH - 10 ))
-  for line in "${WRAPPED[@]}"; do center "$1$line$C_RESET" "${#line}"; done
+  for line in "${WRAPPED[@]}"; do center_text "$1" "$line"; done
 }
 
 # centred_details LABEL VALUE [LABEL VALUE...] — a summary: each label, in
@@ -227,6 +224,12 @@ center() {
   (( pad < 0 )) && pad=0
   printf '%s%*s%s\n' "$MARGIN" "$pad" '' "$1"
 }
+# center_text COLOUR TEXT — TEXT centred, in COLOUR: center, its length
+# counted without the colour codes, in characters.
+center_text() {
+  local LC_ALL=C.UTF-8
+  center "$1$2$C_RESET" "${#2}"
+}
 
 # ── Step header and progress ───────────────────────────────────────────
 # Each step has a weight, roughly the seconds it takes (step "Title" 53), so
@@ -237,7 +240,7 @@ center() {
 # keeps moving, and glides rather than jumps: see update_progress and
 # animate_progress. All of this state comes from the environment when set:
 # the chroot and desktop phases carry on the install phase's bar where it is
-# (progress_env), on screen and in time.
+# (screen_env), on screen and in time.
 PROGRESS_DONE=${PROGRESS_DONE:-0}
 PROGRESS_STEP=${PROGRESS_STEP:-0}
 PROGRESS_TOTAL=${PROGRESS_TOTAL:-0}
@@ -254,15 +257,18 @@ BAR_ROW=${BAR_ROW:-0}                       # the bar's screen row, once a heade
 PROGRESS_TARGET=0
 PROGRESS_WIDTH=40
 
-# progress_env — the bar's state as NAME=value lines, for env: a phase
-# started from this one carries on the same bar, and the same Linux fact.
-progress_env() {
+# screen_env — the screen's state as NAME=value words in SCREEN_ENV, for
+# env: a phase started from this one carries on the same bar, the same
+# Linux fact, in the same font (PATCHED_FONT).
+screen_env() {
   local var
+  SCREEN_ENV=()
   for var in PROGRESS_DONE PROGRESS_STEP PROGRESS_TOTAL PROGRESS_PERMILLE PROGRESS_SHOWN \
              PROGRESS_FROM PROGRESS_TO PROGRESS_SINCE PROGRESS_TICK PROGRESS_CREEP \
              PROGRESS_TITLE PROGRESS_STARTED BAR_ROW FACTS_ON FACT_INDEX FACT_STRIDE FACT_SINCE; do
-    printf '%s=%s\n' "$var" "${!var}"
+    SCREEN_ENV+=("$var=${!var}")
   done
+  SCREEN_ENV+=("PATCHED_FONT=${PATCHED_FONT:-0}")
 }
 
 # step_weights FILE — the sum of the weights of FILE's step lines.
@@ -290,7 +296,7 @@ palette_codes() {
   done
 }
 
-# logo_lines — the logo (logo_file) as printable lines in LOGO_LINES, its
+# logo_lines — the logo (assets/logo, sharpest) as printable lines in LOGO_LINES, its
 # width in columns in LOGO_WIDTH. Its .colors file gives each cell a hex
 # digit, fg * 4 + bg, of the colours 0 background, 1 letters, 2 extrusion,
 # 3 Pac-Man: on the console the palette's slots 0, 6, 2 and 3 (slots 0-7,
@@ -301,7 +307,7 @@ palette_codes() {
 LOGO_BUILT=''
 logo_lines() {
   local file colours LC_ALL=C.UTF-8   # ${#} and ${:i:1} count characters, not bytes
-  file=$(logo_file) colours=${file%.txt}.colors
+  file=$(sharpest "$SETUP_DIR/assets/logo/logo.txt") colours=${file%.txt}.colors
   [[ $file != "$LOGO_BUILT" ]] || return 0
   LOGO_BUILT=$file LOGO_LINES=() LOGO_WIDTH=0
   [[ -r $file && -r $colours ]] || return 0
@@ -310,7 +316,7 @@ logo_lines() {
   mapfile -t attrs < "$colours"
   LOGO_WIDTH=${#lines[0]}
   local i
-  local -a slots=(0 6 2 3)   # the logo's four colours, by palette slot
+  local -a slots=(0 6 2 3)   # the logo's four colours, by palette slot (as tools/archauto.sh's, make-sddm-theme.py's)
   palette_codes
   for i in 0 1 2 3; do fg[i]=${PALETTE_FG[slots[i]]} bg[i]=${PALETTE_BG[slots[i]]}; done
   bg[0]=49   # the dark: whatever the background is (slot 0 on the console)
@@ -330,16 +336,14 @@ logo_lines() {
 
 # tux_lines — Tux on his splat (assets/tux, tools/make-tux.py) as printable
 # lines in TUX_LINES, its width in TUX_WIDTH: tux-hd, at the logo's
-# resolution, when the patched font with its cells is loaded (as
-# logo_file), else tux, in half blocks. Its .colors file gives each
+# resolution, when the patched font with its cells is loaded (sharpest),
+# else tux, in half blocks. Its .colors file gives each
 # cell two characters, its character's palette slot and its background's
 # (hex), "." for none, coloured as palette_codes says. Each digit's code
 # looked up once, not a cell at a time: there are a few thousand cells.
 tux_lines() {
-  local LC_ALL=C.UTF-8 file=$SETUP_DIR/assets/tux/tux.txt   # ${#} and ${:i:1} count characters
-  if patched_font && [[ -f $SETUP_DIR/assets/tux/tux-hd.txt ]]; then
-    file=$SETUP_DIR/assets/tux/tux-hd.txt
-  fi
+  local LC_ALL=C.UTF-8 file   # ${#} and ${:i:1} count characters
+  file=$(sharpest "$SETUP_DIR/assets/tux/tux.txt")
   TUX_LINES=() TUX_WIDTH=0
   [[ -r $file && -r ${file%.txt}.colors ]] || return 0
   local -A fg=([.]=39) bg=([.]=49)   # by hex digit; ".": the terminal's own
@@ -376,7 +380,7 @@ draw_logo() {
     center "$line" "$LOGO_WIDTH"
   done
   echo
-  center "${C_TAGLINE}${TAGLINE}${C_RESET}" "${#TAGLINE}"
+  center_text "$C_TAGLINE" "$TAGLINE"
   echo
 }
 
@@ -547,7 +551,7 @@ header() {
   BAR_ROW=$(( ${#LOGO_LINES[@]} ? ${#LOGO_LINES[@]} + 6 : 0 ))
   draw_progress
   echo
-  center "${C_BOLD}${2:-$C_TEXT}$1${C_RESET}" "${#1}"
+  center_text "$C_BOLD${2:-$C_TEXT}" "$1"
   echo; echo
 }
 
@@ -555,7 +559,6 @@ header() {
 # WEIGHT (roughly its seconds) of the bar.
 step() {
   log_step_time
-  PROGRESS_TITLE=''
   PROGRESS_DONE=$(( PROGRESS_DONE + PROGRESS_STEP ))
   PROGRESS_STEP=${2:-1} PROGRESS_PERMILLE=0
   PROGRESS_TITLE=$1 PROGRESS_STARTED=${EPOCHREALTIME//[!0-9]/}
@@ -578,9 +581,8 @@ step() {
 # under the fact cleared (the last step's warnings), the cursor there for
 # this one's.
 retitle() {
-  local LC_ALL=C.UTF-8
   printf '\e[%d;1H\e[2K' $(( BAR_ROW + TITLE_ROW_OFFSET ))
-  center "${C_BOLD}${C_TEXT}$1${C_RESET}" "${#1}"
+  center_text "$C_BOLD$C_TEXT" "$1"
   printf '\e[%d;1H\e[J' $(( BAR_ROW + WARN_ROW_OFFSET ))
 }
 
@@ -614,11 +616,14 @@ log_share_time() {
   PROGRESS_FROM=0 PROGRESS_TO=1000   # logged once
 }
 
+# progress_full — every step done: the bar drawn full by the next header,
+# at once, as nothing runs after it to animate it there.
+progress_full() { PROGRESS_DONE=$PROGRESS_TOTAL PROGRESS_STEP=0 PROGRESS_SHOWN=-1 PROGRESS_TITLE=''; }
+
 # finish "Title" — the closing screen of a phase: full bar, title in green.
 finish() {
   log_step_time
-  # Full at once: nothing runs after it to animate the bar there.
-  PROGRESS_DONE=$PROGRESS_TOTAL PROGRESS_STEP=0 PROGRESS_SHOWN=-1 PROGRESS_TITLE=
+  progress_full
   header "$1" "$C_DONE"
 }
 
@@ -629,7 +634,7 @@ finish() {
 # errors still show, below the fact, and go with their step's screen. The
 # facts keep their own time: each stays up for as long as it takes to read
 # (4 s, and about 15 characters a second), whatever the steps do, carrying
-# on across their screens and into the later phases (progress_env). The
+# on across their screens and into the later phases (screen_env). The
 # file's first, Linux's birth, always comes first; then the others in a
 # random order, without repeats until all have been shown: from a random
 # one, every FACT_STRIDE'th, a stride with no factor in common with how

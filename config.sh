@@ -132,8 +132,8 @@ BRIGHTNESS=80
 # The login screen: the archman theme (assets/sddm/archman), an Omarchy-style
 # unlock screen in the installer's look (rebuild with tools/make-sddm-theme.py).
 SDDM_THEME='archman'
-# Installed too: the wallpapers come from it, and it stays available as an
-# alternative login theme in System Settings.
+# Installed too, with its fonts: it stays available as an alternative login
+# theme in System Settings.
 ASTRONAUT_REPO='https://github.com/macaricol/sddm-astronaut-theme.git'
 ASTRONAUT_THEME='sddm-astronaut-theme'
 # The wallpapers (assets/wallpapers), installed system-wide here and copied

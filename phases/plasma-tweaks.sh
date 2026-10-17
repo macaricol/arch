@@ -182,20 +182,21 @@ configure_desktop_layout() {
   printf -v script 'var translucent = %s;\nvar launchers = [%s];\nvar vitals = %s;\n%s' \
     "$translucent" "$launchers" "$vitals" "$(< "$SETUP_DIR/assets/plasma/layout.js")"
   out=$(plasma_script "$script") || return 1
-  local main second centre
-  { read -r main; read -r second; read -r centre; } <<< "$out"
-  [[ ${main%% *} =~ ^[0-9]+$ && ${second%% *} =~ ^[0-9]+$ && ${centre%% *} =~ ^[0-9]+$ ]] \
-    || { note "Plasma's script gave no panels: $out"; return 1; }
-  note "Main panel: containment $main"
-  note "Second panel: containment $second"
-  note "Centre panel: containment $centre"
+  # Its lines: the main, second and centre panels', each "NUMBER settings".
+  local -a panels names=(Main Second Centre)
+  local i
+  mapfile -t panels <<< "$out"
+  for i in 0 1 2; do
+    [[ ${panels[i]:-} =~ ^[0-9]+\  ]] || { note "Plasma's script gave no panels: $out"; return 1; }
+  done
+  for i in 0 1 2; do note "${names[i]} panel: containment ${panels[i]}"; done
 
   # The same settings by plasmashellrc's keys, for a Plasma whose script
   # interface lacks one: under each panel's number, its alignment (2 right,
   # 1 left, 132 centre) and the rest.
-  panel_view "${main%% *}" 2
-  panel_view "${second%% *}" 1
-  panel_view "${centre%% *}" 132
+  panel_view "${panels[0]%% *}" 2
+  panel_view "${panels[1]%% *}" 1
+  panel_view "${panels[2]%% *}" 132
 }
 
 # panel_view PANEL ALIGNMENT — plasmashellrc's view settings for panel
@@ -273,11 +274,8 @@ install_icon_theme() {
   if [[ -d $SETUP_DIR/extras/icons/$ICON_THEME ]]; then
     cp -r "$SETUP_DIR/extras/icons/$ICON_THEME" "$icons/"
   else
-    local tmp; tmp=$(mktemp -d)
-    git_clone "$ICON_THEME_REPO" "$tmp/$ICON_THEME"
-    rm -rf "$tmp/$ICON_THEME/.git"
-    cp -r "$tmp/$ICON_THEME" "$icons/"
-    rm -rf "$tmp"
+    git_clone "$ICON_THEME_REPO" "$icons/$ICON_THEME"
+    rm -rf "$icons/$ICON_THEME/.git"
   fi
   cp -r "$SETUP_DIR/assets/icons/$ICON_THEME_APPLIED" "$icons/"
   kwriteconfig6 --file kdeglobals --group Icons --key Theme "$ICON_THEME_APPLIED"
@@ -287,8 +285,8 @@ install_icon_theme() {
 # log. Only ever the copy the install left in the user's home: the check is
 # a safety net, so this can never delete anything else.
 cleanup() {
-  rm -f "$HOME/.config/autostart/arch-plasma-tweaks.desktop"
-  if [[ $SETUP_DIR == "$HOME/.arch-setup" ]]; then
+  rm -f "$HOME/$PLASMA_TWEAKS_AUTOSTART"
+  if [[ $SETUP_DIR == "$HOME/$USER_SETUP_DIR" ]]; then
     mv -f "$LOG_FILE" "$HOME/arch-setup.log" 2>/dev/null || true
     rm -rf "$SETUP_DIR"
   fi

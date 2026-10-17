@@ -49,7 +49,7 @@ phase_install() {
   choose_look
   header "Applying the look"
   SPIN_CENTRED=1
-  run arch-chroot /mnt env LOOK="$LOOK" bash "/home/$USER_NAME/.arch-setup/setup.sh" look
+  run arch-chroot /mnt env LOOK="$LOOK" bash "/home/$USER_NAME/$USER_SETUP_DIR/setup.sh" look
 
   close_new_system
   say_goodbye "$took"
@@ -124,7 +124,7 @@ say_goodbye() {
 restart_now() {
   info "Restarting..."
   sync
-  echo 0 > /proc/sys/kernel/printk 2>/dev/null || dmesg -n 1 2>/dev/null || true
+  { echo 0 > /proc/sys/kernel/printk || dmesg -n 1; } 2>/dev/null || true
   systemctl reboot --force --force &>/dev/null || echo b > /proc/sysrq-trigger
 }
 
@@ -279,70 +279,6 @@ partition_and_mount() {
   SWAP_PART=$swap
 }
 
-# Where this machine is, by its public IP (ipinfo.io), in GEO_COUNTRY (a
-# two-letter code) and GEO_TIMEZONE (e.g. Europe/Lisbon); each empty when
-# the lookup fails or doesn't say. One lookup for both: the mirrors
-# (mirror_countries) and the clock (resolve_timezone).
-geolocate() {
-  local json country='"country": *"([A-Z]{2})"' zone='"timezone": *"([A-Za-z0-9_+/-]+)"'
-  GEO_COUNTRY='' GEO_TIMEZONE=''
-  json=$(curl -fsS --max-time 5 https://ipinfo.io/json 2>/dev/null) || true
-  [[ $json =~ $country ]] && GEO_COUNTRY=${BASH_REMATCH[1]}
-  [[ $json =~ $zone ]] && GEO_TIMEZONE=${BASH_REMATCH[1]}
-  printf 'Location: country %s, timezone %s\n' "${GEO_COUNTRY:-unknown}" "${GEO_TIMEZONE:-unknown}" >> "$LOG_FILE"
-  return 0
-}
-
-# TIMEZONE, settled: with auto (config.sh), the one geolocate found, if it's
-# one the system knows (a file in /usr/share/zoneinfo); UTC otherwise. A
-# fixed one is kept as it is.
-resolve_timezone() {
-  [[ $TIMEZONE == auto ]] || return 0
-  if [[ -n $GEO_TIMEZONE && -f /usr/share/zoneinfo/$GEO_TIMEZONE ]]; then
-    TIMEZONE=$GEO_TIMEZONE
-  else
-    TIMEZONE=UTC
-  fi
-}
-
-# TIME_LOCALE, settled: with auto (config.sh), the locale whose dates and
-# times are the country's geolocate found, one glibc has (its list,
-# /usr/share/i18n/SUPPORTED): in the country's main language (pt_PT,
-# es_ES, de_DE), else in English (en_GB, en_IN, en_CA), else the first
-# there is. For countries whose first isn't their main language, the
-# language is given (MAIN_LANGUAGE). LOCALE's when there's no country, or
-# no locale for it. A fixed one is kept as it is.
-declare -A MAIN_LANGUAGE=(
-  [BR]=pt [CN]=zh [TW]=zh [UA]=uk [IR]=fa [PE]=es [PK]=ur [NP]=ne [MM]=my
-  [ET]=am [ER]=ti [KE]=sw [BE]=nl [CH]=de [LU]=fr [NO]=nb [AW]=nl [SN]=wo
-)
-resolve_time_locale() {
-  [[ $TIME_LOCALE == auto ]] || return 0
-  TIME_LOCALE=$LOCALE
-  [[ -n $GEO_COUNTRY ]] || return 0
-  local cc=$GEO_COUNTRY lang name
-  local -a candidates=()
-  mapfile -t candidates < <(sed -nE "s/^([a-z]{2,3}_${cc}(\.UTF-8)?) UTF-8\$/\1/p" /usr/share/i18n/SUPPORTED 2>/dev/null)
-  (( ${#candidates[@]} )) || return 0
-  for lang in ${MAIN_LANGUAGE[$cc]:-} "${cc,,}" en; do
-    for name in "${candidates[@]}"; do
-      [[ $name == "${lang}_${cc}" || $name == "${lang}_${cc}.UTF-8" ]] && { TIME_LOCALE=$name; return 0; }
-    done
-  done
-  TIME_LOCALE=${candidates[0]}
-}
-
-# Prints the countries to rank mirrors in: MIRROR_COUNTRIES, or with auto
-# the one geolocate found, or nothing if it found none.
-mirror_countries() {
-  if [[ $MIRROR_COUNTRIES != auto ]]; then
-    echo "$MIRROR_COUNTRIES"
-  elif [[ -n $GEO_COUNTRY ]]; then
-    echo "$GEO_COUNTRY"
-  fi
-  return 0
-}
-
 # Ranks the mirrors pacstrap downloads from: the fastest in our country;
 # worldwide when it isn't known or has no HTTPS mirrors reflector can find
 # (it then leaves no Server lines). Only mirrors that run at most 4 hours
@@ -422,7 +358,7 @@ install_base() {
 # read off the USB's compressed system, seconds with nothing moving.
 configure_new_system() {
   carry_wifi_networks
-  local stage=/mnt/root/arch-setup
+  local stage=/mnt$CHROOT_SETUP_DIR
   rm -rf "$stage"
   run cp -r "$SETUP_DIR" "$stage"
   # The AUR packages this USB brought prebuilt, for the desktop phase.
@@ -436,20 +372,19 @@ configure_new_system() {
   # Passwords travel in a root-only file, never in argv or the environment.
   # The chroot phase deletes it as its first act; the trap covers the case
   # where arch-chroot never gets that far.
-  trap 'rm -f /mnt/root/arch-setup/creds' EXIT
+  trap 'rm -f '"$stage/creds" EXIT
   install -m 600 /dev/null "$stage/creds"
   printf '%s\n' "$PASSWORD" > "$stage/creds"
 
   # The bar carries on in the chroot phase, and from there in the desktop phase.
-  local -a progress
-  mapfile -t progress < <(progress_env)
+  screen_env
   arch-chroot /mnt env HOST_NAME="$HOST_NAME" USER_NAME="$USER_NAME" TIMEZONE="$TIMEZONE" TIME_LOCALE="$TIME_LOCALE" \
     KEYMAP="$KEYMAP" X11_LAYOUT="$X11_LAYOUT" X11_VARIANT="$X11_VARIANT" X11_OPTIONS="$X11_OPTIONS" \
-    SWAP_PART="$SWAP_PART" PATCHED_FONT="${PATCHED_FONT:-0}" "${progress[@]}" \
-    bash /root/arch-setup/setup.sh chroot
+    SWAP_PART="$SWAP_PART" "${SCREEN_ENV[@]}" \
+    bash "$CHROOT_SETUP_DIR/setup.sh" chroot
   # The desktop phase has done every step, and logged the last one's time: the
   # screens that follow show the bar full.
-  PROGRESS_DONE=$PROGRESS_TOTAL PROGRESS_STEP=0 PROGRESS_SHOWN=-1 PROGRESS_TITLE=''
+  progress_full
 }
 
 # Prints the disk the live ISO booted from (/dev/sdX), if it's still mounted.
@@ -498,9 +433,8 @@ carry_wifi_networks() {
       [[ -n $secret ]] || continue
       printf -v security '[wifi-security]\nkey-mgmt=wpa-psk\npsk=%s\n' "$secret"
     fi
-    mkdir -p "$dir"
     printf '[connection]\nid=%s\ntype=wifi\n\n[wifi]\nmode=infrastructure\nssid=%s\n\n%s\n[ipv4]\nmethod=auto\n\n[ipv6]\nmethod=auto\n' \
-      "$name" "$ssid" "$security" | install -m 600 /dev/stdin "$dir/${name//\//_}.nmconnection"
+      "$name" "$ssid" "$security" | write_file "$dir/${name//\//_}.nmconnection" 600
     printf 'Wi-Fi carried over: %s\n' "$name" >> "$LOG_FILE"
   done
 }

@@ -11,9 +11,9 @@
 share=/usr/local/share/archauto
 source "$share/archauto.conf"
 
-# Font first, as lib/ui.sh's scale_console_font picks it (nearest ~48 rows
-# with 80+ columns) and from the same patched files, so the installer keeps
-# it and nothing jumps.
+# Font first: of the patched ones, the nearest ~48 rows with 80+ columns,
+# picked here once and handed on (CONSOLE_FONT), so the Wi-Fi screen and the
+# installer keep it (lib/ui.sh's scale_console_font) and nothing jumps.
 # The quiet boot leaves the framebuffer console's takeover deferred until
 # something is printed, and until then setfont fails: print, then wait for
 # the takeover (asynchronous) to accept a font. A visible character, as the
@@ -106,6 +106,7 @@ show_splash() {
   local geometry
   printf '\e[2J\e[H'
   LOGO_BOTTOM=0 SCREEN_HEIGHT=0
+  # The logo's four colours by palette slot, as lib/ui.sh's logo_lines has them.
   if geometry=$(python3 "$share/fb-logo.py" "$share/logo-hd.txt" "$share/logo-hd.colors" \
                   "${CONSOLE_PALETTE[0]}" "${CONSOLE_PALETTE[6]}" "${CONSOLE_PALETTE[2]}" "${CONSOLE_PALETTE[3]}" \
                   2>/dev/null); then
