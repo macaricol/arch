@@ -91,7 +91,7 @@ field() {
   # The box's edges, a row each: the quarters in its navy, or (without the
   # glyphs) blank, the same rows taken either way.
   local __above='' __below=''
-  if on_console && [[ ${PATCHED_FONT:-0} == 1 ]]; then
+  if patched_font; then
     __above=$(repeat "$LOWER_QUARTER" "$FIELD_WIDTH") __below=$(repeat "$UPPER_QUARTER" "$FIELD_WIDTH")
   fi
   # The field's spot: the one cursor position saved (\e7), and never saved
@@ -102,13 +102,13 @@ field() {
     if [[ $__mode == plain ]] || (( __shown )); then __view=$__text; else __view=$(repeat "$__mask" "${#__text}"); fi
     (( ${#__view} < __inner )) || __view=${__view: -$(( __inner - 1 ))}   # the end, and room for the cursor
     printf '%s\e8\e[J' "$C_RESET"
-    center "${C_TEXT}${__label}${C_RESET}" "${#__label}"
+    center_text "$C_TEXT" "$__label"
     echo
     printf '%*s%s%s%s\n' "$__left" '' "$C_EMPTY" "$__above" "$C_RESET"   # lower quarters: the top edge
     printf '%*s%s %s%*s%s\n' "$__left" '' "$C_UNSELECTED" "$__view" $(( __inner - ${#__view} + 1 )) '' "$C_RESET"
     printf '%*s%s%s%s\n\n' "$__left" '' "$C_EMPTY" "$__below" "$C_RESET"   # upper quarters: the bottom
     [[ -z $__note ]] || centred_message "$C_WARN$C_BOLD" "$__note"
-    [[ -z $__hint ]] || center "${C_HINT}${__hint}${C_RESET}" "${#__hint}"
+    [[ -z $__hint ]] || center_text "$C_HINT" "$__hint"
     # The cursor in the box, after the text: three rows down from the label.
     printf '\e8\e[3B\e[%dG' $(( __left + 2 + ${#__view} ))
     # reveal: shown while Tab is held. A terminal never hears a key let go,
@@ -161,7 +161,7 @@ input() {
 # The character a typed secret is masked with: the round dot from the
 # patched console fonts when one is loaded, else •.
 mask_char() {
-  if on_console && [[ ${PATCHED_FONT:-0} == 1 ]]; then printf '%s' "$DOT"; else printf '•'; fi
+  if patched_font; then printf '%s' "$DOT"; else printf '•'; fi
 }
 
 # password VAR "Label" — asked twice; both entries must match. Both start
@@ -224,7 +224,7 @@ menu() {
       center "$dots$C_RESET" "$pages"
       echo
     fi
-    center "${C_HINT}${hint}${C_RESET}" "${#hint}"
+    center_text "$C_HINT" "$hint"
     read_key
     case $KEY in
       enter) MENU_CHOICE=${items[selected]}; return 0 ;;
@@ -273,9 +273,9 @@ buttons() {
     center "$row" "$width"
     echo
     balanced_wrap "${descriptions[selected]}" $(( LAYOUT_WIDTH - 8 ))
-    for line in "${WRAPPED[@]}"; do center "${C_TEXT}${line}${C_RESET}" "${#line}"; done
+    for line in "${WRAPPED[@]}"; do center_text "$C_TEXT" "$line"; done
     echo
-    center "${C_HINT}←→ choose · Enter select${C_RESET}" 24
+    center_text "$C_HINT" "←→ choose · Enter select"
     read_key
     case $KEY in
       enter)       PICKED=$selected; return 0 ;;

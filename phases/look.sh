@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Phase — the desktop's look, as chosen at the end of the install
-# (lib/prompt.sh's choose_look), as root on the new system, from the
+# (phases/install.sh's choose_look), as root on the new system, from the
 # installer through arch-chroot. LOOK is archman or plain.
 #
 # Everything for both looks is installed by then; this only picks one. The

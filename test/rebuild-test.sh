@@ -3,7 +3,7 @@
 # image again from the official Arch ISO, and creates and starts a new VM
 # with it.
 #
-#   tools/rebuild-test.sh [--wifi-test] [--record] [--reuse] [OFFICIAL_ISO]
+#   test/rebuild-test.sh [--wifi-test] [--record] [--reuse] [OFFICIAL_ISO]
 #
 # --wifi-test builds the image with simulated Wi-Fi networks, for trying the
 # Wi-Fi screen in the VM (see tools/build-autoinstall-iso.sh). --reuse
@@ -11,7 +11,7 @@
 # or tools/build-autoinstall-iso.sh run by hand), as it is; for a change to
 # the installer alone, which the image downloads from GitHub anyway. --record
 # records the VM's screen, to archman-test-screen0.webm here (see
-# tools/new-test-vm.sh); the last round's video goes either way.
+# test/new-test-vm.sh); the last round's video goes either way.
 # OFFICIAL_ISO defaults to the newest official ISO here (archlinux-
 # YYYY.MM.DD-x86_64.iso, as the builder downloads it). Run it as your
 # user, not with sudo: VirtualBox VMs belong to the user who made them. It
@@ -64,8 +64,13 @@ if VBoxManage showvminfo "$vm" &>/dev/null; then
     VBoxManage showvminfo "$vm" --machinereadable | grep -q '^VMState="\(poweroff\|aborted\)"' && break
     sleep 0.5
   done
-  sleep 1
-  VBoxManage unregistervm "$vm" --delete
+  # And then a moment more before VirtualBox lets go of it: deleting too
+  # soon fails (VBOX_E_INVALID_OBJECT_STATE), so a few tries.
+  for try in 1 2 3 4 5; do
+    sleep 1
+    VBoxManage unregistervm "$vm" --delete 2>/dev/null && break
+    (( try < 5 )) || VBoxManage unregistervm "$vm" --delete   # the last: its error shown
+  done
 else
   echo "    (there wasn't one)"
 fi
@@ -82,4 +87,4 @@ else
 fi
 
 echo "==> Creating the test VM"
-tools/new-test-vm.sh "${vm_options[@]}" "$image" "$vm"
+test/new-test-vm.sh "${vm_options[@]}" "$image" "$vm"

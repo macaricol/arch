@@ -3,7 +3,7 @@
 # CPUs, a 20.5 GB disk, EFI (the USB boots in UEFI mode only), booting the
 # ISO that tools/build-autoinstall-iso.sh made. It starts it, too.
 #
-#   tools/new-test-vm.sh [--record] [ISO] [NAME]
+#   test/new-test-vm.sh [--record] [ISO] [NAME]
 #
 # ISO defaults to archlinux-autoinstall.iso, NAME to archman-test. It never
 # replaces a VM: with one of that name already there, it says how to delete
@@ -38,7 +38,7 @@ disk="$folder/$name/$name.vdi"
 video=$PWD/$name.webm
 
 # The last round's video. VirtualBox adds -screen0 to the name it's given.
-rm -f "$PWD/$name.webm" "$PWD/$name"-screen*.webm
+rm -f "$video" "${video%.webm}"-screen*.webm
 
 echo "==> Creating $name"
 VBoxManage createvm --name "$name" --ostype ArchLinux_64 --register > /dev/null

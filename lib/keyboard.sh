@@ -19,13 +19,13 @@ KEYBOARD_LAYOUTS=(
   "Bulgarian|bg-cp1251|bg,us|" "Croatian|croat|hr|" "Czech|cz|cz|" "Danish|dk-latin1|dk|"
   "Dutch|nl|nl|" "Estonian|et|ee|" "Finnish|fi|fi|" "French|fr|fr|" "French (Canada)|cf|ca|"
   "French (Switzerland)|fr_CH|ch|fr" "Georgian|ge|ge,us|" "German|de|de|"
-  "German (Switzerland)|de_CH-latin1|ch|" "Greek|gr|gr,us|" "Hebrew|il|il|" "Hungarian|hu|hu|"
+  "German (Switzerland)|de_CH-latin1|ch|" "Greek|gr|gr,us|" "Hebrew|il|il,us|" "Hungarian|hu|hu|"
   "Icelandic|is-latin1|is|" "Irish|ie|ie|" "Italian|it|it|" "Japanese|jp106|jp|"
   "Kazakh|kazakh|kz,us|" "Kyrgyz|kyrgyz|kg,us|" "Latvian|lv|lv|apostrophe" "Lithuanian|lt|lt|"
   "Macedonian|mk-utf|mk,us|" "Norwegian|no-latin1|no|" "Polish|pl|pl|" "Portuguese|pt-latin1|pt|"
   "Portuguese (Brazil)|br-abnt2|br|" "Romanian|ro|ro|" "Russian|ru|ru,us|"
   "Serbian|sr-latin|rs|latin" "Slovak|sk-qwertz|sk|" "Slovenian|slovene|si|" "Spanish|es|es|"
-  "Spanish (Latin American)|la-latin1|latam|" "Swedish|sv-latin1|se|" "Tajik|tj_alt-UTF8|tj|"
+  "Spanish (Latin American)|la-latin1|latam|" "Swedish|sv-latin1|se|" "Tajik|tj_alt-UTF8|tj,us|"
   "Turkish|trq|tr|" "Ukrainian|ua|ua,us|"
 )
 # The layout people type on, by country (geolocate's); any other country,

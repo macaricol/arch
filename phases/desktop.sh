@@ -39,8 +39,7 @@ phase_desktop() {
 }
 
 configure_mpv() {
-  sudo mkdir -p /etc/mpv
-  sudo tee /etc/mpv/input.conf > /dev/null <<'EOF'
+  write_file /etc/mpv/input.conf <<'EOF'
 WHEEL_UP      seek 10
 WHEEL_DOWN    seek -10
 WHEEL_LEFT    add volume -2
@@ -59,8 +58,7 @@ configure_audio() {
 
   local dir
   for dir in client pipewire-pulse; do
-    sudo mkdir -p "/etc/pipewire/$dir.conf.d"
-    sudo tee "/etc/pipewire/$dir.conf.d/20-upmix.conf" > /dev/null <<EOF
+    write_file "/etc/pipewire/$dir.conf.d/20-upmix.conf" <<EOF
 # Managed by arch-setup. Upmix stereo onto all surround speakers.
 stream.properties = {
     channelmix.upmix        = true
@@ -110,12 +108,12 @@ install_look_files() {
 # SDDM's settings, the same with either look; its theme comes with the look
 # (phases/look.sh). Read when the login screen starts.
 configure_login_screen() {
-  local conf=/etc/sddm.conf.d/kde_settings.conf
+  local conf=(--file /etc/sddm.conf.d/kde_settings.conf)
   sudo mkdir -p /etc/sddm.conf.d
-  sudo kwriteconfig6 --file "$conf" --group General --key HaltCommand   "/usr/bin/systemctl poweroff"
-  sudo kwriteconfig6 --file "$conf" --group General --key RebootCommand "/usr/bin/systemctl reboot"
-  sudo kwriteconfig6 --file "$conf" --group Users   --key MinimumUid 1000
-  sudo kwriteconfig6 --file "$conf" --group Users   --key MaximumUid 60513
+  sudo kwriteconfig6 "${conf[@]}" --group General --key HaltCommand   "/usr/bin/systemctl poweroff"
+  sudo kwriteconfig6 "${conf[@]}" --group General --key RebootCommand "/usr/bin/systemctl reboot"
+  sudo kwriteconfig6 "${conf[@]}" --group Users   --key MinimumUid 1000
+  sudo kwriteconfig6 "${conf[@]}" --group Users   --key MaximumUid 60513
 }
 
 # The keyboard layout chosen in the install phase (X11_LAYOUT, X11_VARIANT,
@@ -125,21 +123,21 @@ configure_keyboard() {
   # SDDM's greeter runs on X11 and ignores Plasma's keyboard setting
   # (kxkbrc): without this, the first password is typed on a US layout, and
   # one with characters that move between layouts is refused.
-  sudo mkdir -p /etc/X11/xorg.conf.d
   {
     printf 'Section "InputClass"\n    Identifier "system-keyboard"\n    MatchIsKeyboard "on"\n'
     printf '    Option "XkbLayout" "%s"\n' "$X11_LAYOUT"
     [[ -z $X11_VARIANT ]] || printf '    Option "XkbVariant" "%s"\n' "$X11_VARIANT"
     [[ -z $X11_OPTIONS ]] || printf '    Option "XkbOptions" "%s"\n' "$X11_OPTIONS"
     printf 'EndSection\n'
-  } | sudo tee /etc/X11/xorg.conf.d/00-keyboard.conf > /dev/null
-  kwriteconfig6 --file kxkbrc --group Layout --key LayoutList "$X11_LAYOUT"
-  kwriteconfig6 --file kxkbrc --group Layout --key VariantList "$X11_VARIANT"
+  } | write_file /etc/X11/xorg.conf.d/00-keyboard.conf
+  local layout=(--file kxkbrc --group Layout)
+  kwriteconfig6 "${layout[@]}" --key LayoutList "$X11_LAYOUT"
+  kwriteconfig6 "${layout[@]}" --key VariantList "$X11_VARIANT"
   if [[ -n $X11_OPTIONS ]]; then
-    kwriteconfig6 --file kxkbrc --group Layout --key Options "$X11_OPTIONS"
-    kwriteconfig6 --file kxkbrc --group Layout --key ResetOldOptions true
+    kwriteconfig6 "${layout[@]}" --key Options "$X11_OPTIONS"
+    kwriteconfig6 "${layout[@]}" --key ResetOldOptions true
   fi
-  kwriteconfig6 --file kxkbrc --group Layout --key Use true
+  kwriteconfig6 "${layout[@]}" --key Use true
 }
 
 configure_samba() {
@@ -149,7 +147,7 @@ configure_samba() {
   sudo chmod 1770 /var/lib/samba/usershares
   sudo usermod -aG sambashare "$USER"
 
-  sudo tee /etc/samba/smb.conf > /dev/null <<EOF
+  write_file /etc/samba/smb.conf <<EOF
 [global]
    workgroup = $SAMBA_WORKGROUP
    server string = Samba Server %v
@@ -198,6 +196,7 @@ install_aur_packages() {
   # weight (aur_weight).
   local pkg parts used=0 part
   parts=$(aur_weight "$SETUP_DIR/packages")
+  (( parts )) || return 0   # (AUR_PACKAGES empty)
   for pkg in "${AUR_PACKAGES[@]}"; do
     part=$(aur_weight "$SETUP_DIR/packages" "$pkg")
     share $(( 1000 * used / parts )) $(( 1000 * (used + part) / parts ))
@@ -206,9 +205,6 @@ install_aur_packages() {
   done
 }
 
-# Plasma writes several of the config files plasma-tweaks edits during its own
-# startup, so that phase can't run from here: autostart it in the first
-# session instead, in phase 2 (after the shell is up) plus a real delay.
 # Global shortcuts, for the apps installed above: Alt+W opens skwd-wall, the
 # wallpaper picker. Written before the first login, as Plasma's shortcut
 # service reads them when the session starts: an app's launch shortcut,
@@ -217,9 +213,14 @@ configure_shortcuts() {
   kwriteconfig6 --file kglobalshortcutsrc --group services --group skwd-wall-v2.desktop --key _launch "Alt+W"
 }
 
+# Plasma writes several of the config files plasma-tweaks edits during its own
+# startup, so that phase can't run from here: autostart it in the first
+# session instead, in phase 2 (after the shell is up); it waits for Plasma
+# to settle itself (wait_for_plasma).
 schedule_plasma_tweaks() {
-  mkdir -p "$HOME/.config/autostart"
-  cat > "$HOME/.config/autostart/arch-plasma-tweaks.desktop" <<EOF
+  local entry=$HOME/$PLASMA_TWEAKS_AUTOSTART
+  mkdir -p "${entry%/*}"
+  cat > "$entry" <<EOF
 [Desktop Entry]
 Type=Application
 Name=Arch setup: Plasma first-login tweaks
